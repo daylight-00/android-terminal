@@ -42,6 +42,14 @@ r27d sysroot, API 29 stubs, headers, and compiler runtime. Output is validation 
 only and is not committed. Gradle packages the same generated arm64 library and does not
 invoke CMake or the incompatible NDK host linker.
 
+## Android SDK build gate
+
+`tools/prepare-android-sdk.sh` resolves or creates one SDK root, pins the official Android
+command-line tools archive and SHA-256, installs platform 35 plus build-tools 35.0.0, and writes
+only the ignored `local.properties`. On Android/Termux it selects the native `aapt2` executable
+instead of allowing AGP to launch Google's x86_64 Linux binary. APK assembly passes that exact
+path through `android.aapt2FromMavenOverride`.
+
 ## Device gate
 
 A device PASS requires a bounded receipt containing at least:

@@ -50,6 +50,7 @@ def verify(root: Path) -> list[str]:
     codec = read_required(root, "app/src/main/assets/terminal/terminal-codec.js", failures)
     acquisition = read_required(root, "tools/acquire-web-terminal-assets.sh", failures)
     native_build = read_required(root, "tools/build-native-bridge.sh", failures)
+    sdk_prepare = read_required(root, "tools/prepare-android-sdk.sh", failures)
 
     settings = read_required(root, "settings.gradle", failures)
     readme = read_required(root, "README.md", failures)
@@ -75,6 +76,12 @@ def verify(root: Path) -> list[str]:
     require("--target=${TRIPLE}${API}" in native_build, "native fallback must target Android API 29", failures)
     require("--sysroot=$SYSROOT" in native_build, "native fallback must retain the NDK sysroot", failures)
     require("--ld-path=$HOST_LLD" in native_build, "native fallback must use a host-native linker", failures)
+    require("commandlinetools-linux-15859902_latest.zip" in sdk_prepare, "Android command-line tools must be pinned", failures)
+    require("4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583" in sdk_prepare, "Android command-line tools SHA-256 must be pinned", failures)
+    require("platforms;android-${SDK_API}" in sdk_prepare, "SDK bootstrap must install platform API 35", failures)
+    require("build-tools;${BUILD_TOOLS_VERSION}" in sdk_prepare, "SDK bootstrap must install build-tools 35.0.0", failures)
+    require("pkg install -y aapt2" in sdk_prepare, "Termux ARM64 aapt2 fallback is required", failures)
+    require("sdk.dir=$SDK_ROOT" in sdk_prepare, "SDK bootstrap must write local.properties", failures)
     require("org.jetbrains.kotlin.android" in root_build, "Kotlin Android plugin is required", failures)
     require("com.android.application" in root_build, "Android application plugin is required", failures)
 

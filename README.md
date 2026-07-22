@@ -16,6 +16,7 @@ filesystem, or a Linux distribution.
 | Minimum/target API | API 29 |
 | Native API floor | API 29 |
 | NDK | r27d (`27.3.13750724`) |
+| Android SDK build input | platform 35 + build-tools 35.0.0 |
 | ABI | `arm64-v8a` only |
 | Android glue | Kotlin 2.4.10, platform APIs only |
 | Terminal frontend | system WebView + `@xterm/xterm` 6.0.0 |
@@ -97,11 +98,24 @@ it falls back to the installed host-native `clang` and `ld.lld` while still usin
 NDK r27d sysroot and API 29 target libraries. This avoids executing the NDK's
 `linux-x86_64/ld.lld` through Android's Bionic loader.
 
-After provisioning assets, build with a trusted Gradle installation. Gradle runs the same
-host-aware native builder and packages its generated `arm64-v8a/libshellbridge.so`:
+Prepare a bounded SDK location before the first APK build:
 
 ```sh
-gradle :app:assembleDebug
+SDK_ENV_FILE="$TMPDIR/android-terminal-sdk.env" ./tools/prepare-android-sdk.sh
+. "$TMPDIR/android-terminal-sdk.env"
+```
+
+The SDK helper reuses an existing compatible SDK when present. Otherwise it pins the official
+Android command-line tools, installs platform 35 and build-tools 35.0.0, writes the untracked
+`local.properties`, and selects a host-native `aapt2` (installing the Termux `aapt2` package when
+necessary). This prevents AGP from trying to execute Google's x86_64 Linux `aapt2` on ARM64
+Android.
+
+After provisioning assets and the SDK, build with a trusted Gradle installation. Gradle runs
+the host-aware native builder and packages its generated `arm64-v8a/libshellbridge.so`:
+
+```sh
+gradle -Pandroid.aapt2FromMavenOverride="$AAPT2_PATH" :app:assembleDebug
 ```
 
 ## Runtime probe
