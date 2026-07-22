@@ -92,7 +92,13 @@ Native bridge compile with NDK r27d:
 ANDROID_NDK_HOME="$HOME/opt/android-ndk-r27d" ./tools/verify-native-ndk.sh
 ```
 
-After provisioning assets, build with a trusted Gradle installation:
+The builder first tries the official NDK host compiler and linker. On ARM64 Android/Termux,
+it falls back to the installed host-native `clang` and `ld.lld` while still using the exact
+NDK r27d sysroot and API 29 target libraries. This avoids executing the NDK's
+`linux-x86_64/ld.lld` through Android's Bionic loader.
+
+After provisioning assets, build with a trusted Gradle installation. Gradle runs the same
+host-aware native builder and packages its generated `arm64-v8a/libshellbridge.so`:
 
 ```sh
 gradle :app:assembleDebug

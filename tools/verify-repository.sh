@@ -24,6 +24,7 @@ check web-assets python3 "$ROOT/tools/verify-web-assets.py" "$ROOT"
 check verifier-fixtures "$ROOT/tools/test-verifier.sh"
 check shell-syntax bash -n \
   "$ROOT/tools/acquire-web-terminal-assets.sh" \
+  "$ROOT/tools/build-native-bridge.sh" \
   "$ROOT/tools/test-asset-provisioner.sh" \
   "$ROOT/tools/test-web-terminal.sh" \
   "$ROOT/tools/verify-repository.sh" \
@@ -44,6 +45,10 @@ check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 29' app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
+check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
+check native-gradle-task grep -Fq "tasks.register('buildNativeBridge', Exec)" app/build.gradle
+check no-external-native-build sh -c '! grep -Fq externalNativeBuild app/build.gradle'
+check host-native-ndk-fallback grep -Fq 'host-native-clang-ndk-sysroot' tools/build-native-bridge.sh
 check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c

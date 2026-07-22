@@ -49,6 +49,7 @@ def verify(root: Path) -> list[str]:
     javascript = read_required(root, "app/src/main/assets/terminal/terminal.js", failures)
     codec = read_required(root, "app/src/main/assets/terminal/terminal-codec.js", failures)
     acquisition = read_required(root, "tools/acquire-web-terminal-assets.sh", failures)
+    native_build = read_required(root, "tools/build-native-bridge.sh", failures)
 
     settings = read_required(root, "settings.gradle", failures)
     readme = read_required(root, "README.md", failures)
@@ -67,7 +68,13 @@ def verify(root: Path) -> list[str]:
         failures,
     )
     require("abiFilters 'arm64-v8a'" in build, "ABI must be arm64-v8a only", failures)
-    require("ANDROID_STL=none" in build, "C++ runtime must remain disabled", failures)
+    require("buildNativeBridge" in build, "Gradle must build the native bridge through the host-aware task", failures)
+    require("generated/jniLibs" in build, "generated JNI directory must be configured", failures)
+    require("externalNativeBuild" not in build, "Gradle must not invoke non-native NDK host binaries", failures)
+    require("host-native-clang-ndk-sysroot" in native_build, "Termux host-native clang fallback is required", failures)
+    require("--target=${TRIPLE}${API}" in native_build, "native fallback must target Android API 29", failures)
+    require("--sysroot=$SYSROOT" in native_build, "native fallback must retain the NDK sysroot", failures)
+    require("--ld-path=$HOST_LLD" in native_build, "native fallback must use a host-native linker", failures)
     require("org.jetbrains.kotlin.android" in root_build, "Kotlin Android plugin is required", failures)
     require("com.android.application" in root_build, "Android application plugin is required", failures)
 

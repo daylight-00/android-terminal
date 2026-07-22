@@ -33,9 +33,14 @@ tree from a fully provisioned tree and rejects partial or unreceipted assets.
 
 ## NDK verifier
 
-`tools/verify-native-ndk.sh` invokes `aarch64-linux-android29-clang`, creates one temporary
-`libshellbridge.so`, and checks ELF machine, dependencies, and JNI exports. Output is
-validation evidence only and is not committed.
+`tools/verify-native-ndk.sh` invokes `tools/build-native-bridge.sh`, creates one temporary
+`libshellbridge.so`, and checks ELF machine, dependencies, and JNI exports. The builder
+uses the official NDK r27d compiler/linker when those host binaries execute normally. On
+native Android/Termux, where the NDK `linux-x86_64` linker is not a valid ARM64 Bionic
+host executable, it uses Termux's host-native `clang` and `ld.lld` with the exact NDK
+r27d sysroot, API 29 stubs, headers, and compiler runtime. Output is validation evidence
+only and is not committed. Gradle packages the same generated arm64 library and does not
+invoke CMake or the incompatible NDK host linker.
 
 ## Device gate
 
