@@ -68,7 +68,9 @@ required_terminal = (
     "terminal.onData(",
     "terminal.onBinary(",
     "terminal.write(codec.base64ToBytes(message.data)",
-    "event.origin !== APP_ORIGIN",
+    "event.data !== 'native-shell'",
+    "window.removeEventListener('message', handleNativeChannel)",
+    "Native terminal channel did not connect.",
     "nativePort.start()",
 )
 

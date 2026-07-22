@@ -61,3 +61,7 @@ A device PASS requires a bounded receipt containing at least:
 - shell startup, `id`, environment, and executable resolution;
 - PTY echo, Ctrl+C, resize, UTF-8/IME, scrollback, and lifecycle behavior;
 - complete first-failure context if any step fails.
+
+## WebView channel startup
+
+The terminal page must replace the loading overlay after receiving the exact `native-shell` marker with one transferred message port. It must not reject the native channel by comparing `MessageEvent.origin`, and it exposes a five-second startup diagnostic instead of leaving an indefinite loading overlay.

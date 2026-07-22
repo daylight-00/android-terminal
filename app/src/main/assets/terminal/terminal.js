@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const APP_ORIGIN = 'https://app.local';
   const status = document.getElementById('status');
   const container = document.getElementById('terminal');
+
+  window.addEventListener('error', (event) => {
+    fail(`Terminal script error: ${event.message || 'unknown error'}`);
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+    fail(`Terminal promise error: ${reason}`);
+  });
 
   function fail(message) {
     status.textContent = message;
@@ -41,6 +48,9 @@
 
   let nativePort = null;
   let resizeFrame = 0;
+  const channelTimeout = window.setTimeout(() => {
+    fail('Native terminal channel did not connect.');
+  }, 5000);
 
   const codec = window.NativeShellCodec;
   if (!codec) {
@@ -86,8 +96,10 @@
   new ResizeObserver(scheduleResize).observe(container);
   window.addEventListener('resize', scheduleResize, {passive: true});
 
-  window.addEventListener('message', (event) => {
-    if (event.origin !== APP_ORIGIN || event.data !== 'native-shell' || !event.ports[0]) return;
+  function handleNativeChannel(event) {
+    if (event.data !== 'native-shell' || !event.ports || !event.ports[0]) return;
+    window.removeEventListener('message', handleNativeChannel);
+    window.clearTimeout(channelTimeout);
     nativePort = event.ports[0];
     nativePort.onmessage = (nativeEvent) => {
       let message;
@@ -116,5 +128,7 @@
     terminal.focus();
     fitAddon.fit();
     post(dimensions('ready'));
-  }, {once: true});
+  }
+
+  window.addEventListener('message', handleNativeChannel);
 })();

@@ -82,3 +82,5 @@ size metadata in a local receipt.
 - WebView implementation behavior varies with the installed Android System WebView.
 - Session persistence across Activity destruction is out of scope.
 - Device-runtime success and OEM `/system/bin` policy require owner-device evidence.
+
+The initial native-to-page channel transfer is target-origin restricted on Android. Page JavaScript validates the channel marker and transferred port rather than assuming `MessageEvent.origin` identifies the native sender.
