@@ -43,6 +43,75 @@ const utf8 = new TextEncoder().encode('ASCII 한글 😀 \\u0000');
 equalBytes(codec.base64ToBytes(codec.stringToUtf8Base64('ASCII 한글 😀 \\u0000')), utf8, 'utf8');
 console.log('PASS web-terminal-codec runtime=node');
 JS
+
+  "$NODE_COMMAND" - "$TERMINAL" <<'JS'
+'use strict';
+const fs = require('fs');
+const vm = require('vm');
+const path = process.argv[2];
+const source = fs.readFileSync(path, 'utf8');
+
+const listeners = new Map();
+const statusClasses = new Set();
+const status = {
+  textContent: 'Loading terminal…',
+  classList: {
+    add(value) { statusClasses.add(value); },
+    remove(value) { statusClasses.delete(value); }
+  }
+};
+const container = {clientWidth: 1080, clientHeight: 1920};
+const posted = [];
+let portStarted = false;
+const port = {
+  onmessage: null,
+  postMessage(value) { posted.push(JSON.parse(value)); },
+  start() { portStarted = true; }
+};
+class Terminal {
+  constructor() { this.rows = 24; this.cols = 80; }
+  loadAddon() {}
+  open() {}
+  onData() {}
+  onBinary() {}
+  focus() {}
+  write(_data, callback) { if (callback) callback(); }
+}
+class FitAddon { fit() {} }
+const context = {
+  console,
+  Error,
+  String,
+  Uint8Array,
+  document: {getElementById(id) { return id === 'status' ? status : container; }},
+  Terminal,
+  FitAddon: {FitAddon},
+  NativeShellCodec: {
+    stringToUtf8Base64() { return ''; },
+    bytesToBase64() { return ''; },
+    base64ToBytes() { return new Uint8Array(); }
+  },
+  ResizeObserver: class { observe() {} },
+  requestAnimationFrame() { return 1; }
+};
+context.window = context;
+context.setTimeout = () => 7;
+context.clearTimeout = () => {};
+context.addEventListener = (type, callback) => listeners.set(type, callback);
+context.removeEventListener = (type, callback) => {
+  if (listeners.get(type) === callback) listeners.delete(type);
+};
+vm.createContext(context);
+vm.runInContext(source, context, {filename: path});
+const handler = listeners.get('message');
+if (typeof handler !== 'function') throw new Error('message handler missing');
+handler({origin: '', data: 'native-shell', ports: [port]});
+if (!portStarted) throw new Error('native port was rejected when MessageEvent.origin was empty');
+if (!statusClasses.has('hidden')) throw new Error('loading overlay was not hidden');
+if (listeners.has('message')) throw new Error('message handler was not removed after valid handshake');
+if (posted.length !== 1 || posted[0].type !== 'ready') throw new Error('ready message missing');
+console.log('PASS web-terminal-channel origin=empty');
+JS
 else
   python3 - "$CODEC" "$TERMINAL" <<'PY'
 from __future__ import annotations
