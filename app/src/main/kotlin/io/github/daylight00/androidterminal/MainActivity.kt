@@ -8,6 +8,7 @@ import android.content.ServiceConnection
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.IBinder
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -32,8 +33,12 @@ class MainActivity : Activity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 ),
             )
+            applyAppearance(resources.configuration)
             root.requestApplyInsets()
-            root.post(terminal::requestGeometrySync)
+            root.post {
+                terminal.requestGeometrySync()
+                terminal.requestPlatformStateSync()
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -45,12 +50,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = TerminalCustomization.backgroundColor
-        window.navigationBarColor = TerminalCustomization.backgroundColor
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         root = FrameLayout(this).apply {
-            setBackgroundColor(TerminalCustomization.backgroundColor)
             setOnApplyWindowInsetsListener { _, insets ->
                 controller?.requestGeometrySync()
                 insets
@@ -65,6 +67,7 @@ class MainActivity : Activity() {
             }
         }
         setContentView(root)
+        applyAppearance(resources.configuration)
         root.requestApplyInsets()
 
         val serviceIntent = Intent(this, TerminalSessionService::class.java)
@@ -74,18 +77,30 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        root.post { controller?.requestGeometrySync() }
+        root.post {
+            controller?.requestGeometrySync()
+            controller?.requestPlatformStateSync()
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) root.post { controller?.requestGeometrySync() }
+        if (hasFocus) {
+            root.post {
+                controller?.requestGeometrySync()
+                controller?.requestPlatformStateSync()
+            }
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        applyAppearance(newConfig)
         root.requestApplyInsets()
-        root.post { controller?.requestGeometrySync() }
+        root.post {
+            controller?.requestGeometrySync()
+            controller?.requestPlatformStateSync()
+        }
     }
 
     override fun onDestroy() {
@@ -96,5 +111,27 @@ class MainActivity : Activity() {
             serviceBound = false
         }
         super.onDestroy()
+    }
+
+    private fun applyAppearance(configuration: Configuration) {
+        val background = TerminalCustomization.backgroundColor(configuration)
+        window.statusBarColor = background
+        window.navigationBarColor = background
+        root.setBackgroundColor(background)
+        controller?.updateAppearance(configuration)
+
+        @Suppress("DEPRECATION")
+        var flags = window.decorView.systemUiVisibility
+        @Suppress("DEPRECATION")
+        val lightMask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        @Suppress("DEPRECATION")
+        flags = if (TerminalCustomization.usesLightSystemBars(configuration)) {
+            flags or lightMask
+        } else {
+            flags and lightMask.inv()
+        }
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = flags
     }
 }

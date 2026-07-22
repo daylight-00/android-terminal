@@ -28,11 +28,11 @@
 
   status.textContent = message('loading', 'Loading terminal…');
 
-  if (!contract || contract.protocolVersion !== 3 || !contract.messages) {
+  if (!contract || contract.protocolVersion !== 4 || !contract.messages || !contract.platformOperations) {
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
-  if (!customization || customization.contractVersion !== 1) {
+  if (!customization || customization.contractVersion !== 2) {
     fail('Terminal customization contract is unavailable.');
     return;
   }
@@ -50,7 +50,6 @@
   const fitAddon = new window.FitAddon.FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(container);
-  customization.mount({root: customRoot, terminal, fitAddon});
 
   let nativePort = null;
   let geometryFrame = 0;
@@ -58,6 +57,10 @@
   let lastPostedGeometry = '';
   let connectionGeneration = 0;
   let sessionId = '';
+  let nextPlatformRequestId = 1;
+  let lastPlatformState = null;
+  const pendingPlatformRequests = new Map();
+  const MAX_PENDING_PLATFORM_REQUESTS = 16;
   const channelTimeout = window.setTimeout(() => {
     fail(message('channelTimeout', 'Native terminal channel did not connect.'));
   }, 5000);
@@ -67,7 +70,7 @@
   }
 
   function post(payload, attachmentRequired = true) {
-    if (!nativePort || (attachmentRequired && !isAttached())) return;
+    if (!nativePort || (attachmentRequired && !isAttached())) return false;
     const envelope = {
       contractVersion: contract.protocolVersion,
       ...payload
@@ -77,7 +80,74 @@
       envelope.sessionId = sessionId;
     }
     nativePort.postMessage(JSON.stringify(envelope));
+    return true;
   }
+
+  function requestPlatform(operation, payload = {}) {
+    if (!isAttached()) return Promise.reject(new Error('Native terminal platform is not attached.'));
+    if (pendingPlatformRequests.size >= MAX_PENDING_PLATFORM_REQUESTS) {
+      return Promise.reject(new Error('Too many pending Android platform requests.'));
+    }
+    const requestId = `platform-${nextPlatformRequestId++}`;
+    return new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        pendingPlatformRequests.delete(requestId);
+        reject(new Error(`Android platform request timed out: ${operation}`));
+      }, 5000);
+      pendingPlatformRequests.set(requestId, {resolve, reject, timeout});
+      if (!post({
+        type: contract.messages.platformRequest,
+        requestId,
+        operation,
+        payload
+      })) {
+        window.clearTimeout(timeout);
+        pendingPlatformRequests.delete(requestId);
+        reject(new Error('Native terminal platform is unavailable.'));
+      }
+    });
+  }
+
+  const platform = Object.freeze({
+    copySelection() {
+      if (!terminal.hasSelection()) return Promise.resolve({copied: false, reason: 'no-selection'});
+      return requestPlatform(contract.platformOperations.clipboardWrite, {
+        text: terminal.getSelection()
+      });
+    },
+    pasteClipboard() {
+      return requestPlatform(contract.platformOperations.clipboardRead).then((result) => {
+        const text = result && typeof result.text === 'string' ? result.text : '';
+        if (text !== '') terminal.paste(text);
+        return result;
+      });
+    },
+    openExternalUri(uri) {
+      if (!customization.isExternalUriAllowed(uri)) {
+        return Promise.reject(new Error('External URI is blocked by terminal policy.'));
+      }
+      return requestPlatform(contract.platformOperations.openExternalUri, {uri: String(uri)});
+    },
+    bell() {
+      return requestPlatform(contract.platformOperations.bell);
+    },
+    getState() {
+      return lastPlatformState ? {...lastPlatformState} : null;
+    }
+  });
+  window.AndroidTerminalPlatform = platform;
+
+  terminal.options.linkHandler = {
+    allowNonHttpProtocols: false,
+    activate(_event, uri) {
+      platform.openExternalUri(uri).catch(() => {});
+    }
+  };
+  terminal.onBell(() => {
+    platform.bell().catch(() => {});
+  });
+
+  customization.mount({root: customRoot, terminal, fitAddon, platform});
 
   function measureGeometry(type) {
     const pixelWidth = Math.floor(container.clientWidth);
@@ -105,8 +175,7 @@
     const payload = type === contract.messages.ready
       ? {...geometry, capabilities: contract.pageCapabilities}
       : geometry;
-    post(payload, attachmentRequired);
-    return true;
+    return post(payload, attachmentRequired);
   }
 
   function flushGeometry() {
@@ -168,6 +237,32 @@
     }
   }
 
+  function handlePlatformState(nativeMessage) {
+    lastPlatformState = Object.freeze({
+      colorScheme: nativeMessage.colorScheme === 'light' ? 'light' : 'dark',
+      accessibilityEnabled: Boolean(nativeMessage.accessibilityEnabled),
+      touchExplorationEnabled: Boolean(nativeMessage.touchExplorationEnabled),
+      hardwareKeyboardPresent: Boolean(nativeMessage.hardwareKeyboardPresent),
+      fontScale: Number(nativeMessage.fontScale) || 1
+    });
+    customization.applyPlatformState({terminal, state: lastPlatformState, platform});
+    scheduleGeometry();
+  }
+
+  function handlePlatformResult(nativeMessage) {
+    const requestId = String(nativeMessage.requestId || '');
+    const pending = pendingPlatformRequests.get(requestId);
+    if (!pending) return;
+    pendingPlatformRequests.delete(requestId);
+    window.clearTimeout(pending.timeout);
+    if (nativeMessage.ok) {
+      pending.resolve(nativeMessage.data && typeof nativeMessage.data === 'object'
+        ? nativeMessage.data : {});
+    } else {
+      pending.reject(new Error(String(nativeMessage.error || 'Android platform request failed.')));
+    }
+  }
+
   function handleNativeChannel(event) {
     if (event.data !== contract.channelMarker || !event.ports || !event.ports[0]) return;
     window.removeEventListener('message', handleNativeChannel);
@@ -194,8 +289,8 @@
         }
         const nativeCapabilities = Array.isArray(nativeMessage.nativeCapabilities)
           ? nativeMessage.nativeCapabilities : [];
-        if (!nativeCapabilities.includes('android-window-geometry')) {
-          fail(message('incompatibleNativeMessage', 'Native terminal geometry capability is unavailable.'));
+        if (!contract.requiredNativeCapabilities.every((value) => nativeCapabilities.includes(value))) {
+          fail(message('incompatibleNativeMessage', 'Native terminal platform capabilities are incomplete.'));
           return;
         }
         if (!nativeMessage.replayAvailable && nativeMessage.replayTruncated) {
@@ -221,6 +316,12 @@
           break;
         case contract.messages.geometry:
           scheduleGeometry();
+          break;
+        case contract.messages.platformState:
+          handlePlatformState(nativeMessage);
+          break;
+        case contract.messages.platformResult:
+          handlePlatformResult(nativeMessage);
           break;
         case contract.messages.error:
           terminal.write(`\r\n[native error: ${nativeMessage.message}]\r\n`);

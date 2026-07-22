@@ -51,12 +51,16 @@ Layer 2 supplies only the connections required to make upstream functionality us
 - byte-preserving bounded transport with ACK/backpressure;
 - Android IME/WebView input delivery to xterm.js;
 - Android root-layout, window-inset, configuration, focus, WebView, and IME viewport changes;
-- geometry changes through `addon-fit`, a deduplicated protocol v3 geometry contract, and `TIOCSWINSZ`;
+- geometry changes through `addon-fit`, a deduplicated protocol v4 geometry contract, and `TIOCSWINSZ`;
+- text-only clipboard reads/writes through xterm selection and paste public APIs plus Android `ClipboardManager`;
+- OSC 8 link activation through xterm's public `linkHandler` and an exact HTTP/HTTPS Android `ACTION_VIEW` allowlist;
+- xterm bell events through a bounded Android haptic adapter whose activation remains Layer 3 policy;
+- Android light/dark, accessibility, touch-exploration, hardware-keyboard, and font-scale state signals;
 - PTY creation, process execution, signals, reads, writes, and cleanup;
 - bounded raw-output replay for replacement frontends, with explicit truncation;
 - explicit startup and protocol failure reporting.
 
-Layer 2 must use public xterm.js APIs and must not contain terminal appearance policy, a VT parser, a screen model, or shell-command semantics. `TerminalSessionService` is the session authority; `MainActivity` and `TerminalController` are replaceable frontend hosts. Protocol v3 retains the v2 session attachment identity and additionally carries explicit Android window-geometry invalidation. Every attachment is identified by a session ID and monotonically increasing connection generation so stale WebView messages cannot control the current PTY attachment.
+Layer 2 must use public xterm.js APIs and must not contain terminal appearance policy, a VT parser, a screen model, or shell-command semantics. `TerminalSessionService` is the session authority; `MainActivity` and `TerminalController` are replaceable frontend hosts. Protocol v4 retains the v2 session attachment identity, the v3 geometry contract, and adds a bounded request/result platform capability bridge. Every attachment is identified by a session ID and monotonically increasing connection generation so stale WebView messages cannot control the current PTY attachment.
 
 The raw replay journal is intentionally bounded to 1 MiB. Before that bound is exceeded, a replacement frontend can reconstruct the terminal by replaying the unmodified PTY stream from session start. Once exceeded, Layer 2 does not attempt to parse or synthesize terminal state; it reports replay unavailability and continues with live output. Unlimited exact restoration requires an official upstream serialization capability rather than a custom terminal model.
 
@@ -68,7 +72,7 @@ Web customization is isolated under `app/src/main/assets/terminal/customization/
 - visual styling and loading/error text;
 - an empty `#custom-ui-root` for optional future UI.
 
-Native customization is isolated in `TerminalCustomization.kt`, currently limited to host colors and WebView text zoom.
+Native customization is isolated in `TerminalCustomization.kt`. It owns host colors, WebView text zoom, external-URI scheme policy, system-theme following, and whether terminal bells produce haptic feedback. Web customization owns light/dark palettes and whether Android accessibility state enables xterm screen-reader mode.
 
 Layer 3 may use public Layer 2 capabilities, but it may not access the message port, JNI, PTY, or xterm.js private internals.
 

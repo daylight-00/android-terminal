@@ -23,16 +23,17 @@ Layer 3. A capability is not considered complete merely because xterm.js exposes
 | Geometry to rows/columns | `@xterm/addon-fit` | Android root layout, insets, configuration, focus, WebView `ResizeObserver`, and `visualViewport` changes converge on deduplicated `TIOCSWINSZ` updates; transient zero geometry is ignored | No separate product policy | Connected |
 | Output flow control | xterm `write(data, callback)` | One in-flight batch plus bounded ACK queue | Queue limits are fixed host policy | Connected |
 | Activity-independent shell session | Android native shell and PTY | Started/bound platform `Service` owns the PTY | Session stops when the app task is removed | Connected |
-| Frontend reconnection | xterm public `write()` | Protocol v3 retains the v2 attachment identity and reconnects a replacement WebView to the service session | No persistent background session | Connected |
+| Frontend reconnection | xterm public `write()` | Protocol v4 retains the v2 attachment identity and reconnects a replacement WebView to the service session | No persistent background session | Connected |
 | Frontend replay | Raw upstream PTY byte stream | Bounded 1 MiB journal is replayed without parsing terminal semantics | Explicit truncation notice | Connected with bound |
 | Full screen restoration after unlimited output | xterm serialize addon | Not present | Not selected | Upstream pending |
-| Clipboard | xterm selection/input APIs | Android `ClipboardManager` adapter absent | Read/paste policy undecided | Policy pending |
+| Clipboard | xterm `hasSelection()`, `getSelection()`, and `paste()` | Bounded text-only `ClipboardManager` request/result adapter; reads require application focus and occur only after an explicit platform request | Visible copy/paste controls remain a Layer 3 choice | Connected |
 | Search | `@xterm/addon-search` | Not vendored | Search UI undecided | Upstream pending |
-| Web/OSC links | xterm link APIs or official web-links addon | Android `ACTION_VIEW` adapter absent | Scheme allowlist undecided | Policy pending |
-| Bell | xterm bell event | Android haptic/audio adapter absent | Default disabled/enabled undecided | Policy pending |
-| System theme | xterm options | Android configuration signal absent | Palette undecided | Policy pending |
-| Hardware keyboard supplement | xterm input APIs | Android physical `KeyEvent` supplement absent | Modifier behavior undecided | Policy pending |
-| Accessibility | xterm accessibility support | Android accessibility state adapter absent | Activation policy undecided | Policy pending |
+| OSC 8 links | xterm core `linkHandler` | Exact HTTP/HTTPS validation followed by Android `ACTION_VIEW`; unsafe, credential-bearing, file, content, intent, data, and JavaScript URIs are rejected | HTTP/HTTPS only | Connected |
+| Plain-text web links | `@xterm/addon-web-links` | Not vendored | Activation UI and hover behavior undecided | Upstream pending |
+| Bell | xterm `onBell` | Android `performHapticFeedback` adapter | Haptic effect is explicitly disabled by default | Connected, policy-disabled |
+| System theme | xterm `options.theme` | Android configuration state is sent on attach, resume, focus, and configuration changes | Follow system light/dark with explicit palettes | Connected |
+| Hardware keyboard | WebView DOM keyboard events and xterm input APIs | WebView remains the input authority; Android reports physical-keyboard presence without intercepting or duplicating key events | Modifier bar and overrides remain unselected | Native already + state connected |
+| Accessibility | xterm `screenReaderMode` | Android accessibility and touch-exploration state listeners feed the platform state contract | Active touch exploration maps to xterm screen-reader mode | Connected |
 | Images | official xterm image addon | Not vendored | GPU/memory policy undecided | Upstream pending |
 | WebGL renderer | official xterm WebGL addon | Renderer-loss fallback absent | Default renderer undecided | Upstream pending |
 | SAF import/export | Android Storage Access Framework | URI-to-private-file transport absent | User-facing actions undecided | Policy pending |

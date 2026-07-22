@@ -1,6 +1,7 @@
 package io.github.daylight00.androidterminal
 
 import android.app.Activity
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -22,6 +23,9 @@ internal class TerminalController(
     val view: WebView = WebView(activity)
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val platformAdapter = TerminalPlatformAdapter(activity, view) { state ->
+        mainHandler.post { sendPlatformState(state) }
+    }
     private val queueLock = Object()
     private val outputQueue = TreeMap<Long, ByteArray>()
 
@@ -100,6 +104,7 @@ internal class TerminalController(
             pendingFailure = null
             queueLock.notifyAll()
         }
+        platformAdapter.close()
         messagePort?.close()
         messagePort = null
         view.stopLoading()
@@ -119,8 +124,19 @@ internal class TerminalController(
         }
     }
 
+    fun requestPlatformStateSync() {
+        mainHandler.post {
+            if (closed) return@post
+            platformAdapter.publishState()
+        }
+    }
+
+    fun updateAppearance(configuration: Configuration) {
+        view.setBackgroundColor(TerminalCustomization.backgroundColor(configuration))
+    }
+
     private fun configureWebView() {
-        view.setBackgroundColor(TerminalCustomization.backgroundColor)
+        view.setBackgroundColor(TerminalCustomization.backgroundColor(activity.resources.configuration))
         view.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -168,6 +184,10 @@ internal class TerminalController(
 
     private fun handlePageMessage(raw: String) {
         if (closed) return
+        if (raw.length > MAX_PAGE_MESSAGE_CHARACTERS) {
+            sendError("terminal page message too large")
+            return
+        }
         val message = try {
             JSONObject(raw)
         } catch (_: Throwable) {
@@ -183,6 +203,7 @@ internal class TerminalController(
             TerminalContract.MessageType.INPUT -> ifCurrentMessage(message, ::handleInput)
             TerminalContract.MessageType.RESIZE -> ifCurrentMessage(message, ::handleResize)
             TerminalContract.MessageType.ACK -> ifCurrentMessage(message, ::handleAck)
+            TerminalContract.MessageType.PLATFORM_REQUEST -> ifCurrentMessage(message, ::handlePlatformRequest)
             else -> sendError("unsupported terminal page message")
         }
     }
@@ -234,6 +255,7 @@ internal class TerminalController(
                 .put("nextSequence", attachment.nextSequence)
                 .put("nativeCapabilities", JSONArray(TerminalContract.NATIVE_CAPABILITIES)),
         )
+        sendPlatformState(platformAdapter.currentState())
 
         attachment.replayRecords.forEach { record ->
             enqueueOutput(record, waitForCapacity = false)
@@ -277,6 +299,18 @@ internal class TerminalController(
             dimensions.pixelWidth,
             dimensions.pixelHeight,
         )
+    }
+
+    private fun handlePlatformRequest(message: JSONObject) {
+        val requestId = message.optString("requestId")
+        if (!PLATFORM_REQUEST_ID.matches(requestId)) {
+            sendError("invalid platform request identifier")
+            return
+        }
+        val operation = message.optString("operation")
+        val payload = message.optJSONObject("payload") ?: JSONObject()
+        val result = platformAdapter.handle(operation, payload)
+        sendPlatformResult(requestId, result)
     }
 
     private fun handleAck(message: JSONObject) {
@@ -371,6 +405,34 @@ internal class TerminalController(
         )
     }
 
+    private fun sendPlatformState(state: TerminalPlatformState) {
+        if (!isCurrentAttachment(connectionGeneration, sessionId)) return
+        sendJson(
+            JSONObject()
+                .put("type", TerminalContract.MessageType.PLATFORM_STATE)
+                .put("connectionGeneration", connectionGeneration)
+                .put("sessionId", sessionId)
+                .put("colorScheme", state.colorScheme)
+                .put("accessibilityEnabled", state.accessibilityEnabled)
+                .put("touchExplorationEnabled", state.touchExplorationEnabled)
+                .put("hardwareKeyboardPresent", state.hardwareKeyboardPresent)
+                .put("fontScale", state.fontScale),
+        )
+    }
+
+    private fun sendPlatformResult(requestId: String, result: TerminalPlatformResult) {
+        sendJson(
+            JSONObject()
+                .put("type", TerminalContract.MessageType.PLATFORM_RESULT)
+                .put("connectionGeneration", connectionGeneration)
+                .put("sessionId", sessionId)
+                .put("requestId", requestId)
+                .put("ok", result.ok)
+                .put("data", result.data)
+                .put("error", result.error ?: JSONObject.NULL),
+        )
+    }
+
     private fun sendError(message: String) {
         val payload = JSONObject()
             .put("type", TerminalContract.MessageType.ERROR)
@@ -410,7 +472,9 @@ internal class TerminalController(
     }
 
     private companion object {
+        const val MAX_PAGE_MESSAGE_CHARACTERS = 512 * 1024
         const val MAX_INPUT_BASE64 = 256 * 1024
         const val MAX_QUEUED_BYTES = 2 * 1024 * 1024
+        val PLATFORM_REQUEST_ID = Regex("[A-Za-z0-9._-]{1,64}")
     }
 }

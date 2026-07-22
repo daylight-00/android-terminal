@@ -54,6 +54,9 @@ connection status of upstream features.
 - C only owns the PTY and process syscalls that Android's managed API does not expose.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
+- A bounded protocol v4 platform bridge connects explicit clipboard actions, OSC 8 links, bell
+  events, system theme, accessibility state, and hardware-keyboard presence without adding a
+  terminal parser or replacing WebView/xterm input semantics.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
   origin and rejects every other resource or navigation.

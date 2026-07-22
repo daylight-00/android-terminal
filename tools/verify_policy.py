@@ -55,6 +55,21 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalGeometry.kt",
         failures,
     )
+    platform_adapter = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt",
+        failures,
+    )
+    platform_policy = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformPolicy.kt",
+        failures,
+    )
+    platform_state = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt",
+        failures,
+    )
     web_client = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt",
@@ -141,11 +156,21 @@ def verify(root: Path) -> list[str]:
     require("shouldInterceptRequest" in web_client, "local asset interception is required", failures)
     require("TerminalContract.HOST" in web_client, "local asset host must come from TerminalContract", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
-    require("PROTOCOL_VERSION = 3" in terminal_contract, "terminal contract version 3 must be explicit", failures)
-    require("protocolVersion: 3" in contract_js, "web terminal contract version 3 must be explicit", failures)
+    require("PROTOCOL_VERSION = 4" in terminal_contract, "terminal contract version 4 must be explicit", failures)
+    require("protocolVersion: 4" in contract_js, "web terminal contract version 4 must be explicit", failures)
     require("session-attach-v2" in terminal_contract and "session-attach-v2" in contract_js, "session attach v2 capability must match", failures)
     require("geometry-dedup-v1" in terminal_contract and "geometry-dedup-v1" in contract_js, "geometry dedupe capability must match", failures)
     require("android-window-geometry" in terminal_contract, "native Android window geometry capability is required", failures)
+    require("platform-bridge-v1" in terminal_contract and "platform-bridge-v1" in contract_js, "platform bridge capability must match", failures)
+    for capability in (
+        "android-clipboard",
+        "android-external-uri",
+        "android-haptic-bell",
+        "android-system-theme",
+        "android-accessibility-state",
+        "android-hardware-keyboard-state",
+    ):
+        require(capability in terminal_contract, f"native platform capability is required: {capability}", failures)
     require("class TerminalGeometryState" in geometry, "terminal geometry state must be explicit", failures)
     require("if (!candidate.isUsable()) return null" in geometry, "zero terminal geometry must be rejected", failures)
     require("if (sanitized == current) return null" in geometry, "duplicate terminal geometry must be rejected", failures)
@@ -159,9 +184,35 @@ def verify(root: Path) -> list[str]:
     require("connect-src 'none'" in web_client, "local page must not make network connections", failures)
     require("window.Terminal" in javascript, "frontend must use xterm.js", failures)
     require("FitAddon" in javascript, "frontend must use addon-fit", failures)
+    require("AndroidTerminalPlatform" in javascript, "Layer 2 must expose the bounded Android platform facade", failures)
+    require("terminal.hasSelection()" in javascript and "terminal.getSelection()" in javascript, "clipboard copy must use xterm selection APIs", failures)
+    require("terminal.paste(text)" in javascript, "clipboard paste must use xterm paste API", failures)
+    require("terminal.options.linkHandler" in javascript, "OSC 8 links must use xterm linkHandler", failures)
+    require("terminal.onBell(" in javascript, "terminal bell must use the public xterm event", failures)
+    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'"):
+        require(
+            unselected_upstream not in javascript and unselected_upstream not in contract_js,
+            f"unselected upstream addon must not be claimed: {unselected_upstream}",
+            failures,
+        )
+    require("applyPlatformState" in customization, "Layer 3 must explicitly map Android platform state", failures)
+    require("isExternalUriAllowed" in customization, "Layer 3 must explicitly define URI activation policy", failures)
     require("customization.terminalOptions" in javascript, "Layer 2 must consume explicit Layer 3 terminal options", failures)
     require("cursorBlink" in customization, "terminal appearance policy must stay in Layer 3", failures)
     require("TerminalCustomization.backgroundColor" in controller, "native appearance policy must stay in Layer 3", failures)
+    require("TerminalPlatformAdapter(activity, view)" in controller, "controller must delegate Android capabilities to the platform adapter", failures)
+    require("TerminalContract.MessageType.PLATFORM_REQUEST" in controller, "controller must accept bounded platform requests", failures)
+    require("ClipboardManager" in platform_adapter and "ClipData.newPlainText" in platform_adapter, "platform adapter must use Android text clipboard APIs", failures)
+    require("Intent.ACTION_VIEW" in platform_adapter, "platform adapter must route validated external URIs through ACTION_VIEW", failures)
+    require("performHapticFeedback" in platform_adapter, "platform adapter must expose Android haptic bell capability", failures)
+    require("AccessibilityStateChangeListener" in platform_adapter, "platform adapter must observe Android accessibility state", failures)
+    require("TouchExplorationStateChangeListener" in platform_adapter, "platform adapter must observe touch exploration state", failures)
+    require("data class TerminalPlatformState" in platform_state, "platform state contract must be explicit", failures)
+    require("MAX_CLIPBOARD_CHARACTERS" in platform_policy, "clipboard text must be bounded", failures)
+    require("scheme !in allowedSchemes" in platform_policy, "external URI schemes must be allowlisted", failures)
+    require("parsed.userInfo != null" in platform_policy, "credential-bearing external URIs must be rejected", failures)
+    require("allowedExternalUriSchemes" in native_customization, "native URI scheme policy must stay in Layer 3", failures)
+    require("hapticBellEnabled" in native_customization, "native bell activation policy must stay in Layer 3", failures)
     require("TerminalSessionService.LocalBinder" in controller, "WebView transport must attach to the service session host", failures)
     require("TerminalSession(" not in controller, "WebView transport must not own the PTY session", failures)
     require("class TerminalSessionService : Service()" in session_service, "platform Service must own the shell session", failures)
@@ -194,6 +245,7 @@ def verify(root: Path) -> list[str]:
     require("TerminalSession(" not in activity, "Activity must not own the PTY session", failures)
     require("Upstream capability matrix" in capability_matrix, "capability matrix must be documented", failures)
     require("Frontend reconnection" in capability_matrix, "capability matrix must track frontend reconnection", failures)
+    require("| Clipboard |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)
     validation = read_required(root, "docs/VALIDATION.md", failures)
     require("ADB runtime validation is deferred" in validation, "ADB non-claim must be documented", failures)
 

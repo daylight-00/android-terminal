@@ -43,6 +43,21 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt",
         failures,
     )
+    platform_adapter = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt",
+        failures,
+    )
+    platform_policy = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformPolicy.kt",
+        failures,
+    )
+    platform_state = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt",
+        failures,
+    )
     service = read(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt",
@@ -91,15 +106,29 @@ def verify(root: Path) -> list[str]:
     if 'id="custom-ui-root"' not in html:
         fail("custom UI root is missing", failures)
 
-    if "protocolVersion: 3" not in contract_js or "PROTOCOL_VERSION = 3" not in contract_kt:
-        fail("JavaScript and Kotlin protocol version 3 must match", failures)
+    if "protocolVersion: 4" not in contract_js or "PROTOCOL_VERSION = 4" not in contract_kt:
+        fail("JavaScript and Kotlin protocol version 4 must match", failures)
     if "channelMarker: 'native-shell'" not in contract_js or 'CHANNEL_MARKER = "native-shell"' not in contract_kt:
         fail("JavaScript and Kotlin channel marker must match", failures)
-    for message_type in ("ready", "input", "resize", "ack", "attached", "output", "state", "geometry", "error"):
-        if f"{message_type}: '{message_type}'" not in contract_js:
-            fail(f"JavaScript contract lacks message type: {message_type}", failures)
-        if f'= "{message_type}"' not in contract_kt:
-            fail(f"Kotlin contract lacks message type: {message_type}", failures)
+    message_types = {
+        "ready": "ready",
+        "input": "input",
+        "resize": "resize",
+        "ack": "ack",
+        "platformRequest": "platform-request",
+        "attached": "attached",
+        "output": "output",
+        "state": "state",
+        "geometry": "geometry",
+        "platformState": "platform-state",
+        "platformResult": "platform-result",
+        "error": "error",
+    }
+    for key, wire in message_types.items():
+        if f"{key}: '{wire}'" not in contract_js:
+            fail(f"JavaScript contract lacks message type: {wire}", failures)
+        if f'= "{wire}"' not in contract_kt:
+            fail(f"Kotlin contract lacks message type: {wire}", failures)
 
     for token in (
         "new window.Terminal(customization.terminalOptions)",
@@ -113,6 +142,15 @@ def verify(root: Path) -> list[str]:
         "geometryKey(geometry)",
         "window.visualViewport.addEventListener('resize'",
         "contract.messages.geometry",
+        "window.AndroidTerminalPlatform = platform",
+        "terminal.hasSelection()",
+        "terminal.getSelection()",
+        "terminal.paste(text)",
+        "terminal.options.linkHandler",
+        "terminal.onBell(",
+        "contract.messages.platformRequest",
+        "contract.messages.platformState",
+        "contract.messages.platformResult",
     ):
         if token not in bridge_js:
             fail(f"Layer 2 bridge lacks required public integration token: {token}", failures)
@@ -137,7 +175,10 @@ def verify(root: Path) -> list[str]:
         "fontSize",
         "scrollback",
         "theme",
-        "contractVersion: 1",
+        "contractVersion: 2",
+        "platformPolicy",
+        "isExternalUriAllowed",
+        "applyPlatformState",
         "function mount(context)",
     ):
         if token not in custom_js:
@@ -160,6 +201,10 @@ def verify(root: Path) -> list[str]:
     for private_api in ("._core", "._renderService", "._inputHandler", "._bufferService"):
         if private_api in bridge_js or private_api in custom_js:
             fail(f"xterm.js private API is forbidden: {private_api}", failures)
+
+    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'"):
+        if unselected_upstream in bridge_js or unselected_upstream in contract_js:
+            fail(f"unselected upstream addon leaked into Layer 2: {unselected_upstream}", failures)
 
     if "createWebMessageChannel()" not in controller or "TerminalContract" not in controller:
         fail("Kotlin platform bridge must use WebMessagePort through TerminalContract", failures)
@@ -199,6 +244,45 @@ def verify(root: Path) -> list[str]:
         fail("geometry deduplication capability is not mirrored", failures)
     if "android-window-geometry" not in contract_kt:
         fail("native Android window geometry capability is missing", failures)
+    if "platform-bridge-v1" not in contract_js or "platform-bridge-v1" not in contract_kt:
+        fail("platform bridge capability is not mirrored", failures)
+    for capability in (
+        "android-clipboard",
+        "android-external-uri",
+        "android-haptic-bell",
+        "android-system-theme",
+        "android-accessibility-state",
+        "android-hardware-keyboard-state",
+    ):
+        if capability not in contract_kt:
+            fail(f"native platform capability is missing: {capability}", failures)
+    if "TerminalPlatformAdapter(activity, view)" not in controller:
+        fail("WebView controller must delegate Android capabilities to TerminalPlatformAdapter", failures)
+    if "TerminalContract.MessageType.PLATFORM_REQUEST" not in controller:
+        fail("Kotlin controller does not accept bounded platform requests", failures)
+    for token in (
+        "ClipboardManager",
+        "ClipData.newPlainText",
+        "Intent.ACTION_VIEW",
+        "performHapticFeedback",
+        "AccessibilityStateChangeListener",
+        "TouchExplorationStateChangeListener",
+    ):
+        if token not in platform_adapter:
+            fail(f"Android platform adapter lacks token: {token}", failures)
+    for token in (
+        "MAX_CLIPBOARD_CHARACTERS",
+        "validatedExternalUri",
+        "scheme !in allowedSchemes",
+        "parsed.userInfo != null",
+        "parsed.host.isNullOrBlank()",
+    ):
+        if token not in platform_policy:
+            fail(f"platform policy lacks bounded validation token: {token}", failures)
+    if "data class TerminalPlatformState" not in platform_state:
+        fail("Android platform state contract is missing", failures)
+    if "allowedExternalUriSchemes" not in native_customization or "hapticBellEnabled" not in native_customization:
+        fail("native Layer 3 platform policy is incomplete", failures)
 
     semantic_parser_pattern = re.compile(r"\b(?:CSI|OSC|DCS|SGR)\b|escape sequence|terminal cell", re.IGNORECASE)
     for name, text in (("Kotlin controller", controller), ("native PTY bridge", native)):

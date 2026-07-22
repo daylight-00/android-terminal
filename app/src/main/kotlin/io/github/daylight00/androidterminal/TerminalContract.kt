@@ -1,7 +1,7 @@
 package io.github.daylight00.androidterminal
 
 internal object TerminalContract {
-    const val PROTOCOL_VERSION = 3
+    const val PROTOCOL_VERSION = 4
     const val ORIGIN = "https://app.local"
     const val HOST = "app.local"
     const val DOCUMENT_PATH = "/terminal/index.html"
@@ -13,11 +13,21 @@ internal object TerminalContract {
         const val INPUT = "input"
         const val RESIZE = "resize"
         const val ACK = "ack"
+        const val PLATFORM_REQUEST = "platform-request"
         const val ATTACHED = "attached"
         const val OUTPUT = "output"
         const val STATE = "state"
         const val GEOMETRY = "geometry"
+        const val PLATFORM_STATE = "platform-state"
+        const val PLATFORM_RESULT = "platform-result"
         const val ERROR = "error"
+    }
+
+    object PlatformOperation {
+        const val CLIPBOARD_READ = "clipboard-read"
+        const val CLIPBOARD_WRITE = "clipboard-write"
+        const val OPEN_EXTERNAL_URI = "open-external-uri"
+        const val BELL = "bell"
     }
 
     val REQUIRED_PAGE_CAPABILITIES = setOf(
@@ -27,6 +37,7 @@ internal object TerminalContract {
         "output-ack",
         "session-attach-v2",
         "geometry-dedup-v1",
+        "platform-bridge-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(
@@ -36,5 +47,11 @@ internal object TerminalContract {
         "pty-resize",
         "frontend-reconnect",
         "android-window-geometry",
+        "android-clipboard",
+        "android-external-uri",
+        "android-haptic-bell",
+        "android-system-theme",
+        "android-accessibility-state",
+        "android-hardware-keyboard-state",
     )
 }
