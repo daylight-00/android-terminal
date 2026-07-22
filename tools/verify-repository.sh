@@ -46,6 +46,8 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-platform-adapter-compile.sh" \
   "$ROOT/tools/test-frontend-recovery.sh" \
   "$ROOT/tools/test-renderer-recovery-compile.sh" \
+  "$ROOT/tools/verify-no-saf-virtual-mount.sh" \
+  "$ROOT/tools/test-no-saf-virtual-mount.sh" \
   "$ROOT/tools/verify-repository.sh" \
   "$ROOT/tools/verify-native-ndk.sh" \
   "$ROOT/tools/test-verifier.sh"
@@ -115,7 +117,8 @@ check private-home-document-policy grep -Fq 'resolvePrivateExportSource' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentPolicy.kt
 check activity-document-result grep -Fq 'override fun onActivityResult' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt
-check no-saf-virtual-mount sh -c '! grep -R --exclude-dir=.git --exclude-dir=out -E "ACTION_OPEN_DOCUMENT_TREE|takePersistableUriPermission|DocumentsContract|FUSE" app'
+check no-saf-virtual-mount "$ROOT/tools/verify-no-saf-virtual-mount.sh" "$ROOT"
+check no-saf-virtual-mount-fixture "$ROOT/tools/test-no-saf-virtual-mount.sh"
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c
 check webview grep -Fq 'val view: WebView = WebView(activity)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt
