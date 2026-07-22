@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-SOURCE="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt"
+REPLAY="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt"
+SNAPSHOT="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSerializedSnapshot.kt"
 
 if command -v kotlinc >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
   WORK=$(mktemp -d)
@@ -11,76 +12,60 @@ package io.github.daylight00.androidterminal
 
 fun main() {
     val buffer = SessionReplayBuffer(5)
-    val first = buffer.append(byteArrayOf(1, 2))
-    val second = buffer.append(byteArrayOf(3, 4, 5))
-    check(first.sequence == 1L && second.sequence == 2L)
-    val complete = buffer.snapshot()
-    check(complete.available && !complete.truncated)
-    check(complete.records.size == 2 && complete.nextSequence == 3L)
-    complete.records[0].bytes[0] = 99
-    check(buffer.snapshot().records[0].bytes[0] == 1.toByte())
+    check(buffer.append(byteArrayOf(1, 2)).sequence == 1L)
+    check(buffer.append(byteArrayOf(3, 4, 5)).sequence == 2L)
+    val full = buffer.snapshotAfter(0L)
+    check(full.available && !full.truncated && full.records.map { it.sequence } == listOf(1L, 2L))
+    full.records[0].bytes[0] = 99
+    check(buffer.snapshotAfter(0L).records[0].bytes[0] == 1.toByte())
 
-    val overflow = buffer.append(byteArrayOf(6))
-    check(overflow.sequence == 3L)
-    val unavailable = buffer.snapshot()
-    check(!unavailable.available && unavailable.truncated)
-    check(unavailable.records.isEmpty() && unavailable.nextSequence == 4L)
+    check(buffer.append(byteArrayOf(6)).sequence == 3L)
+    val rolling = buffer.snapshotAfter(1L)
+    check(rolling.available && rolling.truncated)
+    check(rolling.records.map { it.sequence } == listOf(2L, 3L))
+    check(!buffer.snapshotAfter(0L).available)
+
+    val store = TerminalSerializedSnapshotStore(8)
+    val original = byteArrayOf(10, 11, 12)
+    check(store.update(2L, buffer.latestSequence(), original))
+    original[0] = 99
+    val stored = checkNotNull(store.snapshot())
+    check(stored.throughSequence == 2L && stored.bytes[0] == 10.toByte())
+    stored.bytes[0] = 88
+    check(store.snapshot()!!.bytes[0] == 10.toByte())
+    check(buffer.snapshotAfter(stored.throughSequence).records.map { it.sequence } == listOf(3L))
+    check(!store.update(1L, buffer.latestSequence(), byteArrayOf(1)))
+    check(!store.update(4L, buffer.latestSequence(), byteArrayOf(1)))
+    check(!store.update(3L, buffer.latestSequence(), ByteArray(9)))
 
     buffer.reset()
-    val reset = buffer.append(byteArrayOf(7))
-    check(reset.sequence == 1L)
-    check(buffer.snapshot().available)
-    println("PASS session-replay runtime=kotlinc")
+    store.reset()
+    check(buffer.append(byteArrayOf(7)).sequence == 1L)
+    check(buffer.snapshotAfter(0L).available)
+    check(store.snapshot() == null)
+    println("PASS session-replay-and-snapshot runtime=kotlinc")
 }
 KT
-  kotlinc "$SOURCE" "$WORK/TestReplay.kt" -include-runtime -d "$WORK/replay.jar"
+  kotlinc "$REPLAY" "$SNAPSHOT" "$WORK/TestReplay.kt" -include-runtime -d "$WORK/replay.jar"
   java -jar "$WORK/replay.jar"
 else
-  python3 - "$SOURCE" <<'PY'
+  python3 - "$REPLAY" "$SNAPSHOT" <<'PY'
 from pathlib import Path
 import sys
-
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
+replay = Path(sys.argv[1]).read_text(encoding="utf-8")
+snapshot = Path(sys.argv[2]).read_text(encoding="utf-8")
 for token in (
-    "class SessionReplayBuffer",
-    "maximumBytes",
-    "replayAvailable = false",
-    "truncated = true",
-    "records.clear()",
-    "bytes.copyOf()",
-    "fun reset()",
+    "class SessionReplayBuffer", "snapshotAfter", "removeFirst()", "latestSequence()",
+    "bytes.copyOf()", "earliestSequence", "fun reset()",
 ):
-    if token not in source:
-        raise SystemExit(f"missing replay-buffer token: {token}")
-
-class Model:
-    def __init__(self, maximum):
-        self.maximum = maximum
-        self.records = []
-        self.total = 0
-        self.next = 1
-        self.available = True
-        self.truncated = False
-    def append(self, data):
-        seq = self.next
-        self.next += 1
-        if self.available:
-            if self.total + len(data) <= self.maximum:
-                self.records.append((seq, bytes(data)))
-                self.total += len(data)
-            else:
-                self.records.clear()
-                self.total = 0
-                self.available = False
-                self.truncated = True
-        return seq
-
-model = Model(5)
-assert model.append(b"12") == 1
-assert model.append(b"345") == 2
-assert model.records == [(1, b"12"), (2, b"345")]
-assert model.append(b"6") == 3
-assert not model.available and model.truncated and model.records == []
-print("PASS session-replay static-python kotlinc=unavailable")
+    if token not in replay:
+        raise SystemExit(f"missing rolling replay token: {token}")
+for token in (
+    "class TerminalSerializedSnapshotStore", "throughSequence", "latestSequence",
+    "maximumBytes", "bytes.copyOf()", "fun reset()",
+):
+    if token not in snapshot:
+        raise SystemExit(f"missing serialized snapshot token: {token}")
+print("PASS session-replay-and-snapshot static-python kotlinc=unavailable")
 PY
 fi

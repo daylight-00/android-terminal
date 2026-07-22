@@ -28,7 +28,7 @@
 
   status.textContent = message('loading', 'Loading terminal…');
 
-  if (!contract || contract.protocolVersion !== 5 || !contract.messages || !contract.platformOperations) {
+  if (!contract || contract.protocolVersion !== 6 || !contract.messages || !contract.platformOperations) {
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
@@ -41,14 +41,17 @@
     return;
   }
   if (typeof window.Terminal !== 'function' ||
-      !window.FitAddon || typeof window.FitAddon.FitAddon !== 'function') {
+      !window.FitAddon || typeof window.FitAddon.FitAddon !== 'function' ||
+      !window.SerializeAddon || typeof window.SerializeAddon.SerializeAddon !== 'function') {
     fail(message('missingUpstream', 'Pinned xterm.js assets are not provisioned.'));
     return;
   }
 
   const terminal = new window.Terminal(customization.terminalOptions);
   const fitAddon = new window.FitAddon.FitAddon();
+  const serializeAddon = new window.SerializeAddon.SerializeAddon();
   terminal.loadAddon(fitAddon);
+  terminal.loadAddon(serializeAddon);
   terminal.open(container);
 
   let nativePort = null;
@@ -59,8 +62,14 @@
   let sessionId = '';
   let nextPlatformRequestId = 1;
   let lastPlatformState = null;
+  let snapshotTimer = 0;
+  let lastAppliedSequence = 0;
+  let lastSnapshotSequence = -1;
+  let restoringSnapshot = false;
   const pendingPlatformRequests = new Map();
   const MAX_PENDING_PLATFORM_REQUESTS = 16;
+  const MAX_SNAPSHOT_BASE64_CHARACTERS = Math.ceil(contract.serializedSnapshotMaxBytes / 3) * 4;
+  const SNAPSHOT_DELAY_MILLIS = 200;
   const channelTimeout = window.setTimeout(() => {
     fail(message('channelTimeout', 'Native terminal channel did not connect.'));
   }, 5000);
@@ -82,6 +91,39 @@
     nativePort.postMessage(JSON.stringify(envelope));
     return true;
   }
+
+  function flushSnapshot() {
+    if (snapshotTimer) {
+      window.clearTimeout(snapshotTimer);
+      snapshotTimer = 0;
+    }
+    if (!isAttached() || restoringSnapshot || lastAppliedSequence === lastSnapshotSequence) {
+      return false;
+    }
+    const serialized = serializeAddon.serialize();
+    const data = codec.stringToUtf8Base64(serialized);
+    if (data.length > MAX_SNAPSHOT_BASE64_CHARACTERS) {
+      console.warn('Serialized terminal state exceeds the bounded Layer 2 snapshot limit.');
+      return false;
+    }
+    const sent = post({
+      type: contract.messages.snapshot,
+      throughSequence: lastAppliedSequence,
+      data
+    });
+    if (sent) lastSnapshotSequence = lastAppliedSequence;
+    return sent;
+  }
+
+  function scheduleSnapshot() {
+    if (snapshotTimer || !isAttached() || restoringSnapshot) return;
+    snapshotTimer = window.setTimeout(() => {
+      snapshotTimer = 0;
+      flushSnapshot();
+    }, SNAPSHOT_DELAY_MILLIS);
+  }
+
+  window.AndroidTerminalBridge = Object.freeze({flushSnapshot});
 
   function requestPlatform(operation, payload = {}, timeoutMillis = 5000) {
     if (!isAttached()) return Promise.reject(new Error('Native terminal platform is not attached.'));
@@ -237,8 +279,14 @@
   window.addEventListener('pageshow', scheduleGeometry, {passive: true});
   window.addEventListener('focus', scheduleGeometry, {passive: true});
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) scheduleGeometry();
+    if (document.hidden) {
+      flushSnapshot();
+    } else {
+      scheduleGeometry();
+    }
   });
+  window.addEventListener('pagehide', flushSnapshot, {passive: true});
+  window.addEventListener('beforeunload', flushSnapshot, {passive: true});
   if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
     window.visualViewport.addEventListener('resize', scheduleGeometry, {passive: true});
   }
@@ -318,24 +366,59 @@
           fail(message('incompatibleNativeMessage', 'Native terminal platform capabilities are incomplete.'));
           return;
         }
+        const finishAttachment = () => {
+          status.classList.add('hidden');
+          terminal.focus();
+          scheduleGeometry();
+          scheduleSnapshot();
+        };
+        if (nativeMessage.serializedSnapshotAvailable) {
+          const throughSequence = Number(nativeMessage.serializedThroughSequence) || 0;
+          const encodedSnapshot = typeof nativeMessage.serializedSnapshotData === 'string'
+            ? nativeMessage.serializedSnapshotData : '';
+          restoringSnapshot = true;
+          terminal.write(codec.base64ToBytes(encodedSnapshot), () => {
+            lastAppliedSequence = throughSequence;
+            lastSnapshotSequence = throughSequence;
+            restoringSnapshot = false;
+            post({type: contract.messages.restoreAck, throughSequence});
+            finishAttachment();
+          });
+          return;
+        }
+        lastAppliedSequence = (!nativeMessage.replayAvailable && nativeMessage.replayTruncated)
+          ? Math.max(0, (Number(nativeMessage.nextSequence) || 1) - 1)
+          : 0;
+        lastSnapshotSequence = -1;
         if (!nativeMessage.replayAvailable && nativeMessage.replayTruncated) {
           terminal.write(`\r\n${message(
             'replayUnavailable',
             '[earlier terminal output is unavailable after frontend reconnection]'
           )}\r\n`);
         }
-        status.classList.add('hidden');
-        terminal.focus();
-        scheduleGeometry();
+        finishAttachment();
         return;
       }
       if (!matchesAttachment(nativeMessage)) return;
       switch (nativeMessage.type) {
-        case contract.messages.output:
+        case contract.messages.output: {
+          const sequence = Number(nativeMessage.seq) || 0;
+          if (sequence <= 0) break;
+          if (sequence <= lastAppliedSequence) {
+            post({type: contract.messages.ack, seq: sequence});
+            break;
+          }
+          if (sequence !== lastAppliedSequence + 1) {
+            fail('Native terminal output sequence is discontinuous.');
+            break;
+          }
           terminal.write(codec.base64ToBytes(nativeMessage.data), () => {
-            post({type: contract.messages.ack, seq: nativeMessage.seq});
+            lastAppliedSequence = sequence;
+            post({type: contract.messages.ack, seq: sequence});
+            scheduleSnapshot();
           });
           break;
+        }
         case contract.messages.state:
           renderState(nativeMessage);
           break;

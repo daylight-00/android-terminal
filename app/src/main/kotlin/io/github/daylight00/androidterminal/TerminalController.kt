@@ -51,6 +51,7 @@ internal class TerminalController(
     private var pendingState: TerminalSessionState? = null
     private var pendingExitCode: Int? = null
     private var pendingFailure: String? = null
+    private var expectedSerializedThroughSequence = 0L
 
     private val serviceClient = object : TerminalSessionService.Client {
         override fun onOutput(
@@ -116,6 +117,7 @@ internal class TerminalController(
             pendingState = null
             pendingExitCode = null
             pendingFailure = null
+            expectedSerializedThroughSequence = 0L
             queueLock.notifyAll()
         }
         platformAdapter.close()
@@ -219,6 +221,8 @@ internal class TerminalController(
             TerminalContract.MessageType.INPUT -> ifCurrentMessage(message, ::handleInput)
             TerminalContract.MessageType.RESIZE -> ifCurrentMessage(message, ::handleResize)
             TerminalContract.MessageType.ACK -> ifCurrentMessage(message, ::handleAck)
+            TerminalContract.MessageType.SNAPSHOT -> ifCurrentMessage(message, ::handleSerializedSnapshot)
+            TerminalContract.MessageType.RESTORE_ACK -> ifCurrentMessage(message, ::handleRestoreAck)
             TerminalContract.MessageType.PLATFORM_REQUEST -> ifCurrentMessage(message, ::handlePlatformRequest)
             else -> sendError("unsupported terminal page message")
         }
@@ -258,6 +262,8 @@ internal class TerminalController(
         connectionGeneration = attachment.connectionGeneration
         sessionId = attachment.sessionId
 
+        val serializedSnapshot = attachment.serializedSnapshot
+        expectedSerializedThroughSequence = attachment.serializedThroughSequence
         sendJson(
             JSONObject()
                 .put("type", TerminalContract.MessageType.ATTACHED)
@@ -266,6 +272,13 @@ internal class TerminalController(
                 .put("state", attachment.state.wireName)
                 .put("exitCode", attachment.exitCode ?: JSONObject.NULL)
                 .put("failure", attachment.failure ?: JSONObject.NULL)
+                .put("serializedSnapshotAvailable", serializedSnapshot != null)
+                .put(
+                    "serializedSnapshotData",
+                    serializedSnapshot?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                        ?: JSONObject.NULL,
+                )
+                .put("serializedThroughSequence", attachment.serializedThroughSequence)
                 .put("replayAvailable", attachment.replayAvailable)
                 .put("replayTruncated", attachment.replayTruncated)
                 .put("nextSequence", attachment.nextSequence)
@@ -279,7 +292,7 @@ internal class TerminalController(
         pendingState = attachment.state
         pendingExitCode = attachment.exitCode
         pendingFailure = attachment.failure
-        attachmentReadyForDrain = true
+        attachmentReadyForDrain = serializedSnapshot == null
         drainOutput()
     }
 
@@ -315,6 +328,30 @@ internal class TerminalController(
             dimensions.pixelWidth,
             dimensions.pixelHeight,
         )
+    }
+
+    private fun handleSerializedSnapshot(message: JSONObject) {
+        val throughSequence = message.optLong("throughSequence", -1L)
+        val encoded = message.optString("data")
+        if (throughSequence < 0L || encoded.length > TerminalContract.MAX_SERIALIZED_SNAPSHOT_BASE64_CHARACTERS) return
+        val bytes = try {
+            Base64.decode(encoded, Base64.NO_WRAP)
+        } catch (_: IllegalArgumentException) {
+            return
+        }
+        sessionHost.updateSerializedSnapshot(
+            connectionGeneration,
+            sessionId,
+            throughSequence,
+            bytes,
+        )
+    }
+
+    private fun handleRestoreAck(message: JSONObject) {
+        val throughSequence = message.optLong("throughSequence", -1L)
+        if (throughSequence != expectedSerializedThroughSequence) return
+        attachmentReadyForDrain = true
+        drainOutput()
     }
 
     private fun handlePlatformRequest(message: JSONObject) {
@@ -497,7 +534,7 @@ internal class TerminalController(
     }
 
     private companion object {
-        const val MAX_PAGE_MESSAGE_CHARACTERS = 512 * 1024
+        const val MAX_PAGE_MESSAGE_CHARACTERS = 13 * 1024 * 1024
         const val MAX_INPUT_BASE64 = 256 * 1024
         const val MAX_QUEUED_BYTES = 2 * 1024 * 1024
         val PLATFORM_REQUEST_ID = Regex("[A-Za-z0-9._-]{1,64}")

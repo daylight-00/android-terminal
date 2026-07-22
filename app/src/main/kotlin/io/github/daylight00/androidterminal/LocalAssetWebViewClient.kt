@@ -124,6 +124,10 @@ internal class LocalAssetWebViewClient(
                 "terminal/vendor/addon-fit.js",
                 "application/javascript",
             ),
+            "/terminal/vendor/addon-serialize.js" to Asset(
+                "terminal/vendor/addon-serialize.js",
+                "application/javascript",
+            ),
         )
     }
 }

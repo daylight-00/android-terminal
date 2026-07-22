@@ -18,9 +18,9 @@ Layer 1 has two upstream authorities.
 
 ### Vendored frontend
 
-`app/src/main/assets/terminal/vendor/` contains the exact production files selected from the pinned official npm releases of `@xterm/xterm` and `@xterm/addon-fit`. The files are acquired by `tools/acquire-web-terminal-assets.sh`, recorded in `ASSET_RECEIPT.json`, and are not edited by hand.
+`app/src/main/assets/terminal/vendor/` contains the exact production files selected from the pinned official npm releases of `@xterm/xterm`, `@xterm/addon-fit`, and `@xterm/addon-serialize`. The files are acquired by `tools/acquire-web-terminal-assets.sh`, recorded in `ASSET_RECEIPT.json`, and are not edited by hand.
 
-xterm.js owns terminal parsing, screen state, Unicode layout, cursor behavior, selection, scrollback, IME integration, and rendering. `addon-fit` owns geometry-to-row/column calculation.
+xterm.js owns terminal parsing, screen state, Unicode layout, cursor behavior, selection, scrollback, IME integration, and rendering. `addon-fit` owns geometry-to-row/column calculation. `addon-serialize` owns xterm framebuffer and mode serialization.
 
 ### Device-provided runtime
 
@@ -51,7 +51,7 @@ Layer 2 supplies only the connections required to make upstream functionality us
 - byte-preserving bounded transport with ACK/backpressure;
 - Android IME/WebView input delivery to xterm.js;
 - Android root-layout, window-inset, configuration, focus, WebView, and IME viewport changes;
-- geometry changes through `addon-fit`, a deduplicated protocol v5 geometry contract, and `TIOCSWINSZ`;
+- geometry changes through `addon-fit`, a deduplicated protocol v6 geometry contract, and `TIOCSWINSZ`;
 - text-only clipboard reads/writes through xterm selection and paste public APIs plus Android `ClipboardManager`;
 - OSC 8 link activation through xterm's public `linkHandler` and an exact HTTP/HTTPS Android `ACTION_VIEW` allowlist;
 - xterm bell events through a bounded Android haptic adapter whose activation remains Layer 3 policy;
@@ -59,12 +59,12 @@ Layer 2 supplies only the connections required to make upstream functionality us
 - bounded SAF import from one `content://` document into a real file under the app-private `HOME/imports`;
 - bounded SAF export from one validated HOME-relative readable file through `ACTION_CREATE_DOCUMENT`;
 - PTY creation, process execution, signals, reads, writes, and cleanup;
-- bounded raw-output replay for replacement frontends, with explicit truncation;
+- opaque official xterm serialized snapshots plus a bounded raw-output tail for replacement frontends;
 - explicit startup and protocol failure reporting.
 
-Layer 2 must use public xterm.js APIs and must not contain terminal appearance policy, a VT parser, a screen model, or shell-command semantics. `TerminalSessionService` is the session authority; `MainActivity` and `TerminalController` are replaceable frontend hosts. Protocol v5 retains the v2 session attachment identity and v3 geometry contract, extends the bounded request/result platform bridge, and adds asynchronous SAF document transport. Every attachment is identified by a session ID and monotonically increasing connection generation so stale WebView messages cannot control the current PTY attachment.
+Layer 2 must use public xterm.js APIs and must not contain terminal appearance policy, a VT parser, a screen model, or shell-command semantics. `TerminalSessionService` is the session authority; `MainActivity` and `TerminalController` are replaceable frontend hosts. Protocol v6 retains the v2 session attachment identity and v3 geometry contract, extends the bounded request/result platform bridge, and adds asynchronous SAF document transport. Every attachment is identified by a session ID and monotonically increasing connection generation so stale WebView messages cannot control the current PTY attachment.
 
-The raw replay journal is intentionally bounded to 1 MiB. Before that bound is exceeded, a replacement frontend can reconstruct the terminal by replaying the unmodified PTY stream from session start. Once exceeded, Layer 2 does not attempt to parse or synthesize terminal state; it reports replay unavailability and continues with live output. Unlimited exact restoration requires an official upstream serialization capability rather than a custom terminal model.
+The official serialize addon produces an opaque xterm state stream after acknowledged output. Layer 2 stores at most 8 MiB of that stream together with the exact PTY output sequence it covers, without parsing terminal semantics. A rolling 1 MiB raw-output journal then supplies only the contiguous tail after that watermark. During frontend replacement the serialized state is restored first, acknowledged, and followed by the raw tail. If either bound cannot bridge the sequence gap, Layer 2 fails explicitly rather than synthesizing a screen model. This restores the current configured xterm buffer regardless of how much older output the session produced; it does not claim archival recovery of data already discarded by xterm scrollback policy.
 
 SAF transport copies bytes immediately and never presents a `content://` URI as a POSIX path. Imports receive sanitized collision-safe names under `HOME/imports`; exports accept only bounded HOME-relative readable files whose canonical path remains inside the private HOME. Directory trees, persistent URI grants, virtual mounts, FUSE, and format interpretation remain outside Layer 2.
 

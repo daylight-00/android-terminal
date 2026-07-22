@@ -100,6 +100,10 @@ const paths = process.argv.slice(2);
     paste(value) { pastes.push(value); }
   }
 
+  class SerializeAddon {
+    serialize() { return 'serialized-state'; }
+  }
+
   class FitAddon {
     fit() {
       if (!terminalInstance || container.clientWidth <= 0 || container.clientHeight <= 0) return;
@@ -114,7 +118,7 @@ const paths = process.argv.slice(2);
 
   function sendNative(payload) {
     port.onmessage({data: JSON.stringify({
-      contractVersion: 5,
+      contractVersion: 6,
       connectionGeneration: 3,
       sessionId: 'session-a',
       ...payload
@@ -159,6 +163,7 @@ const paths = process.argv.slice(2);
     document: documentObject,
     Terminal,
     FitAddon: {FitAddon},
+    SerializeAddon: {SerializeAddon},
     ResizeObserver: class {
       constructor(callback) { resizeObserverCallback = callback; }
       observe() {}
@@ -175,8 +180,14 @@ const paths = process.argv.slice(2);
     return frames.length;
   };
   let timeoutId = 0;
-  context.setTimeout = () => ++timeoutId;
-  context.clearTimeout = () => {};
+  const timers = new Map();
+  context.setTimeout = (callback) => { const id = ++timeoutId; timers.set(id, callback); return id; };
+  context.clearTimeout = (id) => { timers.delete(id); };
+  function flushTimers() {
+    const callbacks = Array.from(timers.values());
+    timers.clear();
+    for (const callback of callbacks) callback();
+  }
   context.addEventListener = (type, callback) => listeners.set(type, callback);
   context.removeEventListener = (type, callback) => {
     if (listeners.get(type) === callback) listeners.delete(type);
@@ -187,7 +198,7 @@ const paths = process.argv.slice(2);
   }
 
   if (!context.AndroidTerminalContract) throw new Error('contract export missing');
-  if (context.AndroidTerminalContract.protocolVersion !== 5) throw new Error('protocol v5 missing');
+  if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
   if (!context.TerminalCustomization) throw new Error('customization export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
   if (!customRoot.cleared) throw new Error('custom UI root was not initialized');
@@ -205,11 +216,11 @@ const paths = process.argv.slice(2);
   resizeObserverCallback();
   flushFrames();
   if (posted.length !== 1 || posted[0].type !== 'ready') throw new Error('ready message missing');
-  if (posted[0].contractVersion !== 5) throw new Error('ready contract version missing');
+  if (posted[0].contractVersion !== 6) throw new Error('ready contract version missing');
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'document-transport-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'document-transport-v1', 'serialize-state-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard', 'web-links']) {
@@ -218,7 +229,7 @@ const paths = process.argv.slice(2);
 
   const requiredNative = context.AndroidTerminalContract.requiredNativeCapabilities;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 5,
+    contractVersion: 6,
     type: 'attached',
     connectionGeneration: 3,
     sessionId: 'session-a',
@@ -267,7 +278,7 @@ const paths = process.argv.slice(2);
   if (posted.length !== 2) throw new Error('transient zero geometry emitted resize');
 
   port.onmessage({data: JSON.stringify({
-    contractVersion: 5,
+    contractVersion: 6,
     type: 'output',
     connectionGeneration: 2,
     sessionId: 'stale-session',
@@ -276,9 +287,17 @@ const paths = process.argv.slice(2);
   })});
   if (posted.length !== 2) throw new Error('stale output produced an acknowledgement');
 
-  sendNative({type: 'output', seq: 41, data: ''});
-  if (posted.length !== 3 || posted[2].type !== 'ack' || posted[2].seq !== 41) {
+  sendNative({type: 'output', seq: 1, data: ''});
+  if (posted.length !== 3 || posted[2].type !== 'ack' || posted[2].seq !== 1) {
     throw new Error('output acknowledgement missing');
+  }
+  flushTimers();
+  const snapshot = posted[posted.length - 1];
+  if (!snapshot || snapshot.type !== 'snapshot' || snapshot.throughSequence !== 1) {
+    throw new Error('serialized snapshot message missing');
+  }
+  if (Buffer.from(snapshot.data, 'base64').toString('utf8') !== 'serialized-state') {
+    throw new Error('serialized snapshot bytes are incorrect');
   }
 
   terminalInstance.selection = 'selected text';
@@ -355,7 +374,57 @@ const paths = process.argv.slice(2);
   completeRequest(exportRequest, {relativePath: 'imports/input.txt', bytes: 12});
   await exportPromise;
 
-  console.log('PASS web-terminal-channel contract=5 platform=clipboard,theme,accessibility,links,bell,documents geometry=deduplicated');
+  port.onmessage({data: JSON.stringify({
+    contractVersion: 6,
+    type: 'attached',
+    connectionGeneration: 4,
+    sessionId: 'session-gap',
+    state: 'running',
+    replayAvailable: false,
+    replayTruncated: true,
+    nextSequence: 51,
+    serializedSnapshotAvailable: false,
+    serializedThroughSequence: 0,
+    nativeCapabilities: ['frontend-reconnect', ...requiredNative]
+  })});
+  const gapCount = posted.length;
+  port.onmessage({data: JSON.stringify({
+    contractVersion: 6,
+    type: 'output',
+    connectionGeneration: 4,
+    sessionId: 'session-gap',
+    seq: 51,
+    data: ''
+  })});
+  const gapAck = posted[posted.length - 1];
+  if (posted.length !== gapCount + 1 || gapAck.type !== 'ack' || gapAck.seq !== 51) {
+    throw new Error('truncated replay did not resume at the live sequence watermark');
+  }
+
+  const countBeforeRestore = posted.length;
+  port.onmessage({data: JSON.stringify({
+    contractVersion: 6,
+    type: 'attached',
+    connectionGeneration: 5,
+    sessionId: 'session-b',
+    state: 'running',
+    replayAvailable: true,
+    replayTruncated: false,
+    serializedSnapshotAvailable: true,
+    serializedSnapshotData: Buffer.from('restored-state', 'utf8').toString('base64'),
+    serializedThroughSequence: 7,
+    nativeCapabilities: ['frontend-reconnect', ...requiredNative]
+  })});
+  const restoreAck = posted[posted.length - 1];
+  if (posted.length !== countBeforeRestore + 1 || restoreAck.type !== 'restore-ack' || restoreAck.throughSequence !== 7) {
+    throw new Error('serialized state restore acknowledgement missing');
+  }
+  const restoredBytes = writes[writes.length - 1];
+  if (!(restoredBytes instanceof Uint8Array) || Buffer.from(restoredBytes).toString('utf8') !== 'restored-state') {
+    throw new Error('serialized state was not restored through xterm write');
+  }
+
+  console.log('PASS web-terminal-channel contract=6 serialize=official-addon platform=clipboard,theme,accessibility,links,bell,documents geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -372,12 +441,13 @@ import sys
 contract_path, codec_path, customization_path, bridge_path = map(pathlib.Path, sys.argv[1:])
 required = {
     contract_path: (
-        "protocolVersion: 5",
+        "protocolVersion: 6",
         "channelMarker: 'native-shell'",
         "session-attach-v2",
         "geometry-dedup-v1",
         "platform-bridge-v2",
         "document-transport-v1",
+        "serialize-state-v1",
         "platformRequest: 'platform-request'",
         "platformState: 'platform-state'",
         "platformResult: 'platform-result'",
@@ -391,6 +461,8 @@ required = {
     ),
     bridge_path: (
         "new window.Terminal(customization.terminalOptions)",
+        "new window.SerializeAddon.SerializeAddon()",
+        "serializeAddon.serialize()",
         "terminal.onData(",
         "terminal.onBinary(",
         "terminal.write(",
@@ -425,6 +497,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=5 platform=bounded-documents geometry=deduplicated")
+print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon platform=bounded-documents geometry=deduplicated")
 PY
 fi

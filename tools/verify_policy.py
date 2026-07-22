@@ -173,8 +173,8 @@ def verify(root: Path) -> list[str]:
     require("override fun onRenderProcessGone" in web_client, "WebView renderer termination must be handled", failures)
     require("onRendererGone(detail.didCrash())" in web_client, "renderer termination must be forwarded without inspecting terminal semantics", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
-    require("PROTOCOL_VERSION = 5" in terminal_contract, "terminal contract version 5 must be explicit", failures)
-    require("protocolVersion: 5" in contract_js, "web terminal contract version 5 must be explicit", failures)
+    require("PROTOCOL_VERSION = 6" in terminal_contract, "terminal contract version 6 must be explicit", failures)
+    require("protocolVersion: 6" in contract_js, "web terminal contract version 6 must be explicit", failures)
     require("session-attach-v2" in terminal_contract and "session-attach-v2" in contract_js, "session attach v2 capability must match", failures)
     require("geometry-dedup-v1" in terminal_contract and "geometry-dedup-v1" in contract_js, "geometry dedupe capability must match", failures)
     require("android-window-geometry" in terminal_contract, "native Android window geometry capability is required", failures)
@@ -188,6 +188,7 @@ def verify(root: Path) -> list[str]:
         "android-accessibility-state",
         "android-hardware-keyboard-state",
         "android-document-transport",
+        "xterm-serialized-state",
     ):
         require(capability in terminal_contract, f"native platform capability is required: {capability}", failures)
     require("class TerminalGeometryState" in geometry, "terminal geometry state must be explicit", failures)
@@ -247,21 +248,29 @@ def verify(root: Path) -> list[str]:
     require("SessionReplayBuffer(REPLAY_LIMIT_BYTES)" in session_service, "service must own bounded raw replay", failures)
     require("TerminalSession(" in session_service, "service must create the PTY session", failures)
     require("connectionGeneration" in session_service and "sessionId" in session_service, "service attachment identity is required", failures)
-    require("maximumBytes" in replay_buffer and "replayAvailable = false" in replay_buffer, "bounded replay must fail explicit on overflow", failures)
+    require("maximumBytes" in replay_buffer and "snapshotAfter" in replay_buffer and "removeFirst()" in replay_buffer, "bounded rolling replay tail is required", failures)
+    serialized_snapshot = read_required(root, "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSerializedSnapshot.kt", failures)
+    require("class TerminalSerializedSnapshotStore" in serialized_snapshot and "bytes.copyOf()" in serialized_snapshot, "opaque serialized xterm snapshot storage is required", failures)
+    require("TerminalSerializedSnapshotStore(TerminalContract.MAX_SERIALIZED_SNAPSHOT_BYTES)" in session_service, "service must own bounded serialized xterm state", failures)
+    require("serialize-state-v1" in terminal_contract and "serialize-state-v1" in contract_js, "serialize page capability must match", failures)
+    require("new window.SerializeAddon.SerializeAddon()" in javascript and "serializeAddon.serialize()" in javascript, "official xterm serialize addon must own snapshot generation", failures)
     require("Color.BLACK" in native_customization, "native customization must define the host color", failures)
     require("terminal.write" in javascript, "PTY output must be passed to xterm.js", failures)
     require("terminal.onData" in javascript, "xterm.js input callback is required", failures)
     require("NativeShellCodec" in codec, "byte-preserving web codec is required", failures)
     require("/terminal/vendor/xterm.js" in html, "pinned xterm.js asset must be local", failures)
     require("/terminal/vendor/addon-fit.js" in html, "pinned addon-fit asset must be local", failures)
+    require("/terminal/vendor/addon-serialize.js" in html, "pinned addon-serialize asset must be local", failures)
     require("/terminal/bridge/terminal-contract.js" in html, "stable web contract must load locally", failures)
     require("/terminal/customization/customization.js" in html, "Layer 3 customization must load locally", failures)
     require('id="custom-ui-root"' in html, "custom UI root must remain separate from xterm.js", failures)
 
     require("@xterm/xterm/-/xterm-6.0.0.tgz" in acquisition, "xterm.js URL must be pinned", failures)
     require("@xterm/addon-fit/-/addon-fit-0.11.0.tgz" in acquisition, "addon-fit URL must be pinned", failures)
+    require("@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz" in acquisition, "addon-serialize URL must be pinned", failures)
     require("sha512-TQwDdQGt" in acquisition, "xterm.js npm integrity must be pinned", failures)
     require("sha512-jYcgT6xt" in acquisition, "addon-fit npm integrity must be pinned", failures)
+    require("sha512-kGs8o6LW" in acquisition, "addon-serialize npm integrity must be pinned", failures)
 
     require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)

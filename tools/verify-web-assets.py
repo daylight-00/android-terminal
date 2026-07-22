@@ -18,15 +18,30 @@ EXPECTED_PACKAGES = {
         "url": "https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz",
         "npm_integrity": "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==",
     },
+    "@xterm/addon-serialize": {
+        "version": "0.13.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz",
+        "npm_integrity": "sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ==",
+    },
 }
 EXPECTED_FILES = {
+    "xterm.js",
+    "xterm.css",
+    "addon-fit.js",
+    "addon-serialize.js",
+    "LICENSE.xterm.txt",
+    "LICENSE.addon-fit.txt",
+    "LICENSE.addon-serialize.txt",
+}
+ALLOWED_FILES = EXPECTED_FILES | {"README.md", "ASSET_RECEIPT.json"}
+LEGACY_PACKAGES = {name: value for name, value in EXPECTED_PACKAGES.items() if name != "@xterm/addon-serialize"}
+LEGACY_FILES = {
     "xterm.js",
     "xterm.css",
     "addon-fit.js",
     "LICENSE.xterm.txt",
     "LICENSE.addon-fit.txt",
 }
-ALLOWED_FILES = EXPECTED_FILES | {"README.md", "ASSET_RECEIPT.json"}
 
 
 def sha256(path: Path) -> str:
@@ -44,44 +59,51 @@ def verify(root: Path) -> tuple[str, list[str]]:
         return "missing", ["missing terminal vendor directory"]
 
     present = {path.name for path in vendor.iterdir() if path.is_file()}
-    provisioned_present = present & (EXPECTED_FILES | {"ASSET_RECEIPT.json"})
-    if not provisioned_present:
+    receipt_path = vendor / "ASSET_RECEIPT.json"
+    if not receipt_path.is_file():
         unexpected = present - {"README.md"}
         if unexpected:
             failures.append(f"unexpected unprovisioned vendor files: {sorted(unexpected)}")
         return "unprovisioned", failures
 
-    missing = (EXPECTED_FILES | {"ASSET_RECEIPT.json"}) - present
-    unexpected = present - ALLOWED_FILES
-    if missing:
-        failures.append(f"partially provisioned vendor assets; missing: {sorted(missing)}")
-    if unexpected:
-        failures.append(f"unexpected vendor files: {sorted(unexpected)}")
-    if failures:
-        return "invalid", failures
-
-    receipt_path = vendor / "ASSET_RECEIPT.json"
     try:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         return "invalid", [f"invalid asset receipt: {error}"]
 
-    if receipt.get("schema_version") != 1:
-        failures.append("asset receipt schema_version must be 1")
-
     package_entries = receipt.get("packages")
     if not isinstance(package_entries, list):
-        failures.append("asset receipt packages must be a list")
-        package_entries = []
+        return "invalid", ["asset receipt packages must be a list"]
     actual_packages = {}
     for entry in package_entries:
         if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
             failures.append("invalid package receipt entry")
             continue
         actual_packages[entry["name"]] = entry
-    if set(actual_packages) != set(EXPECTED_PACKAGES):
-        failures.append("asset receipt package set does not match pinned packages")
-    for name, expected in EXPECTED_PACKAGES.items():
+
+    package_names = set(actual_packages)
+    if package_names == set(EXPECTED_PACKAGES):
+        expected_packages = EXPECTED_PACKAGES
+        expected_files = EXPECTED_FILES
+        state = "provisioned"
+    elif package_names == set(LEGACY_PACKAGES):
+        expected_packages = LEGACY_PACKAGES
+        expected_files = LEGACY_FILES
+        state = "stale-provisioned"
+    else:
+        return "invalid", ["asset receipt package set does not match a recognized pinned package generation"]
+
+    allowed_files = expected_files | {"README.md", "ASSET_RECEIPT.json"}
+    missing = (expected_files | {"ASSET_RECEIPT.json"}) - present
+    unexpected = present - allowed_files
+    if missing:
+        failures.append(f"partially provisioned vendor assets; missing: {sorted(missing)}")
+    if unexpected:
+        failures.append(f"unexpected vendor files: {sorted(unexpected)}")
+    if receipt.get("schema_version") != 1:
+        failures.append("asset receipt schema_version must be 1")
+
+    for name, expected in expected_packages.items():
         actual = actual_packages.get(name, {})
         for field, value in expected.items():
             if actual.get(field) != value:
@@ -101,9 +123,10 @@ def verify(root: Path) -> tuple[str, list[str]]:
             failures.append("invalid file receipt entry")
             continue
         actual_files[entry["path"]] = entry
-    if set(actual_files) != EXPECTED_FILES:
+    if set(actual_files) != expected_files:
         failures.append("asset receipt file set does not match installed production files")
-    for name in EXPECTED_FILES:
+    valid_source_packages = {f"{name}@{data['version']}" for name, data in expected_packages.items()}
+    for name in expected_files:
         path = vendor / name
         entry = actual_files.get(name, {})
         if not path.is_file():
@@ -112,14 +135,13 @@ def verify(root: Path) -> tuple[str, list[str]]:
             failures.append(f"asset size mismatch: {name}")
         if entry.get("sha256") != sha256(path):
             failures.append(f"asset SHA-256 mismatch: {name}")
-        package = entry.get("package")
-        if package not in {"@xterm/xterm@6.0.0", "@xterm/addon-fit@0.11.0"}:
+        if entry.get("package") not in valid_source_packages:
             failures.append(f"invalid source package in receipt: {name}")
         source_member = entry.get("source_member")
         if not isinstance(source_member, str) or not source_member.startswith("package/"):
             failures.append(f"invalid source member in receipt: {name}")
 
-    return ("provisioned" if not failures else "invalid"), failures
+    return (state if not failures else "invalid"), failures
 
 
 def main() -> int:

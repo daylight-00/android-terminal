@@ -113,6 +113,7 @@ def verify(root: Path) -> list[str]:
     expected_order = (
         "/terminal/vendor/xterm.js",
         "/terminal/vendor/addon-fit.js",
+        "/terminal/vendor/addon-serialize.js",
         "/terminal/bridge/terminal-contract.js",
         "/terminal/bridge/terminal-codec.js",
         "/terminal/customization/customization.js",
@@ -126,8 +127,8 @@ def verify(root: Path) -> list[str]:
     if 'id="custom-ui-root"' not in html:
         fail("custom UI root is missing", failures)
 
-    if "protocolVersion: 5" not in contract_js or "PROTOCOL_VERSION = 5" not in contract_kt:
-        fail("JavaScript and Kotlin protocol version 5 must match", failures)
+    if "protocolVersion: 6" not in contract_js or "PROTOCOL_VERSION = 6" not in contract_kt:
+        fail("JavaScript and Kotlin protocol version 6 must match", failures)
     if "channelMarker: 'native-shell'" not in contract_js or 'CHANNEL_MARKER = "native-shell"' not in contract_kt:
         fail("JavaScript and Kotlin channel marker must match", failures)
     message_types = {
@@ -136,6 +137,8 @@ def verify(root: Path) -> list[str]:
         "resize": "resize",
         "ack": "ack",
         "platformRequest": "platform-request",
+        "snapshot": "snapshot",
+        "restoreAck": "restore-ack",
         "attached": "attached",
         "output": "output",
         "state": "state",
@@ -273,8 +276,17 @@ def verify(root: Path) -> list[str]:
         fail("service must own the bounded raw replay journal", failures)
     if "connectionGeneration" not in service or "sessionId" not in service:
         fail("service attachment identity is incomplete", failures)
-    if "replayAvailable = false" not in replay or "bytes.copyOf()" not in replay:
-        fail("raw replay must be bounded and byte preserving", failures)
+    if "snapshotAfter" not in replay or "removeFirst()" not in replay or "bytes.copyOf()" not in replay:
+        fail("raw replay tail must be rolling, bounded, and byte preserving", failures)
+    snapshot_store = read(root, "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSerializedSnapshot.kt", failures)
+    if "class TerminalSerializedSnapshotStore" not in snapshot_store or "bytes.copyOf()" not in snapshot_store:
+        fail("opaque serialized xterm snapshot storage is missing", failures)
+    if "TerminalSerializedSnapshotStore(TerminalContract.MAX_SERIALIZED_SNAPSHOT_BYTES)" not in service:
+        fail("service must own the bounded opaque xterm snapshot", failures)
+    if "new window.SerializeAddon.SerializeAddon()" not in bridge_js or "serializeAddon.serialize()" not in bridge_js:
+        fail("Layer 2 must use the official xterm serialize addon", failures)
+    if "serialize-state-v1" not in contract_js or "xterm-serialized-state" not in contract_kt:
+        fail("serialized state capabilities must match", failures)
     if "class TerminalGeometryState" not in geometry or "if (!candidate.isUsable()) return null" not in geometry:
         fail("terminal geometry must reject transient zero layouts", failures)
     if "if (sanitized == current) return null" not in geometry:
@@ -367,8 +379,10 @@ def verify(root: Path) -> list[str]:
             "xterm.js",
             "xterm.css",
             "addon-fit.js",
+            "addon-serialize.js",
             "LICENSE.xterm.txt",
             "LICENSE.addon-fit.txt",
+            "LICENSE.addon-serialize.txt",
         }
         for path in vendor.iterdir():
             if not path.is_file() or path.name not in allowed:

@@ -80,10 +80,12 @@ check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
 check session-service grep -Fq 'class TerminalSessionService : Service()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
+check serialized-snapshot-store grep -Fq 'TerminalSerializedSnapshotStore(TerminalContract.MAX_SERIALIZED_SNAPSHOT_BYTES)' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
+check serialize-addon grep -Fq 'new window.SerializeAddon.SerializeAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
 check service-owns-session grep -Fq 'TerminalSession(' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check controller-does-not-own-session sh -c '! grep -Fq "TerminalSession(" app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt'
-check platform-contract-v5 grep -Fq 'const val PROTOCOL_VERSION = 5' \
+check platform-contract-v6 grep -Fq 'const val PROTOCOL_VERSION = 6' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check geometry-state grep -Fq 'class TerminalGeometryState' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalGeometry.kt

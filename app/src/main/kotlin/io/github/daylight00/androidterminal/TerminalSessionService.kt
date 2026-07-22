@@ -67,11 +67,24 @@ class TerminalSessionService : Service() {
                 TerminalDimensions(rows, columns, pixelWidth, pixelHeight),
             )
         }
+
+        fun updateSerializedSnapshot(
+            connectionGeneration: Long,
+            sessionId: String,
+            throughSequence: Long,
+            bytes: ByteArray,
+        ): Boolean = this@TerminalSessionService.updateSerializedSnapshot(
+            connectionGeneration,
+            sessionId,
+            throughSequence,
+            bytes,
+        )
     }
 
     private val binder = LocalBinder()
     private val lock = Any()
     private val replayBuffer = SessionReplayBuffer(REPLAY_LIMIT_BYTES)
+    private val serializedSnapshotStore = TerminalSerializedSnapshotStore(TerminalContract.MAX_SERIALIZED_SNAPSHOT_BYTES)
     private val geometryState = TerminalGeometryState()
 
     private var session: TerminalSession? = null
@@ -130,15 +143,30 @@ class TerminalSessionService : Service() {
                 if (activeSession != null) resizeSession = Pair(activeSession, accepted)
             }
 
-            val replay = replayBuffer.snapshot()
+            val serializedSnapshot = serializedSnapshotStore.snapshot()
+            val snapshotTail = serializedSnapshot?.let {
+                replayBuffer.snapshotAfter(it.throughSequence)
+            }
+            val snapshotUsable = serializedSnapshot != null && snapshotTail?.available == true
+            val replay = if (snapshotUsable) {
+                requireNotNull(snapshotTail)
+            } else {
+                replayBuffer.snapshotAfter(0L)
+            }
             TerminalAttachment(
                 connectionGeneration = connectionGeneration,
                 sessionId = sessionId,
                 state = state,
                 exitCode = exitCode,
                 failure = failure,
+                serializedSnapshot = if (snapshotUsable) serializedSnapshot?.bytes else null,
+                serializedThroughSequence = if (snapshotUsable) {
+                    serializedSnapshot?.throughSequence ?: 0L
+                } else {
+                    0L
+                },
                 replayAvailable = replay.available,
-                replayTruncated = replay.truncated,
+                replayTruncated = replay.truncated || (serializedSnapshot != null && !snapshotUsable),
                 replayRecords = replay.records,
                 nextSequence = replay.nextSequence,
             )
@@ -181,6 +209,21 @@ class TerminalSessionService : Service() {
         )
     }
 
+    private fun updateSerializedSnapshot(
+        generation: Long,
+        expectedSessionId: String,
+        throughSequence: Long,
+        bytes: ByteArray,
+    ): Boolean = synchronized(lock) {
+        if (generation != connectionGeneration || expectedSessionId != sessionId) return false
+        if (state != TerminalSessionState.STARTING && state != TerminalSessionState.RUNNING) return false
+        serializedSnapshotStore.update(
+            throughSequence = throughSequence,
+            latestSequence = replayBuffer.latestSequence(),
+            bytes = bytes,
+        )
+    }
+
     private fun withCurrentAttachment(
         generation: Long,
         expectedSessionId: String,
@@ -202,6 +245,7 @@ class TerminalSessionService : Service() {
         exitCode = null
         failure = null
         replayBuffer.reset()
+        serializedSnapshotStore.reset()
 
         return TerminalSession(
             homeDirectory = filesDir,
@@ -313,6 +357,8 @@ internal data class TerminalAttachment(
     val state: TerminalSessionState,
     val exitCode: Int?,
     val failure: String?,
+    val serializedSnapshot: ByteArray?,
+    val serializedThroughSequence: Long,
     val replayAvailable: Boolean,
     val replayTruncated: Boolean,
     val replayRecords: List<TerminalOutputRecord>,

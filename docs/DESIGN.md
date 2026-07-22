@@ -80,7 +80,7 @@ No `LD_LIBRARY_PATH`, Termux prefix, copied shell, or package manager is introdu
 
 ## External-input boundary
 
-Repository source pins `@xterm/xterm` 6.0.0 and `@xterm/addon-fit` 0.11.0, but does not
+Repository source pins `@xterm/xterm` 6.0.0, `@xterm/addon-fit` 0.11.0, and `@xterm/addon-serialize` 0.13.0, but does not
 pretend to contain bytes the assistant could not acquire through the project authority
 path. The owner-side acquisition script fetches official npm tarballs, validates fixed
 npm SHA-512 integrity values and safe members, then freezes extracted file SHA-256 and
@@ -91,7 +91,7 @@ size metadata in a local receipt.
 - Platform WebMessagePort on API 29 is string-based, so PTY data uses Base64.
 - WebView implementation behavior varies with the installed Android System WebView.
 - The PTY survives Activity/WebView replacement within the app process, but the current policy stops the service when the app task is removed.
-- Exact frontend reconstruction is bounded by the 1 MiB raw replay journal; unlimited restoration awaits an official upstream serialization addon.
+- Frontend reconstruction uses an official serialized xterm snapshot bounded to 8 MiB plus a rolling 1 MiB raw-output tail; it restores only state retained by the configured xterm scrollback.
 - Device-runtime success and OEM `/system/bin` policy require owner-device evidence.
 
 The initial native-to-page channel transfer is target-origin restricted on Android. Page JavaScript validates the channel marker and transferred port rather than assuming `MessageEvent.origin` identifies the native sender.

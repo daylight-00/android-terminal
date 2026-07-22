@@ -7,6 +7,8 @@
     resize: 'resize',
     ack: 'ack',
     platformRequest: 'platform-request',
+    snapshot: 'snapshot',
+    restoreAck: 'restore-ack',
     attached: 'attached',
     output: 'output',
     state: 'state',
@@ -26,8 +28,9 @@
   });
 
   window.AndroidTerminalContract = Object.freeze({
-    protocolVersion: 5,
+    protocolVersion: 6,
     channelMarker: 'native-shell',
+    serializedSnapshotMaxBytes: 8 * 1024 * 1024,
     messages,
     platformOperations,
     requiredNativeCapabilities: Object.freeze([
@@ -38,7 +41,8 @@
       'android-system-theme',
       'android-accessibility-state',
       'android-hardware-keyboard-state',
-      'android-document-transport'
+      'android-document-transport',
+      'xterm-serialized-state'
     ]),
     pageCapabilities: Object.freeze([
       'xterm-core',
@@ -48,7 +52,8 @@
       'session-attach-v2',
       'geometry-dedup-v1',
       'platform-bridge-v2',
-      'document-transport-v1'
+      'document-transport-v1',
+      'serialize-state-v1'
     ])
   });
 })();

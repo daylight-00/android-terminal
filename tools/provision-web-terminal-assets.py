@@ -151,6 +151,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--fit-archive", required=True, type=pathlib.Path)
     parser.add_argument("--fit-url", required=True)
     parser.add_argument("--fit-integrity", required=True)
+    parser.add_argument("--serialize-archive", required=True, type=pathlib.Path)
+    parser.add_argument("--serialize-url", required=True)
+    parser.add_argument("--serialize-integrity", required=True)
     parser.add_argument("--destination", required=True, type=pathlib.Path)
     return parser.parse_args()
 
@@ -179,6 +182,17 @@ def main() -> int:
             members={
                 "package/lib/addon-fit.js": "addon-fit.js",
                 "package/LICENSE": "LICENSE.addon-fit.txt",
+            },
+        ),
+        Package(
+            name="@xterm/addon-serialize",
+            version="0.13.0",
+            archive=arguments.serialize_archive,
+            url=arguments.serialize_url,
+            integrity=arguments.serialize_integrity,
+            members={
+                "package/lib/addon-serialize.js": "addon-serialize.js",
+                "package/LICENSE": "LICENSE.addon-serialize.txt",
             },
         ),
     ]

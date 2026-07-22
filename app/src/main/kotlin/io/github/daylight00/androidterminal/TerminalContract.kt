@@ -1,12 +1,15 @@
 package io.github.daylight00.androidterminal
 
 internal object TerminalContract {
-    const val PROTOCOL_VERSION = 5
+    const val PROTOCOL_VERSION = 6
     const val ORIGIN = "https://app.local"
     const val HOST = "app.local"
     const val DOCUMENT_PATH = "/terminal/index.html"
     const val DOCUMENT_URL = "$ORIGIN$DOCUMENT_PATH"
     const val CHANNEL_MARKER = "native-shell"
+    const val MAX_SERIALIZED_SNAPSHOT_BYTES = 8 * 1024 * 1024
+    const val MAX_SERIALIZED_SNAPSHOT_BASE64_CHARACTERS =
+        ((MAX_SERIALIZED_SNAPSHOT_BYTES + 2) / 3) * 4
 
     object MessageType {
         const val READY = "ready"
@@ -14,6 +17,8 @@ internal object TerminalContract {
         const val RESIZE = "resize"
         const val ACK = "ack"
         const val PLATFORM_REQUEST = "platform-request"
+        const val SNAPSHOT = "snapshot"
+        const val RESTORE_ACK = "restore-ack"
         const val ATTACHED = "attached"
         const val OUTPUT = "output"
         const val STATE = "state"
@@ -41,6 +46,7 @@ internal object TerminalContract {
         "geometry-dedup-v1",
         "platform-bridge-v2",
         "document-transport-v1",
+        "serialize-state-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(
@@ -58,5 +64,6 @@ internal object TerminalContract {
         "android-accessibility-state",
         "android-hardware-keyboard-state",
         "android-document-transport",
+        "xterm-serialized-state",
     )
 }
