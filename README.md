@@ -1,8 +1,8 @@
 # Android Native Shell
 
-A minimal Android terminal frontend that starts the device-provided `/system/bin/sh`
-through a native PTY. The APK does not bundle a shell, Toybox, libc, a package manager,
-a root filesystem, or a Linux distribution.
+A thin Android terminal frontend that connects the device-provided `/system/bin/sh`
+to the platform WebView through a native PTY. The APK does not bundle a shell, Toybox,
+libc, a package manager, a root filesystem, or a Linux distribution.
 
 ## Frozen baseline
 
@@ -10,100 +10,95 @@ a root filesystem, or a Linux distribution.
 |---|---|
 | Repository | `android-native-shell` |
 | Application ID | `io.github.daylight00.nativeshell` |
-| Java compile SDK | Android API 35 |
-| App minimum API | Android API 29 |
-| App target API | Android API 29 |
-| Native API floor | Android API 29 |
+| Android compile SDK | API 35 |
+| Minimum/target API | API 29 |
+| Native API floor | API 29 |
 | NDK | r27d (`27.3.13750724`) |
 | ABI | `arm64-v8a` only |
-| UI layer | Android platform `Activity`, `View`, `Canvas`, `InputConnection` |
-| Terminal core | Pure Java VT100 subset |
-| Process bridge | C11, JNI, `forkpty`, `execve`, `read`, `write`, `ioctl` |
-| Shell | Device `/system/bin/sh` |
+| Android glue | Kotlin 2.4.10, platform APIs only |
+| Terminal frontend | system WebView + `@xterm/xterm` 6.0.0 |
+| Fit logic | `@xterm/addon-fit` 0.11.0 |
+| Native bridge | C11/JNI, `forkpty`, `execve`, `read`, `write`, `ioctl` |
+| Shell | device `/system/bin/sh` |
 | PATH | `/system/bin` |
-| TERM | `vt100` |
+| TERM | `xterm-256color` |
 
-`compileSdk` is deliberately separate from the API 29 runtime/native floor. It only
-controls which Android Java APIs can be compiled. The initial application behavior
-contract and native symbol floor remain API 29.
+`compileSdk` is separate from the API 29 runtime/native floor. The app uses no Compose,
+AndroidX, Rust, custom terminal parser, or custom terminal renderer.
 
 ## Architecture
 
 ```text
-Android Activity / TerminalView / InputConnection
-                    |
-                    | small JNI surface
-                    v
-             libshellbridge.so
-                    |
-                    | PTY
-                    v
-              /system/bin/sh
-                    |
-                    v
-          Android system executables
+Kotlin Activity
+    |
+    v
+platform WebView ---- local bundled xterm.js
+    |
+    | platform WebMessagePort, Base64 byte batches
+    v
+small Kotlin session bridge
+    |
+    | JNI
+    v
+libshellbridge.so
+    |
+    | PTY
+    v
+/system/bin/sh -> Android system executables
 ```
 
 The application process, shell, and shell children remain in the application's Linux
-UID and SELinux domain. Starting a system binary does not grant the `shell` UID used by
-ADB and does not grant root privileges.
+UID and SELinux domain. Starting a system binary does not grant ADB's UID 2000 `shell`
+account and does not grant root privileges.
 
-## Included
+## Thin-layer decisions
 
-- Platform-only Android UI; no AndroidX and no Compose.
-- A small cell buffer and incremental UTF-8/VT100 parser.
-- PTY creation and `/system/bin/sh` execution in C.
-- Physical keyboard and Android IME input paths.
-- PTY resize propagation with `TIOCSWINSZ`.
-- A host-runnable terminal-core test.
-- A direct NDK r27d native compile verifier.
+- WebView supplies the browser runtime already present on Android.
+- xterm.js supplies VT/xterm parsing, Unicode layout, selection, scrollback, cursor,
+  color, IME integration, and rendering.
+- Kotlin only owns Android lifecycle, WebView policy, message batching, and JNI calls.
+- C only owns the PTY and process syscalls that Android's managed API does not expose.
+- Runtime network access is absent; no `INTERNET` permission is declared.
+- The terminal page is served from APK assets through an allowlisted synthetic HTTPS
+  origin and rejects every other resource or navigation.
 
-## Deliberately not included in v0.1
+## Upstream asset provisioning
 
-- A bundled shell or command suite.
-- A package manager or prefix.
-- `proot`, `chroot`, or a copied root filesystem.
-- Network permission.
-- External-storage integration.
-- Background or persistent sessions.
-- Scrollback, alternate screen, 256 colors, true color, mouse modes, bracketed paste,
-  wide-cell layout, or combining-mark layout.
-- A claim that every OEM permits every `/system/bin` program from an untrusted app.
-- A device-runtime PASS claim before owner-device evidence exists.
+Exact xterm.js bytes are not acquired in the assistant environment. Before building,
+run the bounded owner-side acquisition script:
+
+```sh
+./tools/acquire-web-terminal-assets.sh
+```
+
+It downloads only the pinned official npm tarballs, checks their fixed npm SHA-512
+integrity values, validates archive members, installs only the required production
+files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`.
+The app never loads a CDN or remote page at runtime.
 
 ## Local verification
 
-The repository-only checks require Bash, Git, Python 3, and a JDK:
+Repository-only checks:
 
 ```sh
 ./tools/verify-repository.sh
 ```
 
-The native bridge can be compiled directly with NDK r27d without Gradle:
+Native bridge compile with NDK r27d:
 
 ```sh
 ANDROID_NDK_HOME="$HOME/opt/android-ndk-r27d" ./tools/verify-native-ndk.sh
 ```
 
-The script also discovers common side-by-side SDK locations automatically.
-
-## Android build
-
-The source is a standard Android Gradle Plugin project. A Gradle wrapper binary is not
-committed because this repository was created in an assistant environment where remote
-artifact acquisition is prohibited. Use an already trusted Gradle 8.9 installation or
-open the project in an Android Studio installation that can provision the build tooling.
+After provisioning assets, build with a trusted Gradle installation:
 
 ```sh
 gradle :app:assembleDebug
 ```
 
-The configured NDK revision must be installed under the SDK's side-by-side `ndk`
-directory or selected by an equivalent local SDK configuration.
-
 ## Runtime probe
 
-After installing the debug APK, the first bounded device probe is:
+After installation:
 
 ```sh
 id
@@ -113,5 +108,5 @@ command -v toybox
 getprop ro.build.version.sdk
 ```
 
-Expected policy properties are app UID execution, `/system/bin/sh`, `PATH=/system/bin`,
-and an app-private `HOME`. Exact output is device evidence, not a repository-only claim.
+Expected policy properties are app-UID execution, `/system/bin/sh`, `PATH=/system/bin`,
+`TERM=xterm-256color`, and an app-private `HOME`. Exact output remains device evidence.

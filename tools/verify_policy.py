@@ -21,19 +21,34 @@ def read_required(root: Path, relative: str, failures: list[str]) -> str:
 
 def verify(root: Path) -> list[str]:
     failures: list[str] = []
+    root_build = read_required(root, "build.gradle", failures)
     build = read_required(root, "app/build.gradle", failures)
     manifest = read_required(root, "app/src/main/AndroidManifest.xml", failures)
     native = read_required(root, "app/src/main/c/shell_bridge.c", failures)
+    activity = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/nativeshell/MainActivity.kt",
+        failures,
+    )
     session = read_required(
         root,
-        "app/src/main/java/io/github/daylight00/nativeshell/TerminalSession.java",
+        "app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalSession.kt",
         failures,
     )
-    terminal_view = read_required(
+    controller = read_required(
         root,
-        "app/src/main/java/io/github/daylight00/nativeshell/TerminalView.java",
+        "app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalController.kt",
         failures,
     )
+    web_client = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/nativeshell/LocalAssetWebViewClient.kt",
+        failures,
+    )
+    html = read_required(root, "app/src/main/assets/terminal/index.html", failures)
+    javascript = read_required(root, "app/src/main/assets/terminal/terminal.js", failures)
+    codec = read_required(root, "app/src/main/assets/terminal/terminal-codec.js", failures)
+    acquisition = read_required(root, "tools/acquire-web-terminal-assets.sh", failures)
 
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 29" in build, "targetSdk must be 29", failures)
@@ -45,31 +60,82 @@ def verify(root: Path) -> list[str]:
     )
     require("abiFilters 'arm64-v8a'" in build, "ABI must be arm64-v8a only", failures)
     require("ANDROID_STL=none" in build, "C++ runtime must remain disabled", failures)
+    require("org.jetbrains.kotlin.android" in root_build, "Kotlin Android plugin is required", failures)
+    require("com.android.application" in root_build, "Android application plugin is required", failures)
+
     require("/system/bin/sh" in session, "session must execute /system/bin/sh", failures)
     require("forkpty(" in native, "native bridge must use forkpty", failures)
     require("execve(" in native, "native bridge must use execve", failures)
     require("TIOCSWINSZ" in native, "native bridge must propagate PTY size", failures)
     require("PATH=/system/bin" in native, "PATH must remain /system/bin", failures)
-    require("TERM=vt100" in native, "TERM must honestly remain vt100", failures)
-    require("InputConnection" in terminal_view, "terminal view must expose InputConnection", failures)
-    require("Canvas" in terminal_view, "terminal view must use platform Canvas", failures)
-    require("android.permission.INTERNET" not in manifest, "v0.1 must not request INTERNET", failures)
-    require("androidx." not in terminal_view, "AndroidX is not allowed", failures)
+    require("TERM=xterm-256color" in native, "TERM must match xterm.js capabilities", failures)
 
+    require("WebView(activity)" in controller, "frontend must use platform WebView", failures)
+    require("createWebMessageChannel()" in controller, "bridge must use WebMessagePort", failures)
+    require("addJavascriptInterface" not in controller, "JavaScript object bridge is forbidden", failures)
+    require("allowFileAccess = false" in controller, "WebView file access must be disabled", failures)
+    require("allowContentAccess = false" in controller, "WebView content access must be disabled", failures)
+    require("MIXED_CONTENT_NEVER_ALLOW" in controller, "mixed content must be blocked", failures)
+    require("MAX_QUEUED_BYTES" in controller, "output backpressure cap is required", failures)
+    require("Base64" in controller, "API 29 string message bridge must preserve PTY bytes", failures)
+    require("shouldInterceptRequest" in web_client, "local asset interception is required", failures)
+    require("https://app.local" in web_client, "synthetic local HTTPS origin must remain pinned", failures)
+    require("Content-Security-Policy" in web_client, "local page needs a CSP", failures)
+    require("connect-src 'none'" in web_client, "local page must not make network connections", failures)
+    require("window.Terminal" in javascript, "frontend must use xterm.js", failures)
+    require("FitAddon" in javascript, "frontend must use addon-fit", failures)
+    require("terminal.write" in javascript, "PTY output must be passed to xterm.js", failures)
+    require("terminal.onData" in javascript, "xterm.js input callback is required", failures)
+    require("NativeShellCodec" in codec, "byte-preserving web codec is required", failures)
+    require("/terminal/vendor/xterm.js" in html, "pinned xterm.js asset must be local", failures)
+    require("/terminal/vendor/addon-fit.js" in html, "pinned addon-fit asset must be local", failures)
+
+    require("@xterm/xterm/-/xterm-6.0.0.tgz" in acquisition, "xterm.js URL must be pinned", failures)
+    require("@xterm/addon-fit/-/addon-fit-0.11.0.tgz" in acquisition, "addon-fit URL must be pinned", failures)
+    require("sha512-TQwDdQGt" in acquisition, "xterm.js npm integrity must be pinned", failures)
+    require("sha512-jYcgT6xt" in acquisition, "addon-fit npm integrity must be pinned", failures)
+
+    require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
+    require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)
+    require("setContentView(terminal.view)" in activity, "Activity must remain a thin frontend host", failures)
+
+    source_texts = "\n".join((root_build, build, manifest, activity, session, controller, web_client))
+    require("androidx." not in source_texts, "AndroidX is not allowed", failures)
+    require("compose" not in source_texts.lower(), "Compose is not allowed", failures)
+
+    forbidden_extensions = {".rs"}
+    forbidden_names = {
+        "sh",
+        "bash",
+        "toybox",
+        "busybox",
+        "libc.so",
+        "linker",
+        "linker64",
+    }
     main_root = root / "app/src/main"
     if main_root.is_dir():
-        forbidden_names = {
-            "sh",
-            "bash",
-            "toybox",
-            "busybox",
-            "libc.so",
-            "linker",
-            "linker64",
-        }
         for path in main_root.rglob("*"):
-            if path.is_file() and path.name in forbidden_names:
+            if not path.is_file():
+                continue
+            if path.name in forbidden_names:
                 failures.append(f"bundled userland artifact is forbidden: {path.relative_to(root)}")
+            if path.suffix in forbidden_extensions:
+                failures.append(f"Rust source is outside the selected architecture: {path.relative_to(root)}")
+
+    java_root = root / "app/src/main/java"
+    if java_root.exists() and any(path.is_file() for path in java_root.rglob("*")):
+        failures.append("Java application sources must remain absent")
+    removed_terminal_names = {"TerminalBuffer", "TerminalEmulator", "TerminalView"}
+    for source_root in (root / "app/src/main", root / "app/src/test"):
+        if not source_root.exists():
+            continue
+        for path in source_root.rglob("*"):
+            if path.is_file() and path.stem in removed_terminal_names:
+                failures.append(
+                    f"removed custom terminal implementation returned: {path.relative_to(root)}"
+                )
+
     return failures
 
 

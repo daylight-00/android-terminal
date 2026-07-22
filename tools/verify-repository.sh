@@ -17,10 +17,22 @@ check() {
 }
 
 check git-diff-check git diff --check
-check terminal-core "$ROOT/tools/test-terminal-core.sh"
+check web-terminal "$ROOT/tools/test-web-terminal.sh"
+check asset-provisioner "$ROOT/tools/test-asset-provisioner.sh"
 check policy-verifier python3 "$ROOT/tools/verify_policy.py" "$ROOT"
+check web-assets python3 "$ROOT/tools/verify-web-assets.py" "$ROOT"
 check verifier-fixtures "$ROOT/tools/test-verifier.sh"
-check shell-syntax bash -n "$ROOT/tools/test-terminal-core.sh" "$ROOT/tools/verify-repository.sh" "$ROOT/tools/verify-native-ndk.sh" "$ROOT/tools/test-verifier.sh"
+check shell-syntax bash -n \
+  "$ROOT/tools/acquire-web-terminal-assets.sh" \
+  "$ROOT/tools/test-asset-provisioner.sh" \
+  "$ROOT/tools/test-web-terminal.sh" \
+  "$ROOT/tools/verify-repository.sh" \
+  "$ROOT/tools/verify-native-ndk.sh" \
+  "$ROOT/tools/test-verifier.sh"
+check python-syntax python3 -m py_compile \
+  "$ROOT/tools/provision-web-terminal-assets.py" \
+  "$ROOT/tools/verify_policy.py" \
+  "$ROOT/tools/verify-web-assets.py"
 check identity-name test "$(git config --local user.name)" = 'daylight-00'
 check identity-email test "$(git config --local user.email)" = 'hwjang00@snu.ac.kr'
 check main-branch test "$(git branch --show-current)" = 'main'
@@ -28,11 +40,19 @@ check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 29' app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
-check system-shell grep -Fq '"/system/bin/sh"' app/src/main/java/io/github/daylight00/nativeshell/TerminalSession.java
+check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
+  app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalSession.kt
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c
-check no-androidx sh -c '! grep -R --exclude-dir=.git -E "androidx\.|com.android.support" app'
+check webview grep -Fq 'val view: WebView = WebView(activity)' \
+  app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalController.kt
+check web-message-port grep -Fq 'createWebMessageChannel()' \
+  app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalController.kt
+check local-origin grep -Fq 'const val ORIGIN = "https://app.local"' \
+  app/src/main/kotlin/io/github/daylight00/nativeshell/LocalAssetWebViewClient.kt
+check no-androidx sh -c '! grep -R --exclude-dir=.git --exclude-dir=out -E "androidx\.|com.android.support" app'
+check no-rust sh -c '! find app/src/main -type f -name "*.rs" | grep .'
+check no-java-source sh -c '! find app/src/main/java -type f 2>/dev/null | grep .'
 check no-userland-payload sh -c '! find app/src/main -type f \( -name sh -o -name bash -o -name toybox -o -name busybox -o -name "libc.so*" -o -name "linker*" \) | grep .'
 check manifest-no-network sh -c '! grep -Fq "android.permission.INTERNET" app/src/main/AndroidManifest.xml'
-
 
 exit "$RC"

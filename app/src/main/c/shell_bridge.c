@@ -107,7 +107,7 @@ Java_io_github_daylight00_nativeshell_NativePty_spawn(
             temporary_entry,
             "PATH=/system/bin",
             "SHELL=/system/bin/sh",
-            "TERM=vt100",
+            "TERM=xterm-256color",
             "LANG=C.UTF-8",
             "ANDROID_ROOT=/system",
             "ANDROID_DATA=/data",
