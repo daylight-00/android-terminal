@@ -54,6 +54,9 @@ const vm = require('vm');
 const paths = process.argv.slice(2);
 
 const listeners = new Map();
+const documentListeners = new Map();
+const viewportListeners = new Map();
+const frames = [];
 const statusClasses = new Set();
 const status = {
   textContent: '',
@@ -62,10 +65,12 @@ const status = {
     remove(value) { statusClasses.delete(value); }
   }
 };
-const container = {clientWidth: 1080, clientHeight: 1920};
+const container = {clientWidth: 0, clientHeight: 0};
 const customRoot = {replaceChildren() { this.cleared = true; }};
 const posted = [];
 let portStarted = false;
+let resizeObserverCallback = null;
+let terminalInstance = null;
 const writes = [];
 const port = {
   onmessage: null,
@@ -73,7 +78,12 @@ const port = {
   start() { portStarted = true; }
 };
 class Terminal {
-  constructor(options) { this.rows = 24; this.cols = 80; this.options = options; }
+  constructor(options) {
+    this.rows = 0;
+    this.cols = 0;
+    this.options = options;
+    terminalInstance = this;
+  }
   loadAddon() {}
   open() {}
   onData(callback) { this.dataCallback = callback; }
@@ -81,7 +91,25 @@ class Terminal {
   focus() {}
   write(data, callback) { writes.push(data); if (callback) callback(); }
 }
-class FitAddon { fit() {} }
+class FitAddon {
+  fit() {
+    if (!terminalInstance || container.clientWidth <= 0 || container.clientHeight <= 0) return;
+    terminalInstance.cols = Math.max(1, Math.floor(container.clientWidth / 10));
+    terminalInstance.rows = Math.max(1, Math.floor(container.clientHeight / 20));
+  }
+}
+function flushFrames() {
+  while (frames.length) frames.shift()();
+}
+const documentObject = {
+  hidden: false,
+  getElementById(id) {
+    if (id === 'status') return status;
+    if (id === 'custom-ui-root') return customRoot;
+    return container;
+  },
+  addEventListener(type, callback) { documentListeners.set(type, callback); }
+};
 const context = {
   console,
   Error,
@@ -89,19 +117,24 @@ const context = {
   String,
   Uint8Array,
   TextEncoder,
-  document: {getElementById(id) {
-    if (id === 'status') return status;
-    if (id === 'custom-ui-root') return customRoot;
-    return container;
-  }},
+  document: documentObject,
   Terminal,
   FitAddon: {FitAddon},
-  ResizeObserver: class { observe() {} },
-  requestAnimationFrame(callback) { callback(); return 1; },
+  ResizeObserver: class {
+    constructor(callback) { resizeObserverCallback = callback; }
+    observe() {}
+  },
   btoa(value) { return Buffer.from(value, 'binary').toString('base64'); },
   atob(value) { return Buffer.from(value, 'base64').toString('binary'); }
 };
 context.window = context;
+context.visualViewport = {
+  addEventListener(type, callback) { viewportListeners.set(type, callback); }
+};
+context.requestAnimationFrame = (callback) => {
+  frames.push(callback);
+  return frames.length;
+};
 context.setTimeout = () => 7;
 context.clearTimeout = () => {};
 context.addEventListener = (type, callback) => listeners.set(type, callback);
@@ -113,36 +146,70 @@ for (const path of paths) {
   vm.runInContext(fs.readFileSync(path, 'utf8'), context, {filename: path});
 }
 if (!context.AndroidTerminalContract) throw new Error('contract export missing');
-if (context.AndroidTerminalContract.protocolVersion !== 2) throw new Error('protocol v2 missing');
+if (context.AndroidTerminalContract.protocolVersion !== 3) throw new Error('protocol v3 missing');
 if (!context.TerminalCustomization) throw new Error('customization export missing');
 if (!customRoot.cleared) throw new Error('custom UI root was not initialized');
 const handler = listeners.get('message');
 if (typeof handler !== 'function') throw new Error('message handler missing');
 handler({origin: '', data: 'native-shell', ports: [port]});
 if (!portStarted) throw new Error('native port was rejected when MessageEvent.origin was empty');
-if (statusClasses.has('hidden')) throw new Error('loading overlay hid before service attachment');
-if (listeners.has('message')) throw new Error('message handler was not removed after valid handshake');
+flushFrames();
+if (posted.length !== 0) throw new Error('zero-sized geometry produced a ready message');
+
+container.clientWidth = 1080;
+container.clientHeight = 1920;
+resizeObserverCallback();
+flushFrames();
 if (posted.length !== 1 || posted[0].type !== 'ready') throw new Error('ready message missing');
-if (posted[0].contractVersion !== 2) throw new Error('ready contract version missing');
+if (posted[0].contractVersion !== 3) throw new Error('ready contract version missing');
+if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
+  throw new Error('ready pixel geometry missing');
+}
 if (!Array.isArray(posted[0].capabilities) ||
-    !posted[0].capabilities.includes('session-attach-v2')) {
-  throw new Error('ready capabilities missing session attach v2');
+    !posted[0].capabilities.includes('geometry-dedup-v1')) {
+  throw new Error('ready capabilities missing geometry dedupe');
 }
 
 port.onmessage({data: JSON.stringify({
-  contractVersion: 2,
+  contractVersion: 3,
   type: 'attached',
   connectionGeneration: 3,
   sessionId: 'session-a',
   state: 'running',
   replayAvailable: true,
   replayTruncated: false,
-  nativeCapabilities: ['frontend-reconnect']
+  nativeCapabilities: ['frontend-reconnect', 'android-window-geometry']
 })});
+flushFrames();
 if (!statusClasses.has('hidden')) throw new Error('loading overlay remained after attachment');
+if (posted.length !== 1) throw new Error('attachment emitted duplicate geometry');
 
 port.onmessage({data: JSON.stringify({
-  contractVersion: 2,
+  contractVersion: 3,
+  type: 'geometry',
+  connectionGeneration: 3,
+  sessionId: 'session-a'
+})});
+flushFrames();
+if (posted.length !== 1) throw new Error('unchanged native geometry signal emitted resize');
+
+container.clientHeight = 1200;
+viewportListeners.get('resize')();
+flushFrames();
+if (posted.length !== 2 || posted[1].type !== 'resize') throw new Error('changed viewport did not resize');
+if (posted[1].rows !== 60 || posted[1].columns !== 108 || posted[1].pixelHeight !== 1200) {
+  throw new Error('changed geometry values are incorrect');
+}
+viewportListeners.get('resize')();
+flushFrames();
+if (posted.length !== 2) throw new Error('duplicate viewport geometry emitted resize');
+container.clientHeight = 0;
+listeners.get('resize')();
+flushFrames();
+if (posted.length !== 2) throw new Error('transient zero geometry emitted resize');
+
+port.onmessage({data: JSON.stringify({
+  contractVersion: 3,
   type: 'output',
   connectionGeneration: 2,
   sessionId: 'stale-session',
@@ -152,7 +219,7 @@ port.onmessage({data: JSON.stringify({
 if (posted.length !== 2) throw new Error('stale output produced an acknowledgement');
 
 port.onmessage({data: JSON.stringify({
-  contractVersion: 2,
+  contractVersion: 3,
   type: 'output',
   connectionGeneration: 3,
   sessionId: 'session-a',
@@ -162,12 +229,12 @@ port.onmessage({data: JSON.stringify({
 if (posted.length !== 3 || posted[2].type !== 'ack' || posted[2].seq !== 41) {
   throw new Error('output acknowledgement missing');
 }
-if (posted[2].contractVersion !== 2 ||
+if (posted[2].contractVersion !== 3 ||
     posted[2].connectionGeneration !== 3 ||
     posted[2].sessionId !== 'session-a') {
   throw new Error('ack attachment identity missing');
 }
-console.log('PASS web-terminal-channel origin=empty contract=2 attach=3 stale=rejected');
+console.log('PASS web-terminal-channel contract=3 zero=rejected geometry=deduplicated stale=rejected');
 JS
 else
   python3 - "$CONTRACT" "$CODEC" "$CUSTOMIZATION" "$BRIDGE" <<'PY'
@@ -179,7 +246,13 @@ import sys
 
 contract_path, codec_path, customization_path, bridge_path = map(pathlib.Path, sys.argv[1:])
 required = {
-    contract_path: ("protocolVersion: 2", "channelMarker: 'native-shell'", "session-attach-v2"),
+    contract_path: (
+        "protocolVersion: 3",
+        "channelMarker: 'native-shell'",
+        "session-attach-v2",
+        "geometry-dedup-v1",
+        "geometry: 'geometry'",
+    ),
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
     customization_path: ("window.TerminalCustomization = Object.freeze", "cursorBlink", "replayUnavailable"),
     bridge_path: (
@@ -187,9 +260,10 @@ required = {
         "terminal.onData(",
         "terminal.onBinary(",
         "terminal.write(",
-        "connectionGeneration",
-        "sessionId",
-        "contract.messages.attached",
+        "measureGeometry(type)",
+        "geometryKey(geometry)",
+        "window.visualViewport.addEventListener('resize'",
+        "contract.messages.geometry",
         "matchesAttachment(nativeMessage)",
     ),
 }
@@ -206,6 +280,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=2")
+print("PASS web-terminal static-python node=unavailable contract=3 geometry=deduplicated")
 PY
 fi

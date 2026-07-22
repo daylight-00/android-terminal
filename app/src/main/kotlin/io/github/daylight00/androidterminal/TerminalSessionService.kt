@@ -36,7 +36,7 @@ class TerminalSessionService : Service() {
             pixelHeight: Int,
         ): TerminalAttachment = this@TerminalSessionService.attach(
             client,
-            TerminalDimensions(rows, columns, pixelWidth, pixelHeight).sanitized(),
+            TerminalDimensions(rows, columns, pixelWidth, pixelHeight),
         )
 
         fun detach(client: Client, connectionGeneration: Long, sessionId: String) {
@@ -61,16 +61,18 @@ class TerminalSessionService : Service() {
             pixelWidth: Int,
             pixelHeight: Int,
         ) {
-            val size = TerminalDimensions(rows, columns, pixelWidth, pixelHeight).sanitized()
-            withCurrentAttachment(connectionGeneration, sessionId) { activeSession ->
-                activeSession.resize(size.rows, size.columns, size.pixelWidth, size.pixelHeight)
-            }
+            resizeCurrentAttachment(
+                connectionGeneration,
+                sessionId,
+                TerminalDimensions(rows, columns, pixelWidth, pixelHeight),
+            )
         }
     }
 
     private val binder = LocalBinder()
     private val lock = Any()
     private val replayBuffer = SessionReplayBuffer(REPLAY_LIMIT_BYTES)
+    private val geometryState = TerminalGeometryState()
 
     private var session: TerminalSession? = null
     private var sessionEpoch = 0L
@@ -99,23 +101,33 @@ class TerminalSessionService : Service() {
             val current = session
             session = null
             state = TerminalSessionState.CLOSED
+            geometryState.reset()
             current
         }
         active?.close()
         super.onDestroy()
     }
 
-    private fun attach(client: Client, size: TerminalDimensions): TerminalAttachment {
-        var startSession: TerminalSession? = null
-        var resizeSession: TerminalSession? = null
+    private fun attach(client: Client, candidate: TerminalDimensions): TerminalAttachment {
+        var startSession: Pair<TerminalSession, TerminalDimensions>? = null
+        var resizeSession: Pair<TerminalSession, TerminalDimensions>? = null
         val attachment = synchronized(lock) {
+            val accepted = geometryState.accept(candidate)
+            val currentSize = requireNotNull(accepted ?: geometryState.snapshot()) {
+                "terminal attachment geometry is unavailable"
+            }
+
             connectionGeneration += 1L
             this.client = client
 
             if (state == TerminalSessionState.IDLE) {
-                startSession = createSessionLocked()
-            } else if (state == TerminalSessionState.STARTING || state == TerminalSessionState.RUNNING) {
-                resizeSession = session
+                startSession = Pair(createSessionLocked(), currentSize)
+            } else if (
+                accepted != null &&
+                (state == TerminalSessionState.STARTING || state == TerminalSessionState.RUNNING)
+            ) {
+                val activeSession = session
+                if (activeSession != null) resizeSession = Pair(activeSession, accepted)
             }
 
             val replay = replayBuffer.snapshot()
@@ -132,8 +144,12 @@ class TerminalSessionService : Service() {
             )
         }
 
-        startSession?.start(size.rows, size.columns, size.pixelWidth, size.pixelHeight)
-        resizeSession?.resize(size.rows, size.columns, size.pixelWidth, size.pixelHeight)
+        startSession?.let { (activeSession, size) ->
+            activeSession.start(size.rows, size.columns, size.pixelWidth, size.pixelHeight)
+        }
+        resizeSession?.let { (activeSession, size) ->
+            activeSession.resize(size.rows, size.columns, size.pixelWidth, size.pixelHeight)
+        }
         return attachment
     }
 
@@ -143,6 +159,26 @@ class TerminalSessionService : Service() {
             if (connectionGeneration != generation || sessionId != expectedSessionId) return
             this.client = null
         }
+    }
+
+    private fun resizeCurrentAttachment(
+        generation: Long,
+        expectedSessionId: String,
+        candidate: TerminalDimensions,
+    ) {
+        val resized = synchronized(lock) {
+            if (generation != connectionGeneration || expectedSessionId != sessionId) return
+            if (state != TerminalSessionState.STARTING && state != TerminalSessionState.RUNNING) return
+            val accepted = geometryState.accept(candidate) ?: return
+            val activeSession = session ?: return
+            Pair(activeSession, accepted)
+        }
+        resized.first.resize(
+            resized.second.rows,
+            resized.second.columns,
+            resized.second.pixelWidth,
+            resized.second.pixelHeight,
+        )
     }
 
     private fun withCurrentAttachment(
@@ -282,23 +318,3 @@ internal data class TerminalAttachment(
     val replayRecords: List<TerminalOutputRecord>,
     val nextSequence: Long,
 )
-
-internal data class TerminalDimensions(
-    val rows: Int,
-    val columns: Int,
-    val pixelWidth: Int,
-    val pixelHeight: Int,
-) {
-    fun sanitized(): TerminalDimensions = TerminalDimensions(
-        rows.coerceIn(1, MAX_ROWS),
-        columns.coerceIn(1, MAX_COLUMNS),
-        pixelWidth.coerceIn(0, MAX_PIXELS),
-        pixelHeight.coerceIn(0, MAX_PIXELS),
-    )
-
-    private companion object {
-        const val MAX_ROWS = 2_000
-        const val MAX_COLUMNS = 2_000
-        const val MAX_PIXELS = 65_535
-    }
-}

@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.IBinder
 import android.view.ViewGroup
@@ -31,6 +32,8 @@ class MainActivity : Activity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 ),
             )
+            root.requestApplyInsets()
+            root.post(terminal::requestGeometrySync)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -48,12 +51,41 @@ class MainActivity : Activity() {
 
         root = FrameLayout(this).apply {
             setBackgroundColor(TerminalCustomization.backgroundColor)
+            setOnApplyWindowInsetsListener { _, insets ->
+                controller?.requestGeometrySync()
+                insets
+            }
+            addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                if (
+                    right - left != oldRight - oldLeft ||
+                    bottom - top != oldBottom - oldTop
+                ) {
+                    controller?.requestGeometrySync()
+                }
+            }
         }
         setContentView(root)
+        root.requestApplyInsets()
 
         val serviceIntent = Intent(this, TerminalSessionService::class.java)
         startService(serviceIntent)
         serviceBound = bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        root.post { controller?.requestGeometrySync() }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) root.post { controller?.requestGeometrySync() }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        root.requestApplyInsets()
+        root.post { controller?.requestGeometrySync() }
     }
 
     override fun onDestroy() {

@@ -1,7 +1,7 @@
 package io.github.daylight00.androidterminal
 
 internal object TerminalContract {
-    const val PROTOCOL_VERSION = 2
+    const val PROTOCOL_VERSION = 3
     const val ORIGIN = "https://app.local"
     const val HOST = "app.local"
     const val DOCUMENT_PATH = "/terminal/index.html"
@@ -16,6 +16,7 @@ internal object TerminalContract {
         const val ATTACHED = "attached"
         const val OUTPUT = "output"
         const val STATE = "state"
+        const val GEOMETRY = "geometry"
         const val ERROR = "error"
     }
 
@@ -25,6 +26,7 @@ internal object TerminalContract {
         "fit",
         "output-ack",
         "session-attach-v2",
+        "geometry-dedup-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(
@@ -33,5 +35,6 @@ internal object TerminalContract {
         "byte-transport",
         "pty-resize",
         "frontend-reconnect",
+        "android-window-geometry",
     )
 }

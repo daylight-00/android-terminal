@@ -20,10 +20,10 @@ Layer 3. A capability is not considered complete merely because xterm.js exposes
 |---|---|---|---|---|
 | VT/xterm parsing and screen state | `@xterm/xterm` core | PTY output is delivered as bytes to `Terminal.write()` | Appearance only | Connected |
 | Keyboard and IME text input | `@xterm/xterm` core | `onData()` and `onBinary()` are transported to the PTY | No custom IME | Connected |
-| Geometry to rows/columns | `@xterm/addon-fit` | Web geometry is sent to `TIOCSWINSZ` | Resize debounce remains minimal | Connected |
+| Geometry to rows/columns | `@xterm/addon-fit` | Android root layout, insets, configuration, focus, WebView `ResizeObserver`, and `visualViewport` changes converge on deduplicated `TIOCSWINSZ` updates; transient zero geometry is ignored | No separate product policy | Connected |
 | Output flow control | xterm `write(data, callback)` | One in-flight batch plus bounded ACK queue | Queue limits are fixed host policy | Connected |
 | Activity-independent shell session | Android native shell and PTY | Started/bound platform `Service` owns the PTY | Session stops when the app task is removed | Connected |
-| Frontend reconnection | xterm public `write()` | Protocol v2 attaches a replacement WebView to the service session | No persistent background session | Connected |
+| Frontend reconnection | xterm public `write()` | Protocol v3 retains the v2 attachment identity and reconnects a replacement WebView to the service session | No persistent background session | Connected |
 | Frontend replay | Raw upstream PTY byte stream | Bounded 1 MiB journal is replayed without parsing terminal semantics | Explicit truncation notice | Connected with bound |
 | Full screen restoration after unlimited output | xterm serialize addon | Not present | Not selected | Upstream pending |
 | Clipboard | xterm selection/input APIs | Android `ClipboardManager` adapter absent | Read/paste policy undecided | Policy pending |

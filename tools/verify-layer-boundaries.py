@@ -53,6 +53,11 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt",
         failures,
     )
+    geometry = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalGeometry.kt",
+        failures,
+    )
     activity = read(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt",
@@ -86,11 +91,11 @@ def verify(root: Path) -> list[str]:
     if 'id="custom-ui-root"' not in html:
         fail("custom UI root is missing", failures)
 
-    if "protocolVersion: 2" not in contract_js or "PROTOCOL_VERSION = 2" not in contract_kt:
-        fail("JavaScript and Kotlin protocol version 2 must match", failures)
+    if "protocolVersion: 3" not in contract_js or "PROTOCOL_VERSION = 3" not in contract_kt:
+        fail("JavaScript and Kotlin protocol version 3 must match", failures)
     if "channelMarker: 'native-shell'" not in contract_js or 'CHANNEL_MARKER = "native-shell"' not in contract_kt:
         fail("JavaScript and Kotlin channel marker must match", failures)
-    for message_type in ("ready", "input", "resize", "ack", "attached", "output", "state", "error"):
+    for message_type in ("ready", "input", "resize", "ack", "attached", "output", "state", "geometry", "error"):
         if f"{message_type}: '{message_type}'" not in contract_js:
             fail(f"JavaScript contract lacks message type: {message_type}", failures)
         if f'= "{message_type}"' not in contract_kt:
@@ -104,6 +109,10 @@ def verify(root: Path) -> list[str]:
         "terminal.write(",
         "contract.protocolVersion",
         "contract.pageCapabilities",
+        "measureGeometry(type)",
+        "geometryKey(geometry)",
+        "window.visualViewport.addEventListener('resize'",
+        "contract.messages.geometry",
     ):
         if token not in bridge_js:
             fail(f"Layer 2 bridge lacks required public integration token: {token}", failures)
@@ -169,10 +178,27 @@ def verify(root: Path) -> list[str]:
         fail("service attachment identity is incomplete", failures)
     if "replayAvailable = false" not in replay or "bytes.copyOf()" not in replay:
         fail("raw replay must be bounded and byte preserving", failures)
+    if "class TerminalGeometryState" not in geometry or "if (!candidate.isUsable()) return null" not in geometry:
+        fail("terminal geometry must reject transient zero layouts", failures)
+    if "if (sanitized == current) return null" not in geometry:
+        fail("terminal geometry must deduplicate unchanged sizes", failures)
     if "bindService(serviceIntent, serviceConnection" not in activity or "TerminalSession(" in activity:
         fail("Activity must remain a replaceable service-bound frontend", failures)
+    for token in (
+        "setOnApplyWindowInsetsListener",
+        "addOnLayoutChangeListener",
+        "onConfigurationChanged",
+        "requestApplyInsets()",
+        "requestGeometrySync()",
+    ):
+        if token not in activity:
+            fail(f"Android window geometry connection lacks token: {token}", failures)
     if "session-attach-v2" not in contract_js or "session-attach-v2" not in contract_kt:
-        fail("protocol v2 capability is not mirrored", failures)
+        fail("session attachment capability is not mirrored", failures)
+    if "geometry-dedup-v1" not in contract_js or "geometry-dedup-v1" not in contract_kt:
+        fail("geometry deduplication capability is not mirrored", failures)
+    if "android-window-geometry" not in contract_kt:
+        fail("native Android window geometry capability is missing", failures)
 
     semantic_parser_pattern = re.compile(r"\b(?:CSI|OSC|DCS|SGR)\b|escape sequence|terminal cell", re.IGNORECASE)
     for name, text in (("Kotlin controller", controller), ("native PTY bridge", native)):

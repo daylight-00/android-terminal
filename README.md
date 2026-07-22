@@ -52,6 +52,8 @@ connection status of upstream features.
   color, IME integration, and rendering.
 - Kotlin only owns Android lifecycle, the Activity-independent session service, WebView policy, message batching, and JNI calls.
 - C only owns the PTY and process syscalls that Android's managed API does not expose.
+- Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
+  geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
   origin and rejects every other resource or navigation.

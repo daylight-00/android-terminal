@@ -107,6 +107,18 @@ internal class TerminalController(
         view.destroy()
     }
 
+    fun requestGeometrySync() {
+        mainHandler.post {
+            if (closed || !isCurrentAttachment(connectionGeneration, sessionId)) return@post
+            sendJson(
+                JSONObject()
+                    .put("type", TerminalContract.MessageType.GEOMETRY)
+                    .put("connectionGeneration", connectionGeneration)
+                    .put("sessionId", sessionId),
+            )
+        }
+    }
+
     private fun configureWebView() {
         view.setBackgroundColor(TerminalCustomization.backgroundColor)
         view.layoutParams = ViewGroup.LayoutParams(
@@ -191,9 +203,14 @@ internal class TerminalController(
             return
         }
 
+        val dimensions = dimensionsFrom(message)
+        if (dimensions == null) {
+            sendError("terminal page geometry is unavailable")
+            return
+        }
+
         pageReady = true
         attachmentReadyForDrain = false
-        val dimensions = dimensionsFrom(message)
         val attachment = sessionHost.attach(
             serviceClient,
             dimensions.rows,
@@ -251,7 +268,7 @@ internal class TerminalController(
     }
 
     private fun handleResize(message: JSONObject) {
-        val dimensions = dimensionsFrom(message)
+        val dimensions = dimensionsFrom(message) ?: return
         sessionHost.resize(
             connectionGeneration,
             sessionId,
@@ -382,16 +399,17 @@ internal class TerminalController(
             expectedSessionId == sessionId &&
             sessionId.isNotBlank()
 
-    private fun dimensionsFrom(message: JSONObject): TerminalDimensions = TerminalDimensions(
-        rows = message.optInt("rows", DEFAULT_ROWS),
-        columns = message.optInt("columns", DEFAULT_COLUMNS),
-        pixelWidth = message.optInt("pixelWidth", 0),
-        pixelHeight = message.optInt("pixelHeight", 0),
-    ).sanitized()
+    private fun dimensionsFrom(message: JSONObject): TerminalDimensions? {
+        val candidate = TerminalDimensions(
+            rows = message.optInt("rows", 0),
+            columns = message.optInt("columns", 0),
+            pixelWidth = message.optInt("pixelWidth", 0),
+            pixelHeight = message.optInt("pixelHeight", 0),
+        )
+        return if (candidate.isUsable()) candidate.sanitized() else null
+    }
 
     private companion object {
-        const val DEFAULT_ROWS = 24
-        const val DEFAULT_COLUMNS = 80
         const val MAX_INPUT_BASE64 = 256 * 1024
         const val MAX_QUEUED_BYTES = 2 * 1024 * 1024
     }

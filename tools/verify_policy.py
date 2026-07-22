@@ -50,6 +50,11 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt",
         failures,
     )
+    geometry = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalGeometry.kt",
+        failures,
+    )
     web_client = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt",
@@ -136,9 +141,20 @@ def verify(root: Path) -> list[str]:
     require("shouldInterceptRequest" in web_client, "local asset interception is required", failures)
     require("TerminalContract.HOST" in web_client, "local asset host must come from TerminalContract", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
-    require("PROTOCOL_VERSION = 2" in terminal_contract, "terminal contract version 2 must be explicit", failures)
-    require("protocolVersion: 2" in contract_js, "web terminal contract version 2 must be explicit", failures)
+    require("PROTOCOL_VERSION = 3" in terminal_contract, "terminal contract version 3 must be explicit", failures)
+    require("protocolVersion: 3" in contract_js, "web terminal contract version 3 must be explicit", failures)
     require("session-attach-v2" in terminal_contract and "session-attach-v2" in contract_js, "session attach v2 capability must match", failures)
+    require("geometry-dedup-v1" in terminal_contract and "geometry-dedup-v1" in contract_js, "geometry dedupe capability must match", failures)
+    require("android-window-geometry" in terminal_contract, "native Android window geometry capability is required", failures)
+    require("class TerminalGeometryState" in geometry, "terminal geometry state must be explicit", failures)
+    require("if (!candidate.isUsable()) return null" in geometry, "zero terminal geometry must be rejected", failures)
+    require("if (sanitized == current) return null" in geometry, "duplicate terminal geometry must be rejected", failures)
+    require("measureGeometry(type)" in javascript, "web terminal geometry must be measured after addon-fit", failures)
+    require("geometryKey(geometry)" in javascript, "web terminal geometry must be deduplicated", failures)
+    require("visualViewport.addEventListener('resize'" in javascript, "IME viewport changes must trigger geometry synchronization", failures)
+    require("requestGeometrySync()" in activity, "Android lifecycle must signal frontend geometry changes", failures)
+    require("setOnApplyWindowInsetsListener" in activity, "Android window insets must trigger geometry synchronization", failures)
+    require("addOnLayoutChangeListener" in activity, "Android root layout changes must trigger geometry synchronization", failures)
     require("Content-Security-Policy" in web_client, "local page needs a CSP", failures)
     require("connect-src 'none'" in web_client, "local page must not make network connections", failures)
     require("window.Terminal" in javascript, "frontend must use xterm.js", failures)

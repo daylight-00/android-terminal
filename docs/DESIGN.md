@@ -26,8 +26,11 @@ The runtime is divided into upstream, required Android integration, and explicit
 ### Web terminal frontend
 
 Pinned xterm.js production files provide the terminal parser, screen model, Unicode and
-IME behavior, scrollback, selection, cursor, and renderer. `addon-fit` computes rows and
-columns from the WebView geometry. No custom VT parser or cell renderer remains.
+IME behavior, scrollback, selection, cursor, and renderer. `addon-fit` computes rows and columns from the WebView geometry. Protocol v3 treats Android root
+layout, window-inset, configuration, focus, `ResizeObserver`, and `visualViewport` changes as
+geometry invalidations. Only positive, changed row/column and pixel dimensions are forwarded to the
+service and then to `TIOCSWINSZ`; transient zero layouts and duplicates are discarded without
+implementing terminal semantics. No custom VT parser or cell renderer remains.
 
 The page-to-native protocol carries JSON control messages. PTY bytes are Base64 encoded
 because platform API 29 `WebMessage` is string-based. Output is one batch in flight at a

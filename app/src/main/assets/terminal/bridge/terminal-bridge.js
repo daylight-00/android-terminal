@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const status = document.getElementById('status');
   const container = document.getElementById('terminal');
+  const status = document.getElementById('status');
   const customRoot = document.getElementById('custom-ui-root');
   const contract = window.AndroidTerminalContract;
   const customization = window.TerminalCustomization;
@@ -28,7 +28,7 @@
 
   status.textContent = message('loading', 'Loading terminal…');
 
-  if (!contract || contract.protocolVersion !== 2 || !contract.messages) {
+  if (!contract || contract.protocolVersion !== 3 || !contract.messages) {
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
@@ -50,11 +50,12 @@
   const fitAddon = new window.FitAddon.FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(container);
-  fitAddon.fit();
   customization.mount({root: customRoot, terminal, fitAddon});
 
   let nativePort = null;
-  let resizeFrame = 0;
+  let geometryFrame = 0;
+  let readySent = false;
+  let lastPostedGeometry = '';
   let connectionGeneration = 0;
   let sessionId = '';
   const channelTimeout = window.setTimeout(() => {
@@ -78,22 +79,50 @@
     nativePort.postMessage(JSON.stringify(envelope));
   }
 
-  function dimensions(type) {
-    return {
-      type,
-      rows: terminal.rows,
-      columns: terminal.cols,
-      pixelWidth: Math.max(0, Math.floor(container.clientWidth)),
-      pixelHeight: Math.max(0, Math.floor(container.clientHeight))
-    };
+  function measureGeometry(type) {
+    const pixelWidth = Math.floor(container.clientWidth);
+    const pixelHeight = Math.floor(container.clientHeight);
+    if (pixelWidth <= 0 || pixelHeight <= 0) return null;
+
+    fitAddon.fit();
+    const rows = Number(terminal.rows) || 0;
+    const columns = Number(terminal.cols) || 0;
+    if (rows <= 0 || columns <= 0) return null;
+
+    return {type, rows, columns, pixelWidth, pixelHeight};
   }
 
-  function scheduleResize() {
-    if (!isAttached() || resizeFrame) return;
-    resizeFrame = requestAnimationFrame(() => {
-      resizeFrame = 0;
-      fitAddon.fit();
-      post(dimensions(contract.messages.resize));
+  function geometryKey(geometry) {
+    return `${geometry.rows}:${geometry.columns}:${geometry.pixelWidth}:${geometry.pixelHeight}`;
+  }
+
+  function postMeasuredGeometry(type, attachmentRequired) {
+    const geometry = measureGeometry(type);
+    if (!geometry) return false;
+    const key = geometryKey(geometry);
+    if (type === contract.messages.resize && key === lastPostedGeometry) return false;
+    lastPostedGeometry = key;
+    const payload = type === contract.messages.ready
+      ? {...geometry, capabilities: contract.pageCapabilities}
+      : geometry;
+    post(payload, attachmentRequired);
+    return true;
+  }
+
+  function flushGeometry() {
+    if (!nativePort) return;
+    if (!readySent) {
+      readySent = postMeasuredGeometry(contract.messages.ready, false);
+      return;
+    }
+    if (isAttached()) postMeasuredGeometry(contract.messages.resize, true);
+  }
+
+  function scheduleGeometry() {
+    if (geometryFrame) return;
+    geometryFrame = window.requestAnimationFrame(() => {
+      geometryFrame = 0;
+      flushGeometry();
     });
   }
 
@@ -109,8 +138,16 @@
     post({type: contract.messages.input, data: codec.bytesToBase64(bytes)});
   });
 
-  new ResizeObserver(scheduleResize).observe(container);
-  window.addEventListener('resize', scheduleResize, {passive: true});
+  new ResizeObserver(scheduleGeometry).observe(container);
+  window.addEventListener('resize', scheduleGeometry, {passive: true});
+  window.addEventListener('pageshow', scheduleGeometry, {passive: true});
+  window.addEventListener('focus', scheduleGeometry, {passive: true});
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) scheduleGeometry();
+  });
+  if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
+    window.visualViewport.addEventListener('resize', scheduleGeometry, {passive: true});
+  }
 
   function matchesAttachment(nativeMessage) {
     return nativeMessage.connectionGeneration === connectionGeneration &&
@@ -155,6 +192,12 @@
           fail(message('invalidAttachment', 'Native terminal attachment is invalid.'));
           return;
         }
+        const nativeCapabilities = Array.isArray(nativeMessage.nativeCapabilities)
+          ? nativeMessage.nativeCapabilities : [];
+        if (!nativeCapabilities.includes('android-window-geometry')) {
+          fail(message('incompatibleNativeMessage', 'Native terminal geometry capability is unavailable.'));
+          return;
+        }
         if (!nativeMessage.replayAvailable && nativeMessage.replayTruncated) {
           terminal.write(`\r\n${message(
             'replayUnavailable',
@@ -163,8 +206,7 @@
         }
         status.classList.add('hidden');
         terminal.focus();
-        fitAddon.fit();
-        scheduleResize();
+        scheduleGeometry();
         return;
       }
       if (!matchesAttachment(nativeMessage)) return;
@@ -177,17 +219,16 @@
         case contract.messages.state:
           renderState(nativeMessage);
           break;
+        case contract.messages.geometry:
+          scheduleGeometry();
+          break;
         case contract.messages.error:
           terminal.write(`\r\n[native error: ${nativeMessage.message}]\r\n`);
           break;
       }
     };
     nativePort.start();
-    fitAddon.fit();
-    post({
-      ...dimensions(contract.messages.ready),
-      capabilities: contract.pageCapabilities
-    }, false);
+    scheduleGeometry();
   }
 
   window.addEventListener('message', handleNativeChannel);

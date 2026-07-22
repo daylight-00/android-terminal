@@ -9,11 +9,12 @@
     attached: 'attached',
     output: 'output',
     state: 'state',
+    geometry: 'geometry',
     error: 'error'
   });
 
   window.AndroidTerminalContract = Object.freeze({
-    protocolVersion: 2,
+    protocolVersion: 3,
     channelMarker: 'native-shell',
     messages,
     pageCapabilities: Object.freeze([
@@ -21,7 +22,8 @@
       'binary-input',
       'fit',
       'output-ack',
-      'session-attach-v2'
+      'session-attach-v2',
+      'geometry-dedup-v1'
     ])
   });
 })();
