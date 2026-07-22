@@ -58,6 +58,16 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt",
         failures,
     )
+    document_policy = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentPolicy.kt",
+        failures,
+    )
+    document_transport = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentTransport.kt",
+        failures,
+    )
     service = read(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt",
@@ -116,8 +126,8 @@ def verify(root: Path) -> list[str]:
     if 'id="custom-ui-root"' not in html:
         fail("custom UI root is missing", failures)
 
-    if "protocolVersion: 4" not in contract_js or "PROTOCOL_VERSION = 4" not in contract_kt:
-        fail("JavaScript and Kotlin protocol version 4 must match", failures)
+    if "protocolVersion: 5" not in contract_js or "PROTOCOL_VERSION = 5" not in contract_kt:
+        fail("JavaScript and Kotlin protocol version 5 must match", failures)
     if "channelMarker: 'native-shell'" not in contract_js or 'CHANNEL_MARKER = "native-shell"' not in contract_kt:
         fail("JavaScript and Kotlin channel marker must match", failures)
     message_types = {
@@ -161,6 +171,10 @@ def verify(root: Path) -> list[str]:
         "contract.messages.platformRequest",
         "contract.messages.platformState",
         "contract.messages.platformResult",
+        "importDocument(options = {})",
+        "exportDocument(path, options = {})",
+        "contract.platformOperations.documentImport",
+        "contract.platformOperations.documentExport",
     ):
         if token not in bridge_js:
             fail(f"Layer 2 bridge lacks required public integration token: {token}", failures)
@@ -216,6 +230,34 @@ def verify(root: Path) -> list[str]:
         if unselected_upstream in bridge_js or unselected_upstream in contract_js:
             fail(f"unselected upstream addon leaked into Layer 2: {unselected_upstream}", failures)
 
+    for token in ("documentImport: 'document-import'", "documentExport: 'document-export'", "android-document-transport"):
+        if token not in contract_js:
+            fail(f"document transport contract lacks token: {token}", failures)
+    for token in ("DOCUMENT_IMPORT", "DOCUMENT_EXPORT", "android-document-transport"):
+        if token not in contract_kt:
+            fail(f"native document transport contract lacks token: {token}", failures)
+    for token in (
+        "Intent.ACTION_OPEN_DOCUMENT",
+        "Intent.ACTION_CREATE_DOCUMENT",
+        "OpenableColumns.DISPLAY_NAME",
+        "openInputStream",
+        "openOutputStream",
+        "activity.filesDir",
+    ):
+        if token not in document_transport:
+            fail(f"SAF private-file transport lacks token: {token}", failures)
+    for token in (
+        "validatedRelativeHomePath",
+        "resolvePrivateExportSource",
+        "MAX_DOCUMENT_BYTES",
+        "uniqueImportTarget",
+    ):
+        if token not in document_policy:
+            fail(f"document transport policy lacks token: {token}", failures)
+    for forbidden in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission", "DocumentsContract", "FUSE"):
+        if forbidden in document_transport or forbidden in document_policy or forbidden in activity:
+            fail(f"SAF virtual-mount behavior is forbidden: {forbidden}", failures)
+
     if "createWebMessageChannel()" not in controller or "TerminalContract" not in controller:
         fail("Kotlin platform bridge must use WebMessagePort through TerminalContract", failures)
     if "TerminalCustomization.backgroundColor" not in controller:
@@ -239,6 +281,8 @@ def verify(root: Path) -> list[str]:
         fail("terminal geometry must deduplicate unchanged sizes", failures)
     if "bindService(serviceIntent, serviceConnection" not in activity or "TerminalSession(" in activity:
         fail("Activity must remain a replaceable service-bound frontend", failures)
+    if "override fun onActivityResult" not in activity or "controller?.handleActivityResult" not in activity:
+        fail("Activity must return SAF results to the current Layer 2 frontend", failures)
     if "override fun onRenderProcessGone" not in web_client or "onRendererGone(detail.didCrash())" not in web_client:
         fail("Layer 2 must handle WebView renderer termination through the host callback", failures)
     if "shutdown(rendererProcessGone = true)" not in controller or "sessionHost.detach" not in controller:
@@ -267,7 +311,7 @@ def verify(root: Path) -> list[str]:
         fail("native Android window geometry capability is missing", failures)
     if "webview-renderer-recovery" not in contract_kt:
         fail("native WebView renderer recovery capability is missing", failures)
-    if "platform-bridge-v1" not in contract_js or "platform-bridge-v1" not in contract_kt:
+    if "platform-bridge-v2" not in contract_js or "platform-bridge-v2" not in contract_kt:
         fail("platform bridge capability is not mirrored", failures)
     for capability in (
         "android-clipboard",
@@ -276,6 +320,7 @@ def verify(root: Path) -> list[str]:
         "android-system-theme",
         "android-accessibility-state",
         "android-hardware-keyboard-state",
+        "android-document-transport",
     ):
         if capability not in contract_kt:
             fail(f"native platform capability is missing: {capability}", failures)

@@ -1,7 +1,7 @@
 package io.github.daylight00.androidterminal
 
 internal object TerminalContract {
-    const val PROTOCOL_VERSION = 4
+    const val PROTOCOL_VERSION = 5
     const val ORIGIN = "https://app.local"
     const val HOST = "app.local"
     const val DOCUMENT_PATH = "/terminal/index.html"
@@ -28,6 +28,8 @@ internal object TerminalContract {
         const val CLIPBOARD_WRITE = "clipboard-write"
         const val OPEN_EXTERNAL_URI = "open-external-uri"
         const val BELL = "bell"
+        const val DOCUMENT_IMPORT = "document-import"
+        const val DOCUMENT_EXPORT = "document-export"
     }
 
     val REQUIRED_PAGE_CAPABILITIES = setOf(
@@ -37,7 +39,8 @@ internal object TerminalContract {
         "output-ack",
         "session-attach-v2",
         "geometry-dedup-v1",
-        "platform-bridge-v1",
+        "platform-bridge-v2",
+        "document-transport-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(
@@ -54,5 +57,6 @@ internal object TerminalContract {
         "android-system-theme",
         "android-accessibility-state",
         "android-hardware-keyboard-state",
+        "android-document-transport",
     )
 }

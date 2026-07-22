@@ -20,11 +20,13 @@
     clipboardRead: 'clipboard-read',
     clipboardWrite: 'clipboard-write',
     openExternalUri: 'open-external-uri',
-    bell: 'bell'
+    bell: 'bell',
+    documentImport: 'document-import',
+    documentExport: 'document-export'
   });
 
   window.AndroidTerminalContract = Object.freeze({
-    protocolVersion: 4,
+    protocolVersion: 5,
     channelMarker: 'native-shell',
     messages,
     platformOperations,
@@ -35,7 +37,8 @@
       'android-haptic-bell',
       'android-system-theme',
       'android-accessibility-state',
-      'android-hardware-keyboard-state'
+      'android-hardware-keyboard-state',
+      'android-document-transport'
     ]),
     pageCapabilities: Object.freeze([
       'xterm-core',
@@ -44,7 +47,8 @@
       'output-ack',
       'session-attach-v2',
       'geometry-dedup-v1',
-      'platform-bridge-v1'
+      'platform-bridge-v2',
+      'document-transport-v1'
     ])
   });
 })();

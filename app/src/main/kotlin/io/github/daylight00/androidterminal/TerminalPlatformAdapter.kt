@@ -5,9 +5,9 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
-import android.os.SystemClock
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.accessibility.AccessibilityManager
 import android.webkit.WebView
@@ -24,6 +24,7 @@ internal class TerminalPlatformAdapter(
 ) : AutoCloseable {
     private val clipboardManager = activity.getSystemService(ClipboardManager::class.java)
     private val accessibilityManager = activity.getSystemService(AccessibilityManager::class.java)
+    private val documentTransport = TerminalDocumentTransport(activity)
 
     private val accessibilityStateListener =
         AccessibilityManager.AccessibilityStateChangeListener { publishState() }
@@ -32,6 +33,8 @@ internal class TerminalPlatformAdapter(
 
     private var closed = false
     private var lastBellMillis = Long.MIN_VALUE
+    private var nextDocumentToken = 1L
+    private var pendingDocumentRequest: PendingDocumentRequest? = null
 
     init {
         accessibilityManager?.addAccessibilityStateChangeListener(accessibilityStateListener)
@@ -41,6 +44,7 @@ internal class TerminalPlatformAdapter(
     override fun close() {
         if (closed) return
         closed = true
+        pendingDocumentRequest = null
         accessibilityManager?.removeAccessibilityStateChangeListener(accessibilityStateListener)
         accessibilityManager?.removeTouchExplorationStateChangeListener(touchExplorationStateListener)
     }
@@ -67,12 +71,128 @@ internal class TerminalPlatformAdapter(
         if (!closed) onStateChanged(currentState())
     }
 
-    fun handle(operation: String, payload: JSONObject): TerminalPlatformResult = when (operation) {
-        TerminalContract.PlatformOperation.CLIPBOARD_READ -> readClipboard()
-        TerminalContract.PlatformOperation.CLIPBOARD_WRITE -> writeClipboard(payload.optString("text"))
-        TerminalContract.PlatformOperation.OPEN_EXTERNAL_URI -> openExternalUri(payload.optString("uri"))
-        TerminalContract.PlatformOperation.BELL -> performBell()
-        else -> TerminalPlatformResult.failure("unsupported platform operation")
+    fun handle(
+        operation: String,
+        payload: JSONObject,
+        completion: (TerminalPlatformResult) -> Unit,
+    ) {
+        if (closed) return
+        when (operation) {
+            TerminalContract.PlatformOperation.CLIPBOARD_READ -> completion(readClipboard())
+            TerminalContract.PlatformOperation.CLIPBOARD_WRITE -> {
+                completion(writeClipboard(payload.optString("text")))
+            }
+            TerminalContract.PlatformOperation.OPEN_EXTERNAL_URI -> {
+                completion(openExternalUri(payload.optString("uri")))
+            }
+            TerminalContract.PlatformOperation.BELL -> completion(performBell())
+            TerminalContract.PlatformOperation.DOCUMENT_IMPORT -> {
+                beginDocumentImport(payload, completion)
+            }
+            TerminalContract.PlatformOperation.DOCUMENT_EXPORT -> {
+                beginDocumentExport(payload, completion)
+            }
+            else -> completion(TerminalPlatformResult.failure("unsupported platform operation"))
+        }
+    }
+
+    fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != REQUEST_IMPORT_DOCUMENT && requestCode != REQUEST_EXPORT_DOCUMENT) {
+            return false
+        }
+        val pending = pendingDocumentRequest ?: return true
+        if (pending.requestCode != requestCode) return true
+        pendingDocumentRequest = null
+
+        if (closed) return true
+        if (resultCode != Activity.RESULT_OK) {
+            pending.completion(TerminalPlatformResult.failure("document operation was cancelled"))
+            return true
+        }
+        val uri = data?.data
+        if (uri == null) {
+            pending.completion(TerminalPlatformResult.failure("document provider returned no URI"))
+            return true
+        }
+
+        Thread {
+            val result = when (pending) {
+                is PendingDocumentRequest.Import -> documentTransport.importDocument(uri)
+                is PendingDocumentRequest.Export -> documentTransport.exportDocument(uri, pending.source)
+            }
+            activity.runOnUiThread {
+                if (!closed && pending.token < nextDocumentToken) {
+                    pending.completion(result)
+                }
+            }
+        }.start()
+        return true
+    }
+
+    private fun beginDocumentImport(
+        payload: JSONObject,
+        completion: (TerminalPlatformResult) -> Unit,
+    ) {
+        if (pendingDocumentRequest != null) {
+            completion(TerminalPlatformResult.failure("another document operation is already active"))
+            return
+        }
+        val token = nextDocumentToken++
+        pendingDocumentRequest = PendingDocumentRequest.Import(
+            token = token,
+            requestCode = REQUEST_IMPORT_DOCUMENT,
+            completion = completion,
+        )
+        try {
+            activity.startActivityForResult(
+                documentTransport.importIntent(payload.optString("mimeType")),
+                REQUEST_IMPORT_DOCUMENT,
+            )
+        } catch (_: ActivityNotFoundException) {
+            pendingDocumentRequest = null
+            completion(TerminalPlatformResult.failure("no Android document picker is available"))
+        } catch (_: SecurityException) {
+            pendingDocumentRequest = null
+            completion(TerminalPlatformResult.failure("Android denied the document picker"))
+        }
+    }
+
+    private fun beginDocumentExport(
+        payload: JSONObject,
+        completion: (TerminalPlatformResult) -> Unit,
+    ) {
+        if (pendingDocumentRequest != null) {
+            completion(TerminalPlatformResult.failure("another document operation is already active"))
+            return
+        }
+        val source = documentTransport.prepareExport(payload)
+        if (source == null) {
+            completion(
+                TerminalPlatformResult.failure(
+                    "export source must be a bounded readable file under the app-private HOME",
+                ),
+            )
+            return
+        }
+        val token = nextDocumentToken++
+        pendingDocumentRequest = PendingDocumentRequest.Export(
+            token = token,
+            requestCode = REQUEST_EXPORT_DOCUMENT,
+            completion = completion,
+            source = source,
+        )
+        try {
+            activity.startActivityForResult(
+                documentTransport.exportIntent(source),
+                REQUEST_EXPORT_DOCUMENT,
+            )
+        } catch (_: ActivityNotFoundException) {
+            pendingDocumentRequest = null
+            completion(TerminalPlatformResult.failure("no Android document creator is available"))
+        } catch (_: SecurityException) {
+            pendingDocumentRequest = null
+            completion(TerminalPlatformResult.failure("Android denied document creation"))
+        }
     }
 
     private fun readClipboard(): TerminalPlatformResult {
@@ -122,11 +242,37 @@ internal class TerminalPlatformAdapter(
         if (lastBellMillis != Long.MIN_VALUE &&
             now - lastBellMillis < TerminalPlatformPolicy.MIN_BELL_INTERVAL_MILLIS
         ) {
-            return TerminalPlatformResult.success(JSONObject().put("performed", false).put("rateLimited", true))
+            return TerminalPlatformResult.success(
+                JSONObject().put("performed", false).put("rateLimited", true),
+            )
         }
         lastBellMillis = now
         val performed = terminalView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         return TerminalPlatformResult.success(JSONObject().put("performed", performed))
+    }
+
+    private sealed class PendingDocumentRequest(
+        val token: Long,
+        val requestCode: Int,
+        val completion: (TerminalPlatformResult) -> Unit,
+    ) {
+        class Import(
+            token: Long,
+            requestCode: Int,
+            completion: (TerminalPlatformResult) -> Unit,
+        ) : PendingDocumentRequest(token, requestCode, completion)
+
+        class Export(
+            token: Long,
+            requestCode: Int,
+            completion: (TerminalPlatformResult) -> Unit,
+            val source: TerminalDocumentTransport.ExportSource,
+        ) : PendingDocumentRequest(token, requestCode, completion)
+    }
+
+    private companion object {
+        const val REQUEST_IMPORT_DOCUMENT = 0x5401
+        const val REQUEST_EXPORT_DOCUMENT = 0x5402
     }
 }
 

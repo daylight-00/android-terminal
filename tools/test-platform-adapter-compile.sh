@@ -4,14 +4,20 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 PACKAGE_ROOT="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal"
 
 if ! command -v kotlinc >/dev/null 2>&1; then
-  python3 - "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" <<'PY'
+  python3 - "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" "$PACKAGE_ROOT/TerminalDocumentTransport.kt" <<'PY'
 from pathlib import Path
 import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
+source = "\n".join(Path(value).read_text(encoding="utf-8") for value in sys.argv[1:])
 for token in (
     "ClipboardManager",
     "ClipData.newPlainText",
     "Intent.ACTION_VIEW",
+    "Intent.ACTION_OPEN_DOCUMENT",
+    "Intent.ACTION_CREATE_DOCUMENT",
+    "OpenableColumns.DISPLAY_NAME",
+    "startActivityForResult",
+    "openInputStream",
+    "openOutputStream",
     "performHapticFeedback",
     "AccessibilityStateChangeListener",
     "TouchExplorationStateChangeListener",
@@ -29,9 +35,11 @@ mkdir -p \
   "$WORK/android/app" \
   "$WORK/android/content" \
   "$WORK/android/content/res" \
+  "$WORK/android/database" \
   "$WORK/android/graphics" \
   "$WORK/android/net" \
   "$WORK/android/os" \
+  "$WORK/android/provider" \
   "$WORK/android/view" \
   "$WORK/android/view/accessibility" \
   "$WORK/android/webkit" \
@@ -40,25 +48,59 @@ mkdir -p \
 cat > "$WORK/android/app/Activity.kt" <<'KT'
 package android.app
 
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.res.Resources
+import java.io.File
 
 open class Activity {
     val resources: Resources = Resources()
+    val contentResolver: ContentResolver = ContentResolver()
+    val filesDir: File = File(System.getProperty("java.io.tmpdir"), "android-files")
     fun <T> getSystemService(serviceClass: Class<T>): T? = null
     fun startActivity(intent: Intent) {}
+    fun startActivityForResult(intent: Intent, requestCode: Int) {}
+    fun runOnUiThread(action: () -> Unit) = action()
+    companion object { const val RESULT_OK: Int = -1 }
 }
 KT
 
 cat > "$WORK/android/content/Content.kt" <<'KT'
 package android.content
 
+import android.database.Cursor
 import android.net.Uri
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 
 open class ActivityNotFoundException : RuntimeException()
 
-class Intent(val action: String, val data: Uri? = null) {
-    companion object { const val ACTION_VIEW: String = "android.intent.action.VIEW" }
+class Intent(var action: String? = null, var data: Uri? = null) {
+    var type: String? = null
+    fun addCategory(category: String): Intent = this
+    fun putExtra(name: String, value: String): Intent = this
+    companion object {
+        const val ACTION_VIEW: String = "android.intent.action.VIEW"
+        const val ACTION_OPEN_DOCUMENT: String = "android.intent.action.OPEN_DOCUMENT"
+        const val ACTION_CREATE_DOCUMENT: String = "android.intent.action.CREATE_DOCUMENT"
+        const val CATEGORY_OPENABLE: String = "android.intent.category.OPENABLE"
+        const val EXTRA_TITLE: String = "android.intent.extra.TITLE"
+    }
+}
+
+open class ContentResolver {
+    fun openInputStream(uri: Uri): InputStream? = ByteArrayInputStream(byteArrayOf())
+    fun openOutputStream(uri: Uri, mode: String): OutputStream? = ByteArrayOutputStream()
+    fun getType(uri: Uri): String? = null
+    fun query(
+        uri: Uri,
+        projection: Array<String>,
+        selection: String?,
+        selectionArgs: Array<String>?,
+        sortOrder: String?,
+    ): Cursor? = null
 }
 
 class ClipData private constructor(private val values: List<Item>) {
@@ -96,6 +138,21 @@ class Configuration {
 class Resources(val configuration: Configuration = Configuration())
 KT
 
+cat > "$WORK/android/database/Cursor.kt" <<'KT'
+package android.database
+
+import java.io.Closeable
+
+interface Cursor : Closeable {
+    fun moveToFirst(): Boolean
+    fun getColumnIndex(name: String): Int
+    fun isNull(index: Int): Boolean
+    fun getString(index: Int): String
+    fun getLong(index: Int): Long
+    override fun close() {}
+}
+KT
+
 cat > "$WORK/android/graphics/Color.kt" <<'KT'
 package android.graphics
 object Color {
@@ -107,6 +164,7 @@ KT
 cat > "$WORK/android/net/Uri.kt" <<'KT'
 package android.net
 class Uri private constructor(val value: String) {
+    val lastPathSegment: String? get() = value.substringAfterLast('/', "").ifBlank { null }
     companion object { fun parse(value: String): Uri = Uri(value) }
 }
 KT
@@ -114,6 +172,14 @@ KT
 cat > "$WORK/android/os/SystemClock.kt" <<'KT'
 package android.os
 object SystemClock { fun elapsedRealtime(): Long = 0L }
+KT
+
+cat > "$WORK/android/provider/OpenableColumns.kt" <<'KT'
+package android.provider
+object OpenableColumns {
+    const val DISPLAY_NAME: String = "_display_name"
+    const val SIZE: String = "_size"
+}
 KT
 
 cat > "$WORK/android/view/HapticFeedbackConstants.kt" <<'KT'
@@ -160,9 +226,11 @@ kotlinc -nowarn \
   "$WORK/android/app/Activity.kt" \
   "$WORK/android/content/Content.kt" \
   "$WORK/android/content/res/Configuration.kt" \
+  "$WORK/android/database/Cursor.kt" \
   "$WORK/android/graphics/Color.kt" \
   "$WORK/android/net/Uri.kt" \
   "$WORK/android/os/SystemClock.kt" \
+  "$WORK/android/provider/OpenableColumns.kt" \
   "$WORK/android/view/HapticFeedbackConstants.kt" \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \
   "$WORK/android/webkit/WebView.kt" \
@@ -171,7 +239,9 @@ kotlinc -nowarn \
   "$PACKAGE_ROOT/TerminalCustomization.kt" \
   "$PACKAGE_ROOT/TerminalPlatformState.kt" \
   "$PACKAGE_ROOT/TerminalPlatformPolicy.kt" \
+  "$PACKAGE_ROOT/TerminalDocumentPolicy.kt" \
+  "$PACKAGE_ROOT/TerminalDocumentTransport.kt" \
   "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" \
   -d "$WORK/platform-adapter.jar"
 
-echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape"
+echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape documents=saf-private-file"

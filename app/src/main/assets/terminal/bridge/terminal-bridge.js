@@ -28,7 +28,7 @@
 
   status.textContent = message('loading', 'Loading terminal…');
 
-  if (!contract || contract.protocolVersion !== 4 || !contract.messages || !contract.platformOperations) {
+  if (!contract || contract.protocolVersion !== 5 || !contract.messages || !contract.platformOperations) {
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
@@ -83,7 +83,7 @@
     return true;
   }
 
-  function requestPlatform(operation, payload = {}) {
+  function requestPlatform(operation, payload = {}, timeoutMillis = 5000) {
     if (!isAttached()) return Promise.reject(new Error('Native terminal platform is not attached.'));
     if (pendingPlatformRequests.size >= MAX_PENDING_PLATFORM_REQUESTS) {
       return Promise.reject(new Error('Too many pending Android platform requests.'));
@@ -93,7 +93,7 @@
       const timeout = window.setTimeout(() => {
         pendingPlatformRequests.delete(requestId);
         reject(new Error(`Android platform request timed out: ${operation}`));
-      }, 5000);
+      }, timeoutMillis);
       pendingPlatformRequests.set(requestId, {resolve, reject, timeout});
       if (!post({
         type: contract.messages.platformRequest,
@@ -130,6 +130,31 @@
     },
     bell() {
       return requestPlatform(contract.platformOperations.bell);
+    },
+    importDocument(options = {}) {
+      const mimeType = options && typeof options.mimeType === 'string' ? options.mimeType : '*/*';
+      return requestPlatform(
+        contract.platformOperations.documentImport,
+        {mimeType},
+        10 * 60 * 1000
+      );
+    },
+    exportDocument(path, options = {}) {
+      if (typeof path !== 'string' || path === '') {
+        return Promise.reject(new Error('A HOME-relative export path is required.'));
+      }
+      const payload = {path};
+      if (options && typeof options.suggestedName === 'string') {
+        payload.suggestedName = options.suggestedName;
+      }
+      if (options && typeof options.mimeType === 'string') {
+        payload.mimeType = options.mimeType;
+      }
+      return requestPlatform(
+        contract.platformOperations.documentExport,
+        payload,
+        10 * 60 * 1000
+      );
     },
     getState() {
       return lastPlatformState ? {...lastPlatformState} : null;

@@ -70,6 +70,16 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt",
         failures,
     )
+    document_policy = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentPolicy.kt",
+        failures,
+    )
+    document_transport = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentTransport.kt",
+        failures,
+    )
     frontend_recovery = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalFrontendRecoveryState.kt",
@@ -163,13 +173,13 @@ def verify(root: Path) -> list[str]:
     require("override fun onRenderProcessGone" in web_client, "WebView renderer termination must be handled", failures)
     require("onRendererGone(detail.didCrash())" in web_client, "renderer termination must be forwarded without inspecting terminal semantics", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
-    require("PROTOCOL_VERSION = 4" in terminal_contract, "terminal contract version 4 must be explicit", failures)
-    require("protocolVersion: 4" in contract_js, "web terminal contract version 4 must be explicit", failures)
+    require("PROTOCOL_VERSION = 5" in terminal_contract, "terminal contract version 5 must be explicit", failures)
+    require("protocolVersion: 5" in contract_js, "web terminal contract version 5 must be explicit", failures)
     require("session-attach-v2" in terminal_contract and "session-attach-v2" in contract_js, "session attach v2 capability must match", failures)
     require("geometry-dedup-v1" in terminal_contract and "geometry-dedup-v1" in contract_js, "geometry dedupe capability must match", failures)
     require("android-window-geometry" in terminal_contract, "native Android window geometry capability is required", failures)
     require("webview-renderer-recovery" in terminal_contract, "native WebView renderer recovery capability is required", failures)
-    require("platform-bridge-v1" in terminal_contract and "platform-bridge-v1" in contract_js, "platform bridge capability must match", failures)
+    require("platform-bridge-v2" in terminal_contract and "platform-bridge-v2" in contract_js, "platform bridge capability must match", failures)
     for capability in (
         "android-clipboard",
         "android-external-uri",
@@ -177,6 +187,7 @@ def verify(root: Path) -> list[str]:
         "android-system-theme",
         "android-accessibility-state",
         "android-hardware-keyboard-state",
+        "android-document-transport",
     ):
         require(capability in terminal_contract, f"native platform capability is required: {capability}", failures)
     require("class TerminalGeometryState" in geometry, "terminal geometry state must be explicit", failures)
@@ -197,6 +208,15 @@ def verify(root: Path) -> list[str]:
     require("terminal.paste(text)" in javascript, "clipboard paste must use xterm paste API", failures)
     require("terminal.options.linkHandler" in javascript, "OSC 8 links must use xterm linkHandler", failures)
     require("terminal.onBell(" in javascript, "terminal bell must use the public xterm event", failures)
+    require("importDocument(options = {})" in javascript, "Layer 2 must expose SAF import", failures)
+    require("exportDocument(path, options = {})" in javascript, "Layer 2 must expose SAF export", failures)
+    require("document-transport-v1" in terminal_contract and "document-transport-v1" in contract_js, "document transport capability must match", failures)
+    for token in ("Intent.ACTION_OPEN_DOCUMENT", "Intent.ACTION_CREATE_DOCUMENT", "OpenableColumns.DISPLAY_NAME", "openInputStream", "openOutputStream", "activity.filesDir"):
+        require(token in document_transport, f"SAF private-file transport token is required: {token}", failures)
+    for token in ("validatedRelativeHomePath", "resolvePrivateExportSource", "MAX_DOCUMENT_BYTES", "uniqueImportTarget"):
+        require(token in document_policy, f"document policy token is required: {token}", failures)
+    for forbidden in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission", "DocumentsContract", "FUSE"):
+        require(forbidden not in document_transport and forbidden not in document_policy and forbidden not in activity, f"SAF virtual mount behavior is forbidden: {forbidden}", failures)
     for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'"):
         require(
             unselected_upstream not in javascript and unselected_upstream not in contract_js,

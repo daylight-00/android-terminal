@@ -114,7 +114,7 @@ const paths = process.argv.slice(2);
 
   function sendNative(payload) {
     port.onmessage({data: JSON.stringify({
-      contractVersion: 4,
+      contractVersion: 5,
       connectionGeneration: 3,
       sessionId: 'session-a',
       ...payload
@@ -187,7 +187,7 @@ const paths = process.argv.slice(2);
   }
 
   if (!context.AndroidTerminalContract) throw new Error('contract export missing');
-  if (context.AndroidTerminalContract.protocolVersion !== 4) throw new Error('protocol v4 missing');
+  if (context.AndroidTerminalContract.protocolVersion !== 5) throw new Error('protocol v5 missing');
   if (!context.TerminalCustomization) throw new Error('customization export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
   if (!customRoot.cleared) throw new Error('custom UI root was not initialized');
@@ -205,11 +205,11 @@ const paths = process.argv.slice(2);
   resizeObserverCallback();
   flushFrames();
   if (posted.length !== 1 || posted[0].type !== 'ready') throw new Error('ready message missing');
-  if (posted[0].contractVersion !== 4) throw new Error('ready contract version missing');
+  if (posted[0].contractVersion !== 5) throw new Error('ready contract version missing');
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'document-transport-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard', 'web-links']) {
@@ -218,7 +218,7 @@ const paths = process.argv.slice(2);
 
   const requiredNative = context.AndroidTerminalContract.requiredNativeCapabilities;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 4,
+    contractVersion: 5,
     type: 'attached',
     connectionGeneration: 3,
     sessionId: 'session-a',
@@ -267,7 +267,7 @@ const paths = process.argv.slice(2);
   if (posted.length !== 2) throw new Error('transient zero geometry emitted resize');
 
   port.onmessage({data: JSON.stringify({
-    contractVersion: 4,
+    contractVersion: 5,
     type: 'output',
     connectionGeneration: 2,
     sessionId: 'stale-session',
@@ -329,7 +329,33 @@ const paths = process.argv.slice(2);
   completeRequest(bellRequest, {performed: false});
   await Promise.resolve();
 
-  console.log('PASS web-terminal-channel contract=4 platform=clipboard,theme,accessibility,links,bell geometry=deduplicated');
+  const importPromise = context.AndroidTerminalPlatform.importDocument({mimeType: 'text/plain'});
+  const importRequest = latestRequest('document-import');
+  if (importRequest.payload.mimeType !== 'text/plain') throw new Error('document import MIME type missing');
+  completeRequest(importRequest, {
+    path: '/data/user/0/app/files/imports/input.txt',
+    relativePath: 'imports/input.txt',
+    name: 'input.txt',
+    mimeType: 'text/plain',
+    bytes: 12
+  });
+  const imported = await importPromise;
+  if (imported.relativePath !== 'imports/input.txt') throw new Error('document import result missing');
+
+  const exportPromise = context.AndroidTerminalPlatform.exportDocument('imports/input.txt', {
+    suggestedName: 'output.txt',
+    mimeType: 'text/plain'
+  });
+  const exportRequest = latestRequest('document-export');
+  if (exportRequest.payload.path !== 'imports/input.txt' ||
+      exportRequest.payload.suggestedName !== 'output.txt' ||
+      exportRequest.payload.mimeType !== 'text/plain') {
+    throw new Error('document export payload is incomplete');
+  }
+  completeRequest(exportRequest, {relativePath: 'imports/input.txt', bytes: 12});
+  await exportPromise;
+
+  console.log('PASS web-terminal-channel contract=5 platform=clipboard,theme,accessibility,links,bell,documents geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -346,11 +372,12 @@ import sys
 contract_path, codec_path, customization_path, bridge_path = map(pathlib.Path, sys.argv[1:])
 required = {
     contract_path: (
-        "protocolVersion: 4",
+        "protocolVersion: 5",
         "channelMarker: 'native-shell'",
         "session-attach-v2",
         "geometry-dedup-v1",
-        "platform-bridge-v1",
+        "platform-bridge-v2",
+        "document-transport-v1",
         "platformRequest: 'platform-request'",
         "platformState: 'platform-state'",
         "platformResult: 'platform-result'",
@@ -373,6 +400,8 @@ required = {
         "terminal.options.linkHandler",
         "terminal.onBell(",
         "window.AndroidTerminalPlatform = platform",
+        "importDocument(options = {})",
+        "exportDocument(path, options = {})",
         "window.visualViewport.addEventListener('resize'",
         "matchesAttachment(nativeMessage)",
     ),
@@ -396,6 +425,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=4 platform=bounded geometry=deduplicated")
+print("PASS web-terminal static-python node=unavailable contract=5 platform=bounded-documents geometry=deduplicated")
 PY
 fi

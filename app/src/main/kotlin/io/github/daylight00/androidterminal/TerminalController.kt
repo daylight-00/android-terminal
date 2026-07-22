@@ -1,6 +1,7 @@
 package io.github.daylight00.androidterminal
 
 import android.app.Activity
+import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Handler
@@ -324,9 +325,18 @@ internal class TerminalController(
         }
         val operation = message.optString("operation")
         val payload = message.optJSONObject("payload") ?: JSONObject()
-        val result = platformAdapter.handle(operation, payload)
-        sendPlatformResult(requestId, result)
+        val requestGeneration = connectionGeneration
+        val requestSessionId = sessionId
+        platformAdapter.handle(operation, payload) { result ->
+            mainHandler.post {
+                if (!isCurrentAttachment(requestGeneration, requestSessionId)) return@post
+                sendPlatformResult(requestId, result)
+            }
+        }
     }
+
+    fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean =
+        platformAdapter.handleActivityResult(requestCode, resultCode, data)
 
     private fun handleAck(message: JSONObject) {
         val sequence = message.optLong("seq", -1L)

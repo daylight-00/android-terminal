@@ -54,9 +54,11 @@ connection status of upstream features.
 - C only owns the PTY and process syscalls that Android's managed API does not expose.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
-- A bounded protocol v4 platform bridge connects explicit clipboard actions, OSC 8 links, bell
-  events, system theme, accessibility state, and hardware-keyboard presence without adding a
-  terminal parser or replacing WebView/xterm input semantics.
+- A bounded protocol v5 platform bridge connects explicit clipboard actions, OSC 8 links, bell
+  events, system theme, accessibility state, hardware-keyboard presence, and SAF document
+  import/export without adding a terminal parser or replacing WebView/xterm input semantics.
+- SAF imports become real files under the app-private `HOME/imports`; exports accept only validated
+  HOME-relative regular files. No `content://` URI is presented as a POSIX path or virtual mount.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
   origin and rejects every other resource or navigation.

@@ -54,6 +54,7 @@ open class Activity : android.content.Context() {
     open fun onResume() {}
     open fun onWindowFocusChanged(hasFocus: Boolean) {}
     open fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
+    open fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {}
     open fun onDestroy() {}
     fun setContentView(view: View) {}
     fun startService(intent: Intent): android.content.ComponentName? = null
@@ -68,7 +69,9 @@ package android.content
 open class Context {
     companion object { const val BIND_AUTO_CREATE: Int = 1 }
 }
-class Intent(val context: Context, val cls: Class<*>)
+class Intent(val context: Context, val cls: Class<*>) {
+    var data: android.net.Uri? = null
+}
 class ComponentName
 interface ServiceConnection {
     fun onServiceConnected(name: ComponentName, service: android.os.IBinder)
@@ -189,6 +192,7 @@ class TerminalController(
     fun requestGeometrySync() {}
     fun requestPlatformStateSync() {}
     fun updateAppearance(configuration: android.content.res.Configuration) {}
+    fun handleActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?): Boolean = false
 }
 KT
 

@@ -37,7 +37,7 @@ Layer 3. A capability is not considered complete merely because xterm.js exposes
 | Accessibility | xterm `screenReaderMode` | Android accessibility and touch-exploration state listeners feed the platform state contract | Active touch exploration maps to xterm screen-reader mode | Connected |
 | Images | official xterm image addon | Not vendored | GPU/memory policy undecided | Upstream pending |
 | WebGL renderer | official xterm WebGL addon | Renderer-loss fallback absent | Default renderer undecided | Upstream pending |
-| SAF import/export | Android Storage Access Framework | URI-to-private-file transport absent | User-facing actions undecided | Policy pending |
+| SAF import/export | Android Storage Access Framework | `ACTION_OPEN_DOCUMENT` streams one selected document into a bounded real file under private `HOME/imports`; `ACTION_CREATE_DOCUMENT` streams one validated HOME-relative regular file out without exposing a virtual mount | User-facing controls remain undecided | Connected; UI policy pending |
 | Bundled shell/userland/package manager | none | Deliberately absent | Deliberately absent | Intentionally excluded |
 | Custom VT parser or screen renderer | none | Forbidden | Forbidden | Intentionally excluded |
 | SAF/FUSE virtual mount | none | Forbidden by current thin boundary | Separate project if ever required | Intentionally excluded |

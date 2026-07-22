@@ -93,6 +93,12 @@ class MainActivity : Activity() {
         }
     }
 
+    @Deprecated("Uses platform APIs only; Activity Result API would require AndroidX")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        controller?.handleActivityResult(requestCode, resultCode, data)
+    }
+
     override fun onDestroy() {
         frontendRecovery.invalidate()
         sessionHost = null

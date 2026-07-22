@@ -21,6 +21,8 @@ check web-terminal "$ROOT/tools/test-web-terminal.sh"
 check session-replay "$ROOT/tools/test-session-replay.sh"
 check terminal-geometry "$ROOT/tools/test-terminal-geometry.sh"
 check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
+check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
+check terminal-document-transport "$ROOT/tools/test-document-transport.sh"
 check terminal-platform-adapter "$ROOT/tools/test-platform-adapter-compile.sh"
 check frontend-recovery "$ROOT/tools/test-frontend-recovery.sh"
 check renderer-recovery-api "$ROOT/tools/test-renderer-recovery-compile.sh"
@@ -39,6 +41,8 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-session-replay.sh" \
   "$ROOT/tools/test-terminal-geometry.sh" \
   "$ROOT/tools/test-platform-policy.sh" \
+  "$ROOT/tools/test-document-policy.sh" \
+  "$ROOT/tools/test-document-transport.sh" \
   "$ROOT/tools/test-platform-adapter-compile.sh" \
   "$ROOT/tools/test-frontend-recovery.sh" \
   "$ROOT/tools/test-renderer-recovery-compile.sh" \
@@ -77,7 +81,7 @@ check session-service grep -Fq 'class TerminalSessionService : Service()' \
 check service-owns-session grep -Fq 'TerminalSession(' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check controller-does-not-own-session sh -c '! grep -Fq "TerminalSession(" app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt'
-check platform-contract-v4 grep -Fq 'const val PROTOCOL_VERSION = 4' \
+check platform-contract-v5 grep -Fq 'const val PROTOCOL_VERSION = 5' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check geometry-state grep -Fq 'class TerminalGeometryState' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalGeometry.kt
@@ -95,7 +99,7 @@ check renderer-same-service grep -Fq 'installFrontend(binder)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt
 check renderer-native-capability grep -Fq 'webview-renderer-recovery' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
-check platform-bridge-capability grep -Fq 'platform-bridge-v1' \
+check platform-bridge-capability grep -Fq 'platform-bridge-v2' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-clipboard-capability grep -Fq 'android-clipboard' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
@@ -103,6 +107,15 @@ check android-link-capability grep -Fq 'android-external-uri' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-accessibility-capability grep -Fq 'android-accessibility-state' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check android-document-capability grep -Fq 'android-document-transport' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check saf-document-transport grep -Fq 'class TerminalDocumentTransport' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentTransport.kt
+check private-home-document-policy grep -Fq 'resolvePrivateExportSource' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentPolicy.kt
+check activity-document-result grep -Fq 'override fun onActivityResult' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt
+check no-saf-virtual-mount sh -c '! grep -R --exclude-dir=.git --exclude-dir=out -E "ACTION_OPEN_DOCUMENT_TREE|takePersistableUriPermission|DocumentsContract|FUSE" app'
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c
 check webview grep -Fq 'val view: WebView = WebView(activity)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt

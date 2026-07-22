@@ -71,21 +71,24 @@ A device PASS requires a bounded receipt containing at least:
 The terminal page must replace the loading overlay after receiving the exact `native-shell` marker with one transferred message port. It must not reject the native channel by comparing `MessageEvent.origin`, and it exposes a five-second startup diagnostic instead of leaving an indefinite loading overlay.
 
 
-## Protocol v4, service-session, geometry, and platform boundary
+## Protocol v5, service-session, geometry, and platform boundary
 
 Repository verification compiles and exercises the pure Kotlin bounded replay buffer and terminal
-geometry state, executes protocol v4 in Node, and statically verifies that the Android service owns
+geometry state, executes protocol v5 in Node, and statically verifies that the Android service owns
 the PTY while the Activity only binds a frontend. The geometry test rejects transient zero layouts,
 deduplicates unchanged sizes, and verifies changed WebView/IME viewport geometry before it can reach
 `TIOCSWINSZ`. It also compiles the pure URI/clipboard policy and the Android platform adapter
 against an API-shape stub, then executes the clipboard, OSC 8 link, bell, theme, accessibility,
-and stale-attachment paths in Node. The owner APK build remains the authority for compiling the
-real Android framework integration.
+document import/export request-result, and stale-attachment paths in Node. Pure Kotlin tests verify
+private-HOME path confinement, name sanitation, MIME bounding, collision handling, and the document
+size limit. The API-shape compile covers `ACTION_OPEN_DOCUMENT`, `ACTION_CREATE_DOCUMENT`,
+`OpenableColumns`, and streaming `ContentResolver` access. The owner APK build remains the authority
+for compiling the real Android framework integration.
 
 ADB runtime validation is deferred when no authorized device transport is available. The missing
 device gate must remain a non-claim: Activity recreation, WebView replacement, stale-generation rejection, task-removal cleanup,
 replay truncation, IME show/hide, rotation, split-screen, clipboard privacy behavior, external-link
-routing, haptic bell behavior, accessibility services, physical-keyboard state, and OEM WebView
+routing, haptic bell behavior, accessibility services, physical-keyboard state, SAF provider import/export, cancellation and large-file behavior, and OEM WebView
 viewport behavior still require a later real-device test.
 
 ## WebView renderer recovery
