@@ -107,12 +107,14 @@ PY
   rm -rf -- "$staging"
   mkdir -p "$staging"
   unzip -q "$archive" -d "$staging"
+  chmod 755 "$staging/cmdline-tools/bin/"*
   [ -x "$staging/cmdline-tools/bin/sdkmanager" ] || fail "sdkmanager missing from command-line tools archive"
   rm -rf -- "$destination"
   mkdir -p "$(dirname -- "$destination")"
   mv -- "$staging/cmdline-tools" "$destination"
   rm -rf -- "$staging"
-  ln -sfn "$CMDLINE_TOOLS_REVISION" "$SDK_ROOT/cmdline-tools/latest"
+  rm -rf -- "$SDK_ROOT/cmdline-tools/latest"
+  ln -s "$CMDLINE_TOOLS_REVISION" "$SDK_ROOT/cmdline-tools/latest"
 }
 
 if ! sdk_complete; then
