@@ -1,0 +1,9 @@
+[project]
+name = "android-terminal-build-tools"
+version = "0.1.0"
+description = "Pinned Python-managed build tools for Android Terminal"
+requires-python = ">=3.12"
+dependencies = [
+  "cmake>=3.31,<5",
+  "ninja>=1.12,<2",
+]

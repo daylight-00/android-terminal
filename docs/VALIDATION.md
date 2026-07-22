@@ -38,17 +38,18 @@ tree from a fully provisioned tree and rejects partial or unreceipted assets.
 uses the official NDK r27d compiler/linker when those host binaries execute normally. On
 native Android/Termux, where the NDK `linux-x86_64` linker is not a valid ARM64 Bionic
 host executable, it uses Termux's host-native `clang` and `ld.lld` with the exact NDK
-r27d sysroot, API 29 stubs, headers, and compiler runtime. Output is validation evidence
-only and is not committed. Gradle packages the same generated arm64 library and does not
-invoke CMake or the incompatible NDK host linker.
+r27d sysroot, API 29 stubs, headers, and compiler runtime. Output is validation evidence only and is not committed. Gradle packages the same generated
+arm64 library. A separate `build-tools/pyproject.toml` and CMake entry point provide the canonical
+x86 Linux workstation path through the official NDK CMake toolchain; the Termux path remains the
+narrow host adaptation because Google's NDK host executables are x86_64.
 
 ## Android SDK build gate
 
-`tools/prepare-android-sdk.sh` resolves or creates one SDK root, pins the official Android
-command-line tools archive and SHA-256, installs platform 35 plus build-tools 35.0.0, and writes
-only the ignored `local.properties`. On Android/Termux it selects the native `aapt2` executable
-instead of allowing AGP to launch Google's x86_64 Linux binary. APK assembly passes that exact
-path through `android.aapt2FromMavenOverride`.
+`tools/prepare-android-sdk.sh` uses the standard `$HOME/Android/Sdk` root by default and fails
+closed unless platform 35, build-tools 35.0.0, and NDK 27.3.13750724 already exist there. It does
+not download another SDK or install Termux packages. On Android/Termux it selects an already
+installed host-native `aapt2` instead of allowing AGP to launch Google's x86_64 Linux binary.
+APK assembly passes that exact path through `android.aapt2FromMavenOverride`.
 
 ## Device gate
 

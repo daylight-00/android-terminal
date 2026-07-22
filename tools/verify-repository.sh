@@ -25,6 +25,8 @@ check verifier-fixtures "$ROOT/tools/test-verifier.sh"
 check shell-syntax bash -n \
   "$ROOT/tools/acquire-web-terminal-assets.sh" \
   "$ROOT/tools/build-native-bridge.sh" \
+  "$ROOT/tools/build-native-bridge-cmake.sh" \
+  "$ROOT/tools/prepare-android-sdk.sh" \
   "$ROOT/tools/test-asset-provisioner.sh" \
   "$ROOT/tools/test-web-terminal.sh" \
   "$ROOT/tools/verify-repository.sh" \
@@ -49,6 +51,11 @@ check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
 check native-gradle-task grep -Fq "tasks.register('buildNativeBridge', Exec)" app/build.gradle
 check no-external-native-build sh -c '! grep -Fq externalNativeBuild app/build.gradle'
 check host-native-ndk-fallback grep -Fq 'host-native-clang-ndk-sysroot' tools/build-native-bridge.sh
+check buildconfig-enabled grep -Fq 'buildConfig true' app/build.gradle
+check standard-sdk-root grep -Fq 'ANDROID_TERMINAL_SDK_ROOT:-"$HOME/Android/Sdk"' tools/prepare-android-sdk.sh
+check no-sdk-bootstrap sh -c '! grep -Eq "curl |sdkmanager|pkg install" tools/prepare-android-sdk.sh'
+check cmake-project grep -Fq 'add_library(shellbridge SHARED' app/src/main/c/CMakeLists.txt
+check uv-cmake-project grep -Fq 'uv run --project' tools/build-native-bridge-cmake.sh
 check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c

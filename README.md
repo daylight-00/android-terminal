@@ -98,18 +98,17 @@ it falls back to the installed host-native `clang` and `ld.lld` while still usin
 NDK r27d sysroot and API 29 target libraries. This avoids executing the NDK's
 `linux-x86_64/ld.lld` through Android's Bionic loader.
 
-Prepare a bounded SDK location before the first APK build:
+Verify the standard Android SDK before the first APK build:
 
 ```sh
 SDK_ENV_FILE="$TMPDIR/android-terminal-sdk.env" ./tools/prepare-android-sdk.sh
 . "$TMPDIR/android-terminal-sdk.env"
 ```
 
-The SDK helper reuses an existing compatible SDK when present. Otherwise it pins the official
-Android command-line tools, installs platform 35 and build-tools 35.0.0, writes the untracked
-`local.properties`, and selects a host-native `aapt2` (installing the Termux `aapt2` package when
-necessary). This prevents AGP from trying to execute Google's x86_64 Linux `aapt2` on ARM64
-Android.
+The SDK helper uses `$HOME/Android/Sdk` by default and fails closed unless platform 35,
+build-tools 35.0.0, and NDK 27.3.13750724 already exist there. It writes only the untracked
+`local.properties` and selects an already installed host-native `aapt2`; it does not download a
+second SDK tree or mutate Termux packages.
 
 After provisioning assets and the SDK, build with a trusted Gradle installation. Gradle runs
 the host-aware native builder and packages its generated `arm64-v8a/libshellbridge.so`:
@@ -117,6 +116,13 @@ the host-aware native builder and packages its generated `arm64-v8a/libshellbrid
 ```sh
 gradle -Pandroid.aapt2FromMavenOverride="$AAPT2_PATH" :app:assembleDebug
 ```
+
+### Build tool environments
+
+The canonical Linux workstation native build uses the official NDK CMake toolchain through
+`build-tools/pyproject.toml` and `uv`. On ARM64 Termux, the official NDK host executables are
+x86_64, so the verified host-native Clang path remains the narrow Android-host adaptation while
+using the same NDK r27d sysroot and API 29 stubs.
 
 ## Runtime probe
 

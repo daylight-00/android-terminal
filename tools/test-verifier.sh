@@ -10,7 +10,7 @@ copy_fixture() {
   tar -C "$ROOT" \
     --exclude=.git \
     --exclude=out \
-    -cf - app tools build.gradle settings.gradle README.md | tar -C "$destination" -xf -
+    -cf - app tools build-tools build.gradle settings.gradle README.md | tar -C "$destination" -xf -
 }
 
 SUCCESS=$TMP/success

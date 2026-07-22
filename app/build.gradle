@@ -23,6 +23,10 @@ android {
         }
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
     sourceSets {
         main {
             jniLibs.srcDirs = [generatedJniRoot]
