@@ -1,0 +1,24 @@
+:root {
+  color-scheme: dark;
+  background: #000;
+}
+
+html,
+body,
+#app-root,
+#terminal {
+  background: #000;
+}
+
+#terminal {
+  padding: 4px;
+}
+
+#status {
+  padding: 24px;
+  background: #000;
+  color: #ddd;
+  font: 14px/1.5 monospace;
+  white-space: pre-wrap;
+  text-align: center;
+}

@@ -32,27 +32,17 @@ AndroidX, Rust, custom terminal parser, or custom terminal renderer.
 ## Architecture
 
 ```text
-Kotlin Activity
-    |
-    v
-platform WebView ---- local bundled xterm.js
-    |
-    | platform WebMessagePort, Base64 byte batches
-    v
-small Kotlin session bridge
-    |
-    | JNI
-    v
-libshellbridge.so
-    |
-    | PTY
-    v
-/system/bin/sh -> Android system executables
+Layer 3  explicit product customization
+   ↓
+Layer 2  Android lifecycle, secure WebView, stable protocol, PTY/JNI bridge
+   ↓
+Layer 1  unmodified xterm.js/addon-fit + Android-provided WebView/Bionic/native shell
 ```
 
-The application process, shell, and shell children remain in the application's Linux
-UID and SELinux domain. Starting a system binary does not grant ADB's UID 2000 `shell`
-account and does not grant root privileges.
+The repository is a platform host. Layer 1 owns terminal and shell semantics, Layer 2
+connects those upstream capabilities to Android, and Layer 3 contains only explicit
+product policy. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
+upgrade boundary.
 
 ## Thin-layer decisions
 

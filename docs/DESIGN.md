@@ -7,6 +7,10 @@ provides the dynamic linker, Bionic libc, `/system/bin/sh`, and system command b
 The application provides only a UI/frontend and the PTY/process bridge needed to make
 that existing environment interactive inside an app UID.
 
+## Three-layer ownership
+
+The runtime is divided into upstream, required Android integration, and explicit customization. The canonical file ownership and upgrade rules are defined in `docs/architecture.md`; this document describes the lower-level runtime and security mechanics inside those boundaries.
+
 ## Standard platform boundary
 
 ### Android SDK

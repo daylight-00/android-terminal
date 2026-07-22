@@ -51,10 +51,12 @@ internal class LocalAssetWebViewClient(
     }
 
     private fun isAllowedDocument(uri: Uri): Boolean =
-        isAllowedOrigin(uri) && uri.path == DOCUMENT_PATH
+        isAllowedOrigin(uri) && uri.path == TerminalContract.DOCUMENT_PATH
 
     private fun isAllowedOrigin(uri: Uri): Boolean =
-        uri.scheme == "https" && uri.host == HOST && (uri.port == -1 || uri.port == 443)
+        uri.scheme == "https" &&
+            uri.host == TerminalContract.HOST &&
+            (uri.port == -1 || uri.port == 443)
 
     private fun notFound(): WebResourceResponse = WebResourceResponse(
         "text/plain",
@@ -68,11 +70,6 @@ internal class LocalAssetWebViewClient(
     private data class Asset(val path: String, val mimeType: String)
 
     companion object {
-        const val ORIGIN = "https://app.local"
-        const val DOCUMENT_PATH = "/terminal/index.html"
-        const val DOCUMENT_URL = "$ORIGIN$DOCUMENT_PATH"
-        const val HOST = "app.local"
-
         private val SECURITY_HEADERS = mapOf(
             "Cache-Control" to "no-store",
             "Content-Security-Policy" to (
@@ -86,13 +83,31 @@ internal class LocalAssetWebViewClient(
         )
 
         private val PATHS = mapOf(
-            DOCUMENT_PATH to Asset("terminal/index.html", "text/html"),
-            "/terminal/terminal.css" to Asset("terminal/terminal.css", "text/css"),
-            "/terminal/terminal-codec.js" to Asset(
-                "terminal/terminal-codec.js",
+            TerminalContract.DOCUMENT_PATH to Asset("terminal/bridge/index.html", "text/html"),
+            "/terminal/bridge/bridge.css" to Asset(
+                "terminal/bridge/bridge.css",
+                "text/css",
+            ),
+            "/terminal/customization/customization.css" to Asset(
+                "terminal/customization/customization.css",
+                "text/css",
+            ),
+            "/terminal/bridge/terminal-contract.js" to Asset(
+                "terminal/bridge/terminal-contract.js",
                 "application/javascript",
             ),
-            "/terminal/terminal.js" to Asset("terminal/terminal.js", "application/javascript"),
+            "/terminal/bridge/terminal-codec.js" to Asset(
+                "terminal/bridge/terminal-codec.js",
+                "application/javascript",
+            ),
+            "/terminal/customization/customization.js" to Asset(
+                "terminal/customization/customization.js",
+                "application/javascript",
+            ),
+            "/terminal/bridge/terminal-bridge.js" to Asset(
+                "terminal/bridge/terminal-bridge.js",
+                "application/javascript",
+            ),
             "/terminal/vendor/xterm.css" to Asset("terminal/vendor/xterm.css", "text/css"),
             "/terminal/vendor/xterm.js" to Asset("terminal/vendor/xterm.js", "application/javascript"),
             "/terminal/vendor/addon-fit.js" to Asset(

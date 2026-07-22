@@ -20,6 +20,7 @@ check git-diff-check git diff --check
 check web-terminal "$ROOT/tools/test-web-terminal.sh"
 check asset-provisioner "$ROOT/tools/test-asset-provisioner.sh"
 check policy-verifier python3 "$ROOT/tools/verify_policy.py" "$ROOT"
+check layer-boundaries python3 "$ROOT/tools/verify-layer-boundaries.py" "$ROOT"
 check web-assets python3 "$ROOT/tools/verify-web-assets.py" "$ROOT"
 check verifier-fixtures "$ROOT/tools/test-verifier.sh"
 check shell-syntax bash -n \
@@ -35,6 +36,7 @@ check shell-syntax bash -n \
 check python-syntax python3 -m py_compile \
   "$ROOT/tools/provision-web-terminal-assets.py" \
   "$ROOT/tools/verify_policy.py" \
+  "$ROOT/tools/verify-layer-boundaries.py" \
   "$ROOT/tools/verify-web-assets.py"
 check identity-name test "$(git config --local user.name)" = 'daylight-00'
 check identity-email test "$(git config --local user.email)" = 'hwjang00@snu.ac.kr'
@@ -64,7 +66,7 @@ check webview grep -Fq 'val view: WebView = WebView(activity)' \
 check web-message-port grep -Fq 'createWebMessageChannel()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt
 check local-origin grep -Fq 'const val ORIGIN = "https://app.local"' \
-  app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check no-androidx sh -c '! grep -R --exclude-dir=.git --exclude-dir=out -E "androidx\.|com.android.support" app'
 check no-rust sh -c '! find app/src/main -type f -name "*.rs" | grep .'
 check no-java-source sh -c '! find app/src/main/java -type f 2>/dev/null | grep .'

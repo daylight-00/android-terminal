@@ -1,0 +1,146 @@
+(() => {
+  'use strict';
+
+  const status = document.getElementById('status');
+  const container = document.getElementById('terminal');
+  const customRoot = document.getElementById('custom-ui-root');
+  const contract = window.AndroidTerminalContract;
+  const customization = window.TerminalCustomization;
+  const codec = window.NativeShellCodec;
+  const messages = customization && customization.messages ? customization.messages : {};
+
+  function message(name, fallback) {
+    return typeof messages[name] === 'string' ? messages[name] : fallback;
+  }
+
+  function fail(text) {
+    status.textContent = text;
+    status.classList.remove('hidden');
+  }
+
+  window.addEventListener('error', (event) => {
+    fail(`Terminal script error: ${event.message || 'unknown error'}`);
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+    fail(`Terminal promise error: ${reason}`);
+  });
+
+  status.textContent = message('loading', 'Loading terminal…');
+
+  if (!contract || contract.protocolVersion !== 1 || !contract.messages) {
+    fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
+    return;
+  }
+  if (!customization || customization.contractVersion !== 1) {
+    fail('Terminal customization contract is unavailable.');
+    return;
+  }
+  if (!codec) {
+    fail(message('missingCodec', 'Terminal codec is unavailable.'));
+    return;
+  }
+  if (typeof window.Terminal !== 'function' ||
+      !window.FitAddon || typeof window.FitAddon.FitAddon !== 'function') {
+    fail(message('missingUpstream', 'Pinned xterm.js assets are not provisioned.'));
+    return;
+  }
+
+  const terminal = new window.Terminal(customization.terminalOptions);
+  const fitAddon = new window.FitAddon.FitAddon();
+  terminal.loadAddon(fitAddon);
+  terminal.open(container);
+  fitAddon.fit();
+  customization.mount({root: customRoot, terminal, fitAddon});
+
+  let nativePort = null;
+  let resizeFrame = 0;
+  const channelTimeout = window.setTimeout(() => {
+    fail(message('channelTimeout', 'Native terminal channel did not connect.'));
+  }, 5000);
+
+  function post(payload) {
+    if (!nativePort) return;
+    nativePort.postMessage(JSON.stringify({
+      contractVersion: contract.protocolVersion,
+      ...payload
+    }));
+  }
+
+  function dimensions(type) {
+    return {
+      type,
+      rows: terminal.rows,
+      columns: terminal.cols,
+      pixelWidth: Math.max(0, Math.floor(container.clientWidth)),
+      pixelHeight: Math.max(0, Math.floor(container.clientHeight))
+    };
+  }
+
+  function scheduleResize() {
+    if (!nativePort || resizeFrame) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      fitAddon.fit();
+      post(dimensions(contract.messages.resize));
+    });
+  }
+
+  terminal.onData((data) => {
+    post({type: contract.messages.input, data: codec.stringToUtf8Base64(data)});
+  });
+
+  terminal.onBinary((data) => {
+    const bytes = new Uint8Array(data.length);
+    for (let index = 0; index < data.length; index += 1) {
+      bytes[index] = data.charCodeAt(index) & 0xff;
+    }
+    post({type: contract.messages.input, data: codec.bytesToBase64(bytes)});
+  });
+
+  new ResizeObserver(scheduleResize).observe(container);
+  window.addEventListener('resize', scheduleResize, {passive: true});
+
+  function handleNativeChannel(event) {
+    if (event.data !== contract.channelMarker || !event.ports || !event.ports[0]) return;
+    window.removeEventListener('message', handleNativeChannel);
+    window.clearTimeout(channelTimeout);
+    nativePort = event.ports[0];
+    nativePort.onmessage = (nativeEvent) => {
+      let nativeMessage;
+      try {
+        nativeMessage = JSON.parse(nativeEvent.data);
+      } catch (_) {
+        fail(message('invalidNativeMessage', 'Invalid native terminal message.'));
+        return;
+      }
+      if (nativeMessage.contractVersion !== contract.protocolVersion) {
+        fail(message('incompatibleNativeMessage', 'Native terminal protocol version is incompatible.'));
+        return;
+      }
+      switch (nativeMessage.type) {
+        case contract.messages.output:
+          terminal.write(codec.base64ToBytes(nativeMessage.data), () => {
+            post({type: contract.messages.ack, seq: nativeMessage.seq});
+          });
+          break;
+        case contract.messages.exit:
+          terminal.write(`\r\n[process exited ${nativeMessage.code}]\r\n`);
+          break;
+        case contract.messages.error:
+          terminal.write(`\r\n[native error: ${nativeMessage.message}]\r\n`);
+          break;
+      }
+    };
+    nativePort.start();
+    status.classList.add('hidden');
+    terminal.focus();
+    fitAddon.fit();
+    post({
+      ...dimensions(contract.messages.ready),
+      capabilities: contract.pageCapabilities
+    });
+  }
+
+  window.addEventListener('message', handleNativeChannel);
+})();

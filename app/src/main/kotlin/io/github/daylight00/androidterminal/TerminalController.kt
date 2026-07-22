@@ -1,7 +1,6 @@
 package io.github.daylight00.androidterminal
 
 import android.app.Activity
-import android.graphics.Color
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -33,7 +32,7 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
 
     init {
         configureWebView()
-        view.loadUrl(LocalAssetWebViewClient.DOCUMENT_URL)
+        view.loadUrl(TerminalContract.DOCUMENT_URL)
     }
 
     override fun close() {
@@ -54,7 +53,7 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
     }
 
     private fun configureWebView() {
-        view.setBackgroundColor(Color.BLACK)
+        view.setBackgroundColor(TerminalCustomization.backgroundColor)
         view.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -74,7 +73,7 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
             mediaPlaybackRequiresUserGesture = true
             builtInZoomControls = false
             displayZoomControls = false
-            textZoom = 100
+            textZoom = TerminalCustomization.webTextZoom
             safeBrowsingEnabled = true
         }
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
@@ -95,8 +94,8 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
         })
         messagePort = nativePort
         view.postWebMessage(
-            WebMessage(CHANNEL_NAME, arrayOf(ports[1])),
-            Uri.parse(LocalAssetWebViewClient.ORIGIN),
+            WebMessage(TerminalContract.CHANNEL_MARKER, arrayOf(ports[1])),
+            Uri.parse(TerminalContract.ORIGIN),
         )
     }
 
@@ -108,16 +107,33 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
             sendError("invalid message from terminal page")
             return
         }
+        if (message.optInt("contractVersion", -1) != TerminalContract.PROTOCOL_VERSION) {
+            sendError("terminal protocol version mismatch")
+            return
+        }
         when (message.optString("type")) {
-            "ready" -> handleReady(message)
-            "input" -> handleInput(message)
-            "resize" -> handleResize(message)
-            "ack" -> handleAck(message)
+            TerminalContract.MessageType.READY -> handleReady(message)
+            TerminalContract.MessageType.INPUT -> handleInput(message)
+            TerminalContract.MessageType.RESIZE -> handleResize(message)
+            TerminalContract.MessageType.ACK -> handleAck(message)
         }
     }
 
     private fun handleReady(message: JSONObject) {
         if (pageReady || closed) return
+        val capabilities = buildSet {
+            val values = message.optJSONArray("capabilities")
+            if (values != null) {
+                for (index in 0 until values.length()) {
+                    val capability = values.optString(index)
+                    if (capability.isNotBlank()) add(capability)
+                }
+            }
+        }
+        if (!capabilities.containsAll(TerminalContract.REQUIRED_PAGE_CAPABILITIES)) {
+            sendError("terminal page capabilities are incomplete")
+            return
+        }
         pageReady = true
         val dimensions = Dimensions.from(message)
         val newSession = TerminalSession(
@@ -127,7 +143,13 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
                 override fun onOutput(bytes: ByteArray) = enqueueOutput(bytes)
 
                 override fun onExit(exitCode: Int) {
-                    mainHandler.post { sendJson(JSONObject().put("type", "exit").put("code", exitCode)) }
+                    mainHandler.post {
+                        sendJson(
+                            JSONObject()
+                                .put("type", TerminalContract.MessageType.EXIT)
+                                .put("code", exitCode),
+                        )
+                    }
                 }
 
                 override fun onFailure(error: Throwable) {
@@ -207,18 +229,23 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
         }
         sendJson(
             JSONObject()
-                .put("type", "output")
+                .put("type", TerminalContract.MessageType.OUTPUT)
                 .put("seq", sequence)
                 .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP)),
         )
     }
 
     private fun sendError(message: String) {
-        sendJson(JSONObject().put("type", "error").put("message", message))
+        sendJson(
+            JSONObject()
+                .put("type", TerminalContract.MessageType.ERROR)
+                .put("message", message),
+        )
     }
 
     private fun sendJson(message: JSONObject) {
         if (closed) return
+        message.put("contractVersion", TerminalContract.PROTOCOL_VERSION)
         try {
             messagePort?.postMessage(WebMessage(message.toString()))
         } catch (_: IllegalStateException) {
@@ -243,7 +270,6 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
     }
 
     private companion object {
-        const val CHANNEL_NAME = "native-shell"
         const val MAX_QUEUED_BYTES = 1024 * 1024
         const val MAX_INPUT_BASE64 = 64 * 1024
     }

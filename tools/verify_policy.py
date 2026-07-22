@@ -45,9 +45,21 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt",
         failures,
     )
-    html = read_required(root, "app/src/main/assets/terminal/index.html", failures)
-    javascript = read_required(root, "app/src/main/assets/terminal/terminal.js", failures)
-    codec = read_required(root, "app/src/main/assets/terminal/terminal-codec.js", failures)
+    html = read_required(root, "app/src/main/assets/terminal/bridge/index.html", failures)
+    contract_js = read_required(root, "app/src/main/assets/terminal/bridge/terminal-contract.js", failures)
+    javascript = read_required(root, "app/src/main/assets/terminal/bridge/terminal-bridge.js", failures)
+    codec = read_required(root, "app/src/main/assets/terminal/bridge/terminal-codec.js", failures)
+    customization = read_required(root, "app/src/main/assets/terminal/customization/customization.js", failures)
+    terminal_contract = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt",
+        failures,
+    )
+    native_customization = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt",
+        failures,
+    )
     acquisition = read_required(root, "tools/acquire-web-terminal-assets.sh", failures)
     native_build = read_required(root, "tools/build-native-bridge.sh", failures)
     sdk_prepare = read_required(root, "tools/prepare-android-sdk.sh", failures)
@@ -111,16 +123,26 @@ def verify(root: Path) -> list[str]:
     require("MAX_QUEUED_BYTES" in controller, "output backpressure cap is required", failures)
     require("Base64" in controller, "API 29 string message bridge must preserve PTY bytes", failures)
     require("shouldInterceptRequest" in web_client, "local asset interception is required", failures)
-    require("https://app.local" in web_client, "synthetic local HTTPS origin must remain pinned", failures)
+    require("TerminalContract.HOST" in web_client, "local asset host must come from TerminalContract", failures)
+    require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
+    require("PROTOCOL_VERSION = 1" in terminal_contract, "terminal contract version must be explicit", failures)
+    require("protocolVersion: 1" in contract_js, "web terminal contract version must be explicit", failures)
     require("Content-Security-Policy" in web_client, "local page needs a CSP", failures)
     require("connect-src 'none'" in web_client, "local page must not make network connections", failures)
     require("window.Terminal" in javascript, "frontend must use xterm.js", failures)
     require("FitAddon" in javascript, "frontend must use addon-fit", failures)
+    require("customization.terminalOptions" in javascript, "Layer 2 must consume explicit Layer 3 terminal options", failures)
+    require("cursorBlink" in customization, "terminal appearance policy must stay in Layer 3", failures)
+    require("TerminalCustomization.backgroundColor" in controller, "native appearance policy must stay in Layer 3", failures)
+    require("Color.BLACK" in native_customization, "native customization must define the host color", failures)
     require("terminal.write" in javascript, "PTY output must be passed to xterm.js", failures)
     require("terminal.onData" in javascript, "xterm.js input callback is required", failures)
     require("NativeShellCodec" in codec, "byte-preserving web codec is required", failures)
     require("/terminal/vendor/xterm.js" in html, "pinned xterm.js asset must be local", failures)
     require("/terminal/vendor/addon-fit.js" in html, "pinned addon-fit asset must be local", failures)
+    require("/terminal/bridge/terminal-contract.js" in html, "stable web contract must load locally", failures)
+    require("/terminal/customization/customization.js" in html, "Layer 3 customization must load locally", failures)
+    require('id="custom-ui-root"' in html, "custom UI root must remain separate from xterm.js", failures)
 
     require("@xterm/xterm/-/xterm-6.0.0.tgz" in acquisition, "xterm.js URL must be pinned", failures)
     require("@xterm/addon-fit/-/addon-fit-0.11.0.tgz" in acquisition, "addon-fit URL must be pinned", failures)

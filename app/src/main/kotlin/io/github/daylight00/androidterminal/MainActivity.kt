@@ -1,7 +1,6 @@
 package io.github.daylight00.androidterminal
 
 import android.app.Activity
-import android.graphics.Color
 import android.os.Bundle
 import android.view.WindowManager
 
@@ -10,8 +9,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.BLACK
-        window.navigationBarColor = Color.BLACK
+        window.statusBarColor = TerminalCustomization.backgroundColor
+        window.navigationBarColor = TerminalCustomization.backgroundColor
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val terminal = TerminalController(this)

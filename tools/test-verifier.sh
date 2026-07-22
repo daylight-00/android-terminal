@@ -10,12 +10,13 @@ copy_fixture() {
   tar -C "$ROOT" \
     --exclude=.git \
     --exclude=out \
-    -cf - app tools build-tools build.gradle settings.gradle README.md | tar -C "$destination" -xf -
+    -cf - app tools build-tools docs build.gradle settings.gradle README.md | tar -C "$destination" -xf -
 }
 
 SUCCESS=$TMP/success
 copy_fixture "$SUCCESS"
 python3 "$ROOT/tools/verify_policy.py" "$SUCCESS" >/dev/null
+python3 "$ROOT/tools/verify-layer-boundaries.py" "$SUCCESS" >/dev/null
 python3 "$ROOT/tools/verify-web-assets.py" "$SUCCESS" >/dev/null
 printf 'PASS verifier-success-fixture\n'
 
@@ -51,3 +52,13 @@ if python3 "$ROOT/tools/verify-web-assets.py" "$PARTIAL" >/dev/null 2>&1; then
   exit 1
 fi
 printf 'PASS verifier-partial-assets\n'
+
+
+BOUNDARY=$TMP/layer-boundary
+copy_fixture "$BOUNDARY"
+printf '\nconst fontSize = 99;\n' >> "$BOUNDARY/app/src/main/assets/terminal/bridge/terminal-bridge.js"
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$BOUNDARY" >/dev/null 2>&1; then
+  printf 'FAIL verifier-layer-boundary-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-layer-boundary-negative\n'

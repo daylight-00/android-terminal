@@ -10,6 +10,10 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 - WebView policy and absence of a bundled userland;
 - no installation, device-runtime, OEM-policy, or sustained-performance claim.
 
+## Layer-boundary verifier
+
+`tools/verify-layer-boundaries.py` checks that upstream assets remain isolated, Layer 2 uses only the stable contract and public xterm.js surface, product options remain in Layer 3, and Layer 3 does not access WebMessagePort, JNI, or PTY internals. It also requires matching protocol versions and the declared script load order.
+
 ## Repository verifier
 
 `tools/verify-repository.sh` checks:
