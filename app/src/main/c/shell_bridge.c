@@ -59,7 +59,7 @@ static void close_child_fds(rlim_t maximum_fd) {
 }
 
 JNIEXPORT jlong JNICALL
-Java_io_github_daylight00_nativeshell_NativePty_spawn(
+Java_io_github_daylight00_androidterminal_NativePty_spawn(
         JNIEnv *env,
         jclass clazz,
         jstring shell_path_value,
@@ -173,7 +173,7 @@ Java_io_github_daylight00_nativeshell_NativePty_spawn(
 }
 
 JNIEXPORT jint JNICALL
-Java_io_github_daylight00_nativeshell_NativePty_read(
+Java_io_github_daylight00_androidterminal_NativePty_read(
         JNIEnv *env,
         jclass clazz,
         jlong handle,
@@ -216,7 +216,7 @@ Java_io_github_daylight00_nativeshell_NativePty_read(
 }
 
 JNIEXPORT jint JNICALL
-Java_io_github_daylight00_nativeshell_NativePty_write(
+Java_io_github_daylight00_androidterminal_NativePty_write(
         JNIEnv *env,
         jclass clazz,
         jlong handle,
@@ -263,7 +263,7 @@ Java_io_github_daylight00_nativeshell_NativePty_write(
 }
 
 JNIEXPORT void JNICALL
-Java_io_github_daylight00_nativeshell_NativePty_resize(
+Java_io_github_daylight00_androidterminal_NativePty_resize(
         JNIEnv *env,
         jclass clazz,
         jlong handle,
@@ -290,7 +290,7 @@ Java_io_github_daylight00_nativeshell_NativePty_resize(
 }
 
 JNIEXPORT void JNICALL
-Java_io_github_daylight00_nativeshell_NativePty_signalProcessGroup(
+Java_io_github_daylight00_androidterminal_NativePty_signalProcessGroup(
         JNIEnv *env,
         jclass clazz,
         jlong handle,
@@ -306,7 +306,7 @@ Java_io_github_daylight00_nativeshell_NativePty_signalProcessGroup(
 }
 
 JNIEXPORT jint JNICALL
-Java_io_github_daylight00_nativeshell_NativePty_waitFor(
+Java_io_github_daylight00_androidterminal_NativePty_waitFor(
         JNIEnv *env,
         jclass clazz,
         jlong handle) {
@@ -339,7 +339,7 @@ Java_io_github_daylight00_nativeshell_NativePty_waitFor(
 }
 
 JNIEXPORT void JNICALL
-Java_io_github_daylight00_nativeshell_NativePty_destroy(
+Java_io_github_daylight00_androidterminal_NativePty_destroy(
         JNIEnv *env,
         jclass clazz,
         jlong handle) {

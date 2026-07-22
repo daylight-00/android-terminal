@@ -1,15 +1,17 @@
-# Android Native Shell
+# Android Terminal
 
-A thin Android terminal frontend that connects the device-provided `/system/bin/sh`
-to the platform WebView through a native PTY. The APK does not bundle a shell, Toybox,
-libc, a package manager, a root filesystem, or a Linux distribution.
+A thin terminal frontend for Android’s native shell, powered by xterm.js.
+
+The APK connects the device-provided `/system/bin/sh` to the platform WebView through
+a native PTY. It does not bundle a shell, Toybox, libc, a package manager, a root
+filesystem, or a Linux distribution.
 
 ## Frozen baseline
 
 | Boundary | Value |
 |---|---|
-| Repository | `android-native-shell` |
-| Application ID | `io.github.daylight00.nativeshell` |
+| Repository | `android-terminal` |
+| Application ID | `io.github.daylight00.androidterminal` |
 | Android compile SDK | API 35 |
 | Minimum/target API | API 29 |
 | Native API floor | API 29 |

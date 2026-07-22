@@ -1,4 +1,4 @@
-package io.github.daylight00.nativeshell
+package io.github.daylight00.androidterminal
 
 import android.content.res.AssetManager
 import android.net.Uri

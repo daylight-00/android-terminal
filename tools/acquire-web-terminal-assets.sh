@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/android-native-shell/upstream
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/android-terminal/upstream
 TARGET=$ROOT/app/src/main/assets/terminal/vendor
-TMP=$(mktemp -d "${TMPDIR:-/tmp}/android-native-shell-assets.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/android-terminal-assets.XXXXXX")
 trap 'rm -rf -- "$TMP"' EXIT
 
 XTERM_URL='https://registry.npmjs.org/@xterm/xterm/-/xterm-6.0.0.tgz'

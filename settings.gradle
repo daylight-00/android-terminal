@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'android-native-shell'
+rootProject.name = 'android-terminal'
 include ':app'

@@ -36,19 +36,23 @@ check python-syntax python3 -m py_compile \
 check identity-name test "$(git config --local user.name)" = 'daylight-00'
 check identity-email test "$(git config --local user.email)" = 'hwjang00@snu.ac.kr'
 check main-branch test "$(git branch --show-current)" = 'main'
+check project-name grep -Fxq "rootProject.name = 'android-terminal'" settings.gradle
+check application-id grep -Fxq "        applicationId 'io.github.daylight00.androidterminal'" app/build.gradle
+check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest.xml
+check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 29' app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
-  app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalSession.kt
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c
 check webview grep -Fq 'val view: WebView = WebView(activity)' \
-  app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalController.kt
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt
 check web-message-port grep -Fq 'createWebMessageChannel()' \
-  app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalController.kt
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt
 check local-origin grep -Fq 'const val ORIGIN = "https://app.local"' \
-  app/src/main/kotlin/io/github/daylight00/nativeshell/LocalAssetWebViewClient.kt
+  app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt
 check no-androidx sh -c '! grep -R --exclude-dir=.git --exclude-dir=out -E "androidx\.|com.android.support" app'
 check no-rust sh -c '! find app/src/main -type f -name "*.rs" | grep .'
 check no-java-source sh -c '! find app/src/main/java -type f 2>/dev/null | grep .'

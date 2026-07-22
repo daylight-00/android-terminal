@@ -6,7 +6,7 @@
         android:fullBackupContent="false"
         android:hasFragileUserData="true"
         android:hardwareAccelerated="true"
-        android:label="Native Shell"
+        android:label="Terminal"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
         android:theme="@style/AppTheme">

@@ -65,7 +65,7 @@ if grep -E 'Shared library: \[(libc\+\+|libstdc\+\+|libgnustl)' "$OUT/elf-dynami
   exit 1
 fi
 for symbol in spawn read write resize signalProcessGroup waitFor destroy; do
-  grep -Fq "Java_io_github_daylight00_nativeshell_NativePty_${symbol}" "$OUT/elf-symbols.txt"
+  grep -Fq "Java_io_github_daylight00_androidterminal_NativePty_${symbol}" "$OUT/elf-symbols.txt"
 done
 
 sha256sum "$OUT/libshellbridge.so" | tee "$OUT/libshellbridge.so.sha256"

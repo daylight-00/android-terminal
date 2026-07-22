@@ -27,22 +27,22 @@ def verify(root: Path) -> list[str]:
     native = read_required(root, "app/src/main/c/shell_bridge.c", failures)
     activity = read_required(
         root,
-        "app/src/main/kotlin/io/github/daylight00/nativeshell/MainActivity.kt",
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt",
         failures,
     )
     session = read_required(
         root,
-        "app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalSession.kt",
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt",
         failures,
     )
     controller = read_required(
         root,
-        "app/src/main/kotlin/io/github/daylight00/nativeshell/TerminalController.kt",
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt",
         failures,
     )
     web_client = read_required(
         root,
-        "app/src/main/kotlin/io/github/daylight00/nativeshell/LocalAssetWebViewClient.kt",
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt",
         failures,
     )
     html = read_required(root, "app/src/main/assets/terminal/index.html", failures)
@@ -50,6 +50,14 @@ def verify(root: Path) -> list[str]:
     codec = read_required(root, "app/src/main/assets/terminal/terminal-codec.js", failures)
     acquisition = read_required(root, "tools/acquire-web-terminal-assets.sh", failures)
 
+    settings = read_required(root, "settings.gradle", failures)
+    readme = read_required(root, "README.md", failures)
+
+    require("rootProject.name = 'android-terminal'" in settings, "root project must be android-terminal", failures)
+    require("namespace 'io.github.daylight00.androidterminal'" in build, "namespace must match android-terminal", failures)
+    require("applicationId 'io.github.daylight00.androidterminal'" in build, "application ID must match android-terminal", failures)
+    require('android:label="Terminal"' in manifest, "installed app label must be Terminal", failures)
+    require(readme.startswith("# Android Terminal\n\nA thin terminal frontend for Android’s native shell, powered by xterm.js."), "README title/description must match product identity", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 29" in build, "targetSdk must be 29", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-TMP=$(mktemp -d "${TMPDIR:-/tmp}/android-native-shell-verifier.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/android-terminal-verifier.XXXXXX")
 trap 'rm -rf -- "$TMP"' EXIT
 
 copy_fixture() {
@@ -10,7 +10,7 @@ copy_fixture() {
   tar -C "$ROOT" \
     --exclude=.git \
     --exclude=out \
-    -cf - app tools build.gradle | tar -C "$destination" -xf -
+    -cf - app tools build.gradle settings.gradle README.md | tar -C "$destination" -xf -
 }
 
 SUCCESS=$TMP/success

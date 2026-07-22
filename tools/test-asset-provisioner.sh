@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-TMP=$(mktemp -d "${TMPDIR:-/tmp}/android-native-shell-provisioner.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/android-terminal-provisioner.XXXXXX")
 trap 'rm -rf -- "$TMP"' EXIT
 
 python3 - "$TMP" <<'PY'

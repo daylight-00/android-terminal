@@ -1,4 +1,4 @@
-package io.github.daylight00.nativeshell
+package io.github.daylight00.androidterminal
 
 import android.system.OsConstants
 import java.io.File

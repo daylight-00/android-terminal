@@ -2,7 +2,7 @@
 
 ## Product definition
 
-This project is an Android-system-shell terminal frontend, not a new userland. Android
+Android Terminal is a thin terminal frontend for Android’s native shell, not a new userland. Android
 provides the dynamic linker, Bionic libc, `/system/bin/sh`, and system command binaries.
 The application provides only a UI/frontend and the PTY/process bridge needed to make
 that existing environment interactive inside an app UID.
