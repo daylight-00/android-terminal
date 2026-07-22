@@ -43,6 +43,21 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt",
         failures,
     )
+    service = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt",
+        failures,
+    )
+    replay = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt",
+        failures,
+    )
+    activity = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt",
+        failures,
+    )
     native = read(root, "app/src/main/c/shell_bridge.c", failures)
     architecture = read(root, "docs/architecture.md", failures)
 
@@ -71,11 +86,11 @@ def verify(root: Path) -> list[str]:
     if 'id="custom-ui-root"' not in html:
         fail("custom UI root is missing", failures)
 
-    if "protocolVersion: 1" not in contract_js or "PROTOCOL_VERSION = 1" not in contract_kt:
-        fail("JavaScript and Kotlin protocol version 1 must match", failures)
+    if "protocolVersion: 2" not in contract_js or "PROTOCOL_VERSION = 2" not in contract_kt:
+        fail("JavaScript and Kotlin protocol version 2 must match", failures)
     if "channelMarker: 'native-shell'" not in contract_js or 'CHANNEL_MARKER = "native-shell"' not in contract_kt:
         fail("JavaScript and Kotlin channel marker must match", failures)
-    for message_type in ("ready", "input", "resize", "ack", "output", "exit", "error"):
+    for message_type in ("ready", "input", "resize", "ack", "attached", "output", "state", "error"):
         if f"{message_type}: '{message_type}'" not in contract_js:
             fail(f"JavaScript contract lacks message type: {message_type}", failures)
         if f'= "{message_type}"' not in contract_kt:
@@ -143,6 +158,21 @@ def verify(root: Path) -> list[str]:
         fail("native appearance policy must come from TerminalCustomization", failures)
     if "NativeShellCodec" not in codec_js:
         fail("byte codec must remain in Layer 2", failures)
+
+    if "TerminalSessionService.LocalBinder" not in controller or "TerminalSession(" in controller:
+        fail("WebView controller must attach to, not own, the PTY session", failures)
+    if "class TerminalSessionService : Service()" not in service or "TerminalSession(" not in service:
+        fail("Android service must own the PTY session", failures)
+    if "SessionReplayBuffer(REPLAY_LIMIT_BYTES)" not in service:
+        fail("service must own the bounded raw replay journal", failures)
+    if "connectionGeneration" not in service or "sessionId" not in service:
+        fail("service attachment identity is incomplete", failures)
+    if "replayAvailable = false" not in replay or "bytes.copyOf()" not in replay:
+        fail("raw replay must be bounded and byte preserving", failures)
+    if "bindService(serviceIntent, serviceConnection" not in activity or "TerminalSession(" in activity:
+        fail("Activity must remain a replaceable service-bound frontend", failures)
+    if "session-attach-v2" not in contract_js or "session-attach-v2" not in contract_kt:
+        fail("protocol v2 capability is not mirrored", failures)
 
     semantic_parser_pattern = re.compile(r"\b(?:CSI|OSC|DCS|SGR)\b|escape sequence|terminal cell", re.IGNORECASE)
     for name, text in (("Kotlin controller", controller), ("native PTY bridge", native)):

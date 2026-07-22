@@ -1,7 +1,7 @@
 package io.github.daylight00.androidterminal
 
 internal object TerminalContract {
-    const val PROTOCOL_VERSION = 1
+    const val PROTOCOL_VERSION = 2
     const val ORIGIN = "https://app.local"
     const val HOST = "app.local"
     const val DOCUMENT_PATH = "/terminal/index.html"
@@ -13,8 +13,9 @@ internal object TerminalContract {
         const val INPUT = "input"
         const val RESIZE = "resize"
         const val ACK = "ack"
+        const val ATTACHED = "attached"
         const val OUTPUT = "output"
-        const val EXIT = "exit"
+        const val STATE = "state"
         const val ERROR = "error"
     }
 
@@ -23,5 +24,14 @@ internal object TerminalContract {
         "binary-input",
         "fit",
         "output-ack",
+        "session-attach-v2",
+    )
+
+    val NATIVE_CAPABILITIES = listOf(
+        "android-service-session-host",
+        "bounded-raw-replay",
+        "byte-transport",
+        "pty-resize",
+        "frontend-reconnect",
     )
 }

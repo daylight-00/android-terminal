@@ -27,7 +27,9 @@
     missingContract: 'Terminal bridge contract is unavailable.',
     channelTimeout: 'Native terminal channel did not connect.',
     invalidNativeMessage: 'Invalid native terminal message.',
-    incompatibleNativeMessage: 'Native terminal protocol version is incompatible.'
+    incompatibleNativeMessage: 'Native terminal protocol version is incompatible.',
+    invalidAttachment: 'Native terminal attachment is invalid.',
+    replayUnavailable: '[earlier terminal output is unavailable after frontend reconnection]'
   });
 
   function mount(context) {

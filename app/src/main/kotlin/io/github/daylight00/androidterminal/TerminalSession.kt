@@ -15,6 +15,7 @@ internal class TerminalSession(
     private val listener: Listener,
 ) : AutoCloseable {
     interface Listener {
+        fun onStarted()
         fun onOutput(bytes: ByteArray)
         fun onExit(exitCode: Int)
         fun onFailure(error: Throwable)
@@ -126,6 +127,7 @@ internal class TerminalSession(
             synchronized(nativeHandleLock) {
                 handle = nativeHandle
             }
+            listener.onStarted()
 
             if (closed.get()) {
                 try {

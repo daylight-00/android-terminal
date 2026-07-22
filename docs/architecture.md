@@ -45,15 +45,19 @@ Android lifecycle and secure local WebView host
 Layer 2 supplies only the connections required to make upstream functionality usable on Android:
 
 - Activity and WebView lifecycle;
+- a started/bound Android service that owns the PTY independently of the Activity;
 - exact local HTTPS-like asset origin and CSP;
-- versioned message contract and capability handshake;
+- versioned message contract, connection generations, and capability handshake;
 - byte-preserving bounded transport with ACK/backpressure;
 - Android IME/WebView input delivery to xterm.js;
 - geometry changes through `addon-fit` and `TIOCSWINSZ`;
 - PTY creation, process execution, signals, reads, writes, and cleanup;
+- bounded raw-output replay for replacement frontends, with explicit truncation;
 - explicit startup and protocol failure reporting.
 
-Layer 2 must use public xterm.js APIs and must not contain terminal appearance policy, a VT parser, a screen model, or shell-command semantics.
+Layer 2 must use public xterm.js APIs and must not contain terminal appearance policy, a VT parser, a screen model, or shell-command semantics. `TerminalSessionService` is the session authority; `MainActivity` and `TerminalController` are replaceable frontend hosts. Protocol v2 identifies every attachment with a session ID and monotonically increasing connection generation so stale WebView messages cannot control the current PTY attachment.
+
+The raw replay journal is intentionally bounded to 1 MiB. Before that bound is exceeded, a replacement frontend can reconstruct the terminal by replaying the unmodified PTY stream from session start. Once exceeded, Layer 2 does not attempt to parse or synthesize terminal state; it reports replay unavailability and continues with live output. Unlimited exact restoration requires an official upstream serialization capability rather than a custom terminal model.
 
 ## Layer 3: explicit customization
 
@@ -77,4 +81,4 @@ platform integration commit bridge/Kotlin/C contract code
 product policy commit       customization/** or TerminalCustomization.kt
 ```
 
-`tools/verify-layer-boundaries.py` enforces the principal ownership rules. Any exception requires an explicit reviewed change to both the architecture document and verifier.
+`tools/verify-layer-boundaries.py` enforces the principal ownership rules. Any exception requires an explicit reviewed change to both the architecture document and verifier. The current and pending upstream connections are tracked in [`capability-matrix.md`](capability-matrix.md).

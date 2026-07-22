@@ -40,6 +40,16 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt",
         failures,
     )
+    session_service = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt",
+        failures,
+    )
+    replay_buffer = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt",
+        failures,
+    )
     web_client = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt",
@@ -69,6 +79,7 @@ def verify(root: Path) -> list[str]:
 
     settings = read_required(root, "settings.gradle", failures)
     readme = read_required(root, "README.md", failures)
+    capability_matrix = read_required(root, "docs/capability-matrix.md", failures)
 
     require("rootProject.name = 'android-terminal'" in settings, "root project must be android-terminal", failures)
     require("namespace 'io.github.daylight00.androidterminal'" in build, "namespace must match android-terminal", failures)
@@ -125,8 +136,9 @@ def verify(root: Path) -> list[str]:
     require("shouldInterceptRequest" in web_client, "local asset interception is required", failures)
     require("TerminalContract.HOST" in web_client, "local asset host must come from TerminalContract", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
-    require("PROTOCOL_VERSION = 1" in terminal_contract, "terminal contract version must be explicit", failures)
-    require("protocolVersion: 1" in contract_js, "web terminal contract version must be explicit", failures)
+    require("PROTOCOL_VERSION = 2" in terminal_contract, "terminal contract version 2 must be explicit", failures)
+    require("protocolVersion: 2" in contract_js, "web terminal contract version 2 must be explicit", failures)
+    require("session-attach-v2" in terminal_contract and "session-attach-v2" in contract_js, "session attach v2 capability must match", failures)
     require("Content-Security-Policy" in web_client, "local page needs a CSP", failures)
     require("connect-src 'none'" in web_client, "local page must not make network connections", failures)
     require("window.Terminal" in javascript, "frontend must use xterm.js", failures)
@@ -134,6 +146,13 @@ def verify(root: Path) -> list[str]:
     require("customization.terminalOptions" in javascript, "Layer 2 must consume explicit Layer 3 terminal options", failures)
     require("cursorBlink" in customization, "terminal appearance policy must stay in Layer 3", failures)
     require("TerminalCustomization.backgroundColor" in controller, "native appearance policy must stay in Layer 3", failures)
+    require("TerminalSessionService.LocalBinder" in controller, "WebView transport must attach to the service session host", failures)
+    require("TerminalSession(" not in controller, "WebView transport must not own the PTY session", failures)
+    require("class TerminalSessionService : Service()" in session_service, "platform Service must own the shell session", failures)
+    require("SessionReplayBuffer(REPLAY_LIMIT_BYTES)" in session_service, "service must own bounded raw replay", failures)
+    require("TerminalSession(" in session_service, "service must create the PTY session", failures)
+    require("connectionGeneration" in session_service and "sessionId" in session_service, "service attachment identity is required", failures)
+    require("maximumBytes" in replay_buffer and "replayAvailable = false" in replay_buffer, "bounded replay must fail explicit on overflow", failures)
     require("Color.BLACK" in native_customization, "native customization must define the host color", failures)
     require("terminal.write" in javascript, "PTY output must be passed to xterm.js", failures)
     require("terminal.onData" in javascript, "xterm.js input callback is required", failures)
@@ -151,9 +170,18 @@ def verify(root: Path) -> list[str]:
 
     require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)
-    require("setContentView(terminal.view)" in activity, "Activity must remain a thin frontend host", failures)
+    require('android:name=".TerminalSessionService"' in manifest, "session service must be declared", failures)
+    require('android:exported="false"' in manifest, "session service must not be exported", failures)
+    require('android:stopWithTask="true"' in manifest, "task-removal session policy must be explicit", failures)
+    require("bindService(serviceIntent, serviceConnection" in activity, "Activity must bind the session service", failures)
+    require("startService(serviceIntent)" in activity, "session host must survive Activity replacement", failures)
+    require("TerminalSession(" not in activity, "Activity must not own the PTY session", failures)
+    require("Upstream capability matrix" in capability_matrix, "capability matrix must be documented", failures)
+    require("Frontend reconnection" in capability_matrix, "capability matrix must track frontend reconnection", failures)
+    validation = read_required(root, "docs/VALIDATION.md", failures)
+    require("ADB runtime validation is deferred" in validation, "ADB non-claim must be documented", failures)
 
-    source_texts = "\n".join((root_build, build, manifest, activity, session, controller, web_client))
+    source_texts = "\n".join((root_build, build, manifest, activity, session, session_service, controller, web_client))
     require("androidx." not in source_texts, "AndroidX is not allowed", failures)
     require("compose" not in source_texts.lower(), "Compose is not allowed", failures)
 

@@ -85,6 +85,7 @@ class FitAddon { fit() {} }
 const context = {
   console,
   Error,
+  Number,
   String,
   Uint8Array,
   TextEncoder,
@@ -96,7 +97,7 @@ const context = {
   Terminal,
   FitAddon: {FitAddon},
   ResizeObserver: class { observe() {} },
-  requestAnimationFrame() { return 1; },
+  requestAnimationFrame(callback) { callback(); return 1; },
   btoa(value) { return Buffer.from(value, 'binary').toString('base64'); },
   atob(value) { return Buffer.from(value, 'base64').toString('binary'); }
 };
@@ -112,30 +113,61 @@ for (const path of paths) {
   vm.runInContext(fs.readFileSync(path, 'utf8'), context, {filename: path});
 }
 if (!context.AndroidTerminalContract) throw new Error('contract export missing');
+if (context.AndroidTerminalContract.protocolVersion !== 2) throw new Error('protocol v2 missing');
 if (!context.TerminalCustomization) throw new Error('customization export missing');
 if (!customRoot.cleared) throw new Error('custom UI root was not initialized');
 const handler = listeners.get('message');
 if (typeof handler !== 'function') throw new Error('message handler missing');
 handler({origin: '', data: 'native-shell', ports: [port]});
 if (!portStarted) throw new Error('native port was rejected when MessageEvent.origin was empty');
-if (!statusClasses.has('hidden')) throw new Error('loading overlay was not hidden');
+if (statusClasses.has('hidden')) throw new Error('loading overlay hid before service attachment');
 if (listeners.has('message')) throw new Error('message handler was not removed after valid handshake');
 if (posted.length !== 1 || posted[0].type !== 'ready') throw new Error('ready message missing');
-if (posted[0].contractVersion !== 1) throw new Error('ready contract version missing');
-if (!Array.isArray(posted[0].capabilities) || !posted[0].capabilities.includes('output-ack')) {
-  throw new Error('ready capabilities missing');
+if (posted[0].contractVersion !== 2) throw new Error('ready contract version missing');
+if (!Array.isArray(posted[0].capabilities) ||
+    !posted[0].capabilities.includes('session-attach-v2')) {
+  throw new Error('ready capabilities missing session attach v2');
 }
+
 port.onmessage({data: JSON.stringify({
-  contractVersion: 1,
+  contractVersion: 2,
+  type: 'attached',
+  connectionGeneration: 3,
+  sessionId: 'session-a',
+  state: 'running',
+  replayAvailable: true,
+  replayTruncated: false,
+  nativeCapabilities: ['frontend-reconnect']
+})});
+if (!statusClasses.has('hidden')) throw new Error('loading overlay remained after attachment');
+
+port.onmessage({data: JSON.stringify({
+  contractVersion: 2,
   type: 'output',
+  connectionGeneration: 2,
+  sessionId: 'stale-session',
+  seq: 40,
+  data: ''
+})});
+if (posted.length !== 2) throw new Error('stale output produced an acknowledgement');
+
+port.onmessage({data: JSON.stringify({
+  contractVersion: 2,
+  type: 'output',
+  connectionGeneration: 3,
+  sessionId: 'session-a',
   seq: 41,
   data: ''
 })});
-if (posted.length !== 2 || posted[1].type !== 'ack' || posted[1].seq !== 41) {
+if (posted.length !== 3 || posted[2].type !== 'ack' || posted[2].seq !== 41) {
   throw new Error('output acknowledgement missing');
 }
-if (posted[1].contractVersion !== 1) throw new Error('ack contract version missing');
-console.log('PASS web-terminal-channel origin=empty contract=1 capabilities=present');
+if (posted[2].contractVersion !== 2 ||
+    posted[2].connectionGeneration !== 3 ||
+    posted[2].sessionId !== 'session-a') {
+  throw new Error('ack attachment identity missing');
+}
+console.log('PASS web-terminal-channel origin=empty contract=2 attach=3 stale=rejected');
 JS
 else
   python3 - "$CONTRACT" "$CODEC" "$CUSTOMIZATION" "$BRIDGE" <<'PY'
@@ -146,23 +178,19 @@ import pathlib
 import sys
 
 contract_path, codec_path, customization_path, bridge_path = map(pathlib.Path, sys.argv[1:])
-contract = contract_path.read_text(encoding="utf-8")
-codec = codec_path.read_text(encoding="utf-8")
-customization = customization_path.read_text(encoding="utf-8")
-bridge = bridge_path.read_text(encoding="utf-8")
-
 required = {
-    contract_path: ("protocolVersion: 1", "channelMarker: 'native-shell'", "pageCapabilities"),
+    contract_path: ("protocolVersion: 2", "channelMarker: 'native-shell'", "session-attach-v2"),
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
-    customization_path: ("window.TerminalCustomization = Object.freeze", "cursorBlink", "scrollback"),
+    customization_path: ("window.TerminalCustomization = Object.freeze", "cursorBlink", "replayUnavailable"),
     bridge_path: (
         "new window.Terminal(customization.terminalOptions)",
         "terminal.onData(",
         "terminal.onBinary(",
         "terminal.write(",
-        "contractVersion: contract.protocolVersion",
-        "capabilities: contract.pageCapabilities",
-        "window.removeEventListener('message', handleNativeChannel)",
+        "connectionGeneration",
+        "sessionId",
+        "contract.messages.attached",
+        "matchesAttachment(nativeMessage)",
     ),
 }
 for path, tokens in required.items():
@@ -178,6 +206,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable")
+print("PASS web-terminal static-python node=unavailable contract=2")
 PY
 fi

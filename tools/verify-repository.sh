@@ -18,6 +18,7 @@ check() {
 
 check git-diff-check git diff --check
 check web-terminal "$ROOT/tools/test-web-terminal.sh"
+check session-replay "$ROOT/tools/test-session-replay.sh"
 check asset-provisioner "$ROOT/tools/test-asset-provisioner.sh"
 check policy-verifier python3 "$ROOT/tools/verify_policy.py" "$ROOT"
 check layer-boundaries python3 "$ROOT/tools/verify-layer-boundaries.py" "$ROOT"
@@ -30,6 +31,7 @@ check shell-syntax bash -n \
   "$ROOT/tools/prepare-android-sdk.sh" \
   "$ROOT/tools/test-asset-provisioner.sh" \
   "$ROOT/tools/test-web-terminal.sh" \
+  "$ROOT/tools/test-session-replay.sh" \
   "$ROOT/tools/verify-repository.sh" \
   "$ROOT/tools/verify-native-ndk.sh" \
   "$ROOT/tools/test-verifier.sh"
@@ -60,6 +62,13 @@ check cmake-project grep -Fq 'add_library(shellbridge SHARED' app/src/main/c/CMa
 check uv-cmake-project grep -Fq 'uv run --project' tools/build-native-bridge-cmake.sh
 check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
+check session-service grep -Fq 'class TerminalSessionService : Service()' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
+check service-owns-session grep -Fq 'TerminalSession(' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
+check controller-does-not-own-session sh -c '! grep -Fq "TerminalSession(" app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt'
+check reconnect-v2 grep -Fq 'const val PROTOCOL_VERSION = 2' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c
 check webview grep -Fq 'val view: WebView = WebView(activity)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt

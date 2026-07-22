@@ -15,7 +15,8 @@ The runtime is divided into upstream, required Android integration, and explicit
 
 ### Android SDK
 
-- `android.app.Activity` owns the window.
+- `android.app.Activity` owns the replaceable window/frontend host.
+- `android.app.Service` owns the PTY session independently of the Activity and WebView.
 - `android.webkit.WebView` supplies the rendering and JavaScript runtime.
 - `android.webkit.WebMessagePort` carries bounded terminal messages.
 - `WebViewClient.shouldInterceptRequest` serves an exact allowlist of APK assets from
@@ -30,8 +31,10 @@ columns from the WebView geometry. No custom VT parser or cell renderer remains.
 
 The page-to-native protocol carries JSON control messages. PTY bytes are Base64 encoded
 because platform API 29 `WebMessage` is string-based. Output is one batch in flight at a
-time; xterm.js acknowledges completion through its `write` callback. Native backpressure
-caps queued PTY output at 1 MiB.
+time; xterm.js acknowledges completion through its `write` callback. The frontend transport
+queue is bounded at 2 MiB. The session service retains at most 1 MiB of the unmodified raw PTY
+stream so a replacement frontend can attach and replay it without implementing terminal semantics.
+If that journal overflows, replay becomes explicitly unavailable while the live PTY continues.
 
 ### Android NDK / Bionic
 
@@ -48,7 +51,7 @@ The WebView:
 - requests no `INTERNET` permission;
 - disables file and content access;
 - rejects all navigation except the single local document;
-- serves only seven exact asset paths;
+- serves only ten exact asset paths;
 - uses a restrictive Content Security Policy;
 - enables no JavaScript object bridge;
 - uses an HTML message channel transferred only to the local page.
@@ -84,7 +87,8 @@ size metadata in a local receipt.
 
 - Platform WebMessagePort on API 29 is string-based, so PTY data uses Base64.
 - WebView implementation behavior varies with the installed Android System WebView.
-- Session persistence across Activity destruction is out of scope.
+- The PTY survives Activity/WebView replacement within the app process, but the current policy stops the service when the app task is removed.
+- Exact frontend reconstruction is bounded by the 1 MiB raw replay journal; unlimited restoration awaits an official upstream serialization addon.
 - Device-runtime success and OEM `/system/bin` policy require owner-device evidence.
 
 The initial native-to-page channel transfer is target-origin restricted on Android. Page JavaScript validates the channel marker and transferred port rather than assuming `MessageEvent.origin` identifies the native sender.

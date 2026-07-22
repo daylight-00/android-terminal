@@ -28,7 +28,7 @@
 
   status.textContent = message('loading', 'Loading terminal…');
 
-  if (!contract || contract.protocolVersion !== 1 || !contract.messages) {
+  if (!contract || contract.protocolVersion !== 2 || !contract.messages) {
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
@@ -55,16 +55,27 @@
 
   let nativePort = null;
   let resizeFrame = 0;
+  let connectionGeneration = 0;
+  let sessionId = '';
   const channelTimeout = window.setTimeout(() => {
     fail(message('channelTimeout', 'Native terminal channel did not connect.'));
   }, 5000);
 
-  function post(payload) {
-    if (!nativePort) return;
-    nativePort.postMessage(JSON.stringify({
+  function isAttached() {
+    return nativePort !== null && connectionGeneration !== 0 && sessionId !== '';
+  }
+
+  function post(payload, attachmentRequired = true) {
+    if (!nativePort || (attachmentRequired && !isAttached())) return;
+    const envelope = {
       contractVersion: contract.protocolVersion,
       ...payload
-    }));
+    };
+    if (isAttached()) {
+      envelope.connectionGeneration = connectionGeneration;
+      envelope.sessionId = sessionId;
+    }
+    nativePort.postMessage(JSON.stringify(envelope));
   }
 
   function dimensions(type) {
@@ -78,7 +89,7 @@
   }
 
   function scheduleResize() {
-    if (!nativePort || resizeFrame) return;
+    if (!isAttached() || resizeFrame) return;
     resizeFrame = requestAnimationFrame(() => {
       resizeFrame = 0;
       fitAddon.fit();
@@ -101,6 +112,25 @@
   new ResizeObserver(scheduleResize).observe(container);
   window.addEventListener('resize', scheduleResize, {passive: true});
 
+  function matchesAttachment(nativeMessage) {
+    return nativeMessage.connectionGeneration === connectionGeneration &&
+      nativeMessage.sessionId === sessionId;
+  }
+
+  function renderState(nativeMessage) {
+    switch (nativeMessage.state) {
+      case 'exited':
+        terminal.write(`\r\n[process exited ${nativeMessage.exitCode}]\r\n`);
+        break;
+      case 'failed':
+        terminal.write(`\r\n[native error: ${nativeMessage.failure || 'session failed'}]\r\n`);
+        break;
+      case 'closed':
+        terminal.write('\r\n[session closed]\r\n');
+        break;
+    }
+  }
+
   function handleNativeChannel(event) {
     if (event.data !== contract.channelMarker || !event.ports || !event.ports[0]) return;
     window.removeEventListener('message', handleNativeChannel);
@@ -118,14 +148,34 @@
         fail(message('incompatibleNativeMessage', 'Native terminal protocol version is incompatible.'));
         return;
       }
+      if (nativeMessage.type === contract.messages.attached) {
+        connectionGeneration = Number(nativeMessage.connectionGeneration) || 0;
+        sessionId = String(nativeMessage.sessionId || '');
+        if (!isAttached()) {
+          fail(message('invalidAttachment', 'Native terminal attachment is invalid.'));
+          return;
+        }
+        if (!nativeMessage.replayAvailable && nativeMessage.replayTruncated) {
+          terminal.write(`\r\n${message(
+            'replayUnavailable',
+            '[earlier terminal output is unavailable after frontend reconnection]'
+          )}\r\n`);
+        }
+        status.classList.add('hidden');
+        terminal.focus();
+        fitAddon.fit();
+        scheduleResize();
+        return;
+      }
+      if (!matchesAttachment(nativeMessage)) return;
       switch (nativeMessage.type) {
         case contract.messages.output:
           terminal.write(codec.base64ToBytes(nativeMessage.data), () => {
             post({type: contract.messages.ack, seq: nativeMessage.seq});
           });
           break;
-        case contract.messages.exit:
-          terminal.write(`\r\n[process exited ${nativeMessage.code}]\r\n`);
+        case contract.messages.state:
+          renderState(nativeMessage);
           break;
         case contract.messages.error:
           terminal.write(`\r\n[native error: ${nativeMessage.message}]\r\n`);
@@ -133,13 +183,11 @@
       }
     };
     nativePort.start();
-    status.classList.add('hidden');
-    terminal.focus();
     fitAddon.fit();
     post({
       ...dimensions(contract.messages.ready),
       capabilities: contract.pageCapabilities
-    });
+    }, false);
   }
 
   window.addEventListener('message', handleNativeChannel);

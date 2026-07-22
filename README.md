@@ -42,14 +42,15 @@ Layer 1  unmodified xterm.js/addon-fit + Android-provided WebView/Bionic/native 
 The repository is a platform host. Layer 1 owns terminal and shell semantics, Layer 2
 connects those upstream capabilities to Android, and Layer 3 contains only explicit
 product policy. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
-upgrade boundary.
+upgrade boundary and [`docs/capability-matrix.md`](docs/capability-matrix.md) for the
+connection status of upstream features.
 
 ## Thin-layer decisions
 
 - WebView supplies the browser runtime already present on Android.
 - xterm.js supplies VT/xterm parsing, Unicode layout, selection, scrollback, cursor,
   color, IME integration, and rendering.
-- Kotlin only owns Android lifecycle, WebView policy, message batching, and JNI calls.
+- Kotlin only owns Android lifecycle, the Activity-independent session service, WebView policy, message batching, and JNI calls.
 - C only owns the PTY and process syscalls that Android's managed API does not expose.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS

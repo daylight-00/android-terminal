@@ -10,25 +10,71 @@ import android.webkit.WebMessage
 import android.webkit.WebMessagePort
 import android.webkit.WebSettings
 import android.webkit.WebView
+import org.json.JSONArray
 import org.json.JSONObject
-import java.util.ArrayDeque
+import java.util.TreeMap
 
-internal class TerminalController(private val activity: Activity) : AutoCloseable {
+/** Layer 2 WebView transport. The PTY/session itself is owned by TerminalSessionService. */
+internal class TerminalController(
+    private val activity: Activity,
+    private val sessionHost: TerminalSessionService.LocalBinder,
+) : AutoCloseable {
     val view: WebView = WebView(activity)
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val queueLock = Object()
-    private val outputQueue = ArrayDeque<ByteArray>()
+    private val outputQueue = TreeMap<Long, ByteArray>()
+
+    @Volatile
+    private var connectionGeneration = 0L
+
+    @Volatile
+    private var sessionId = ""
+
+    @Volatile
+    private var attachmentReadyForDrain = false
 
     private var messagePort: WebMessagePort? = null
-    private var session: TerminalSession? = null
     private var pageChannelCreated = false
     private var pageReady = false
     private var closed = false
     private var queuedBytes = 0
     private var inFlightSequence = 0L
     private var inFlightSize = 0
-    private var nextSequence = 1L
+    private var pendingState: TerminalSessionState? = null
+    private var pendingExitCode: Int? = null
+    private var pendingFailure: String? = null
+
+    private val serviceClient = object : TerminalSessionService.Client {
+        override fun onOutput(
+            connectionGeneration: Long,
+            sessionId: String,
+            record: TerminalOutputRecord,
+        ) {
+            if (closed) return
+            val activeGeneration = this@TerminalController.connectionGeneration
+            val activeSessionId = this@TerminalController.sessionId
+            if (activeGeneration != 0L &&
+                (connectionGeneration != activeGeneration || sessionId != activeSessionId)
+            ) {
+                return
+            }
+            enqueueOutput(record, waitForCapacity = true)
+        }
+
+        override fun onState(
+            connectionGeneration: Long,
+            sessionId: String,
+            state: TerminalSessionState,
+            exitCode: Int?,
+            failure: String?,
+        ) {
+            mainHandler.post {
+                if (!isCurrentAttachment(connectionGeneration, sessionId)) return@post
+                queueState(state, exitCode, failure)
+            }
+        }
+    }
 
     init {
         configureWebView()
@@ -38,13 +84,22 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
     override fun close() {
         if (closed) return
         closed = true
+        val generation = connectionGeneration
+        val currentSessionId = sessionId
+        if (generation != 0L && currentSessionId.isNotBlank()) {
+            sessionHost.detach(serviceClient, generation, currentSessionId)
+        }
+        attachmentReadyForDrain = false
         synchronized(queueLock) {
             outputQueue.clear()
             queuedBytes = 0
+            inFlightSequence = 0L
+            inFlightSize = 0
+            pendingState = null
+            pendingExitCode = null
+            pendingFailure = null
             queueLock.notifyAll()
         }
-        session?.close()
-        session = null
         messagePort?.close()
         messagePort = null
         view.stopLoading()
@@ -113,9 +168,10 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
         }
         when (message.optString("type")) {
             TerminalContract.MessageType.READY -> handleReady(message)
-            TerminalContract.MessageType.INPUT -> handleInput(message)
-            TerminalContract.MessageType.RESIZE -> handleResize(message)
-            TerminalContract.MessageType.ACK -> handleAck(message)
+            TerminalContract.MessageType.INPUT -> ifCurrentMessage(message, ::handleInput)
+            TerminalContract.MessageType.RESIZE -> ifCurrentMessage(message, ::handleResize)
+            TerminalContract.MessageType.ACK -> ifCurrentMessage(message, ::handleAck)
+            else -> sendError("unsupported terminal page message")
         }
     }
 
@@ -134,40 +190,52 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
             sendError("terminal page capabilities are incomplete")
             return
         }
+
         pageReady = true
-        val dimensions = Dimensions.from(message)
-        val newSession = TerminalSession(
-            activity.filesDir,
-            activity.cacheDir,
-            object : TerminalSession.Listener {
-                override fun onOutput(bytes: ByteArray) = enqueueOutput(bytes)
-
-                override fun onExit(exitCode: Int) {
-                    mainHandler.post {
-                        sendJson(
-                            JSONObject()
-                                .put("type", TerminalContract.MessageType.EXIT)
-                                .put("code", exitCode),
-                        )
-                    }
-                }
-
-                override fun onFailure(error: Throwable) {
-                    mainHandler.post { sendError(error.message ?: error.javaClass.simpleName) }
-                }
-            },
-        )
-        session = newSession
-        newSession.start(
+        attachmentReadyForDrain = false
+        val dimensions = dimensionsFrom(message)
+        val attachment = sessionHost.attach(
+            serviceClient,
             dimensions.rows,
             dimensions.columns,
             dimensions.pixelWidth,
             dimensions.pixelHeight,
         )
+        connectionGeneration = attachment.connectionGeneration
+        sessionId = attachment.sessionId
+
+        sendJson(
+            JSONObject()
+                .put("type", TerminalContract.MessageType.ATTACHED)
+                .put("connectionGeneration", attachment.connectionGeneration)
+                .put("sessionId", attachment.sessionId)
+                .put("state", attachment.state.wireName)
+                .put("exitCode", attachment.exitCode ?: JSONObject.NULL)
+                .put("failure", attachment.failure ?: JSONObject.NULL)
+                .put("replayAvailable", attachment.replayAvailable)
+                .put("replayTruncated", attachment.replayTruncated)
+                .put("nextSequence", attachment.nextSequence)
+                .put("nativeCapabilities", JSONArray(TerminalContract.NATIVE_CAPABILITIES)),
+        )
+
+        attachment.replayRecords.forEach { record ->
+            enqueueOutput(record, waitForCapacity = false)
+        }
+        pendingState = attachment.state
+        pendingExitCode = attachment.exitCode
+        pendingFailure = attachment.failure
+        attachmentReadyForDrain = true
+        drainOutput()
+    }
+
+    private fun ifCurrentMessage(message: JSONObject, action: (JSONObject) -> Unit) {
+        val generation = message.optLong("connectionGeneration", -1L)
+        val messageSessionId = message.optString("sessionId")
+        if (!isCurrentAttachment(generation, messageSessionId)) return
+        action(message)
     }
 
     private fun handleInput(message: JSONObject) {
-        if (!pageReady) return
         val encoded = message.optString("data")
         if (encoded.length > MAX_INPUT_BASE64) {
             sendError("terminal input message too large")
@@ -179,12 +247,14 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
             sendError("invalid terminal input encoding")
             return
         }
-        session?.write(bytes)
+        sessionHost.write(connectionGeneration, sessionId, bytes)
     }
 
     private fun handleResize(message: JSONObject) {
-        val dimensions = Dimensions.from(message)
-        session?.resize(
+        val dimensions = dimensionsFrom(message)
+        sessionHost.resize(
+            connectionGeneration,
+            sessionId,
             dimensions.rows,
             dimensions.columns,
             dimensions.pixelWidth,
@@ -204,43 +274,96 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
         drainOutput()
     }
 
-    private fun enqueueOutput(bytes: ByteArray) {
+    private fun enqueueOutput(record: TerminalOutputRecord, waitForCapacity: Boolean) {
         synchronized(queueLock) {
-            while (!closed && queuedBytes + bytes.size > MAX_QUEUED_BYTES) {
-                queueLock.wait()
+            if (outputQueue.containsKey(record.sequence)) return
+            if (waitForCapacity) {
+                while (!closed && queuedBytes + record.bytes.size > MAX_QUEUED_BYTES) {
+                    queueLock.wait()
+                }
+            } else if (queuedBytes + record.bytes.size > MAX_QUEUED_BYTES) {
+                sendError("terminal replay exceeded the bounded frontend queue")
+                return
             }
             if (closed) return
-            outputQueue.addLast(bytes)
-            queuedBytes += bytes.size
+            outputQueue[record.sequence] = record.bytes.copyOf()
+            queuedBytes += record.bytes.size
         }
         mainHandler.post { drainOutput() }
     }
 
     private fun drainOutput() {
-        if (closed || !pageReady || messagePort == null) return
-        val bytes: ByteArray
-        val sequence: Long
+        if (closed || !pageReady || !attachmentReadyForDrain || messagePort == null) return
+        var bytes: ByteArray? = null
+        var sequence = 0L
+        var stateToSend: TerminalSessionState? = null
+        var exitToSend: Int? = null
+        var failureToSend: String? = null
         synchronized(queueLock) {
-            if (inFlightSequence != 0L || outputQueue.isEmpty()) return
-            bytes = outputQueue.removeFirst()
-            sequence = nextSequence++
-            inFlightSequence = sequence
-            inFlightSize = bytes.size
+            if (inFlightSequence != 0L) return
+            if (outputQueue.isNotEmpty()) {
+                val entry = outputQueue.pollFirstEntry()
+                sequence = entry.key
+                bytes = entry.value
+                inFlightSequence = sequence
+                inFlightSize = entry.value.size
+            } else if (pendingState != null) {
+                stateToSend = pendingState
+                exitToSend = pendingExitCode
+                failureToSend = pendingFailure
+                pendingState = null
+                pendingExitCode = null
+                pendingFailure = null
+            } else {
+                return
+            }
         }
+        val outputBytes = bytes
+        if (outputBytes != null) {
+            sendJson(
+                JSONObject()
+                    .put("type", TerminalContract.MessageType.OUTPUT)
+                    .put("connectionGeneration", connectionGeneration)
+                    .put("sessionId", sessionId)
+                    .put("seq", sequence)
+                    .put("data", Base64.encodeToString(outputBytes, Base64.NO_WRAP)),
+            )
+        } else if (stateToSend != null) {
+            sendState(stateToSend!!, exitToSend, failureToSend)
+        }
+    }
+
+    private fun queueState(state: TerminalSessionState, exitCode: Int?, failure: String?) {
+        synchronized(queueLock) {
+            pendingState = state
+            pendingExitCode = exitCode
+            pendingFailure = failure
+        }
+        drainOutput()
+    }
+
+    private fun sendState(state: TerminalSessionState, exitCode: Int?, failure: String?) {
         sendJson(
             JSONObject()
-                .put("type", TerminalContract.MessageType.OUTPUT)
-                .put("seq", sequence)
-                .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP)),
+                .put("type", TerminalContract.MessageType.STATE)
+                .put("connectionGeneration", connectionGeneration)
+                .put("sessionId", sessionId)
+                .put("state", state.wireName)
+                .put("exitCode", exitCode ?: JSONObject.NULL)
+                .put("failure", failure ?: JSONObject.NULL),
         )
     }
 
     private fun sendError(message: String) {
-        sendJson(
-            JSONObject()
-                .put("type", TerminalContract.MessageType.ERROR)
-                .put("message", message),
-        )
+        val payload = JSONObject()
+            .put("type", TerminalContract.MessageType.ERROR)
+            .put("message", message)
+        if (connectionGeneration != 0L && sessionId.isNotBlank()) {
+            payload
+                .put("connectionGeneration", connectionGeneration)
+                .put("sessionId", sessionId)
+        }
+        sendJson(payload)
     }
 
     private fun sendJson(message: JSONObject) {
@@ -249,28 +372,27 @@ internal class TerminalController(private val activity: Activity) : AutoCloseabl
         try {
             messagePort?.postMessage(WebMessage(message.toString()))
         } catch (_: IllegalStateException) {
-            // Closing the Activity invalidates the message port.
+            // Closing or replacing the Activity invalidates this frontend connection only.
         }
     }
 
-    private data class Dimensions(
-        val rows: Int,
-        val columns: Int,
-        val pixelWidth: Int,
-        val pixelHeight: Int,
-    ) {
-        companion object {
-            fun from(message: JSONObject): Dimensions = Dimensions(
-                message.optInt("rows", 24).coerceIn(1, 2_000),
-                message.optInt("columns", 80).coerceIn(1, 2_000),
-                message.optInt("pixelWidth", 0).coerceIn(0, 65_535),
-                message.optInt("pixelHeight", 0).coerceIn(0, 65_535),
-            )
-        }
-    }
+    private fun isCurrentAttachment(generation: Long, expectedSessionId: String): Boolean =
+        generation != 0L &&
+            generation == connectionGeneration &&
+            expectedSessionId == sessionId &&
+            sessionId.isNotBlank()
+
+    private fun dimensionsFrom(message: JSONObject): TerminalDimensions = TerminalDimensions(
+        rows = message.optInt("rows", DEFAULT_ROWS),
+        columns = message.optInt("columns", DEFAULT_COLUMNS),
+        pixelWidth = message.optInt("pixelWidth", 0),
+        pixelHeight = message.optInt("pixelHeight", 0),
+    ).sanitized()
 
     private companion object {
-        const val MAX_QUEUED_BYTES = 1024 * 1024
-        const val MAX_INPUT_BASE64 = 64 * 1024
+        const val DEFAULT_ROWS = 24
+        const val DEFAULT_COLUMNS = 80
+        const val MAX_INPUT_BASE64 = 256 * 1024
+        const val MAX_QUEUED_BYTES = 2 * 1024 * 1024
     }
 }

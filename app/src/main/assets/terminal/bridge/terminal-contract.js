@@ -6,20 +6,22 @@
     input: 'input',
     resize: 'resize',
     ack: 'ack',
+    attached: 'attached',
     output: 'output',
-    exit: 'exit',
+    state: 'state',
     error: 'error'
   });
 
   window.AndroidTerminalContract = Object.freeze({
-    protocolVersion: 1,
+    protocolVersion: 2,
     channelMarker: 'native-shell',
     messages,
     pageCapabilities: Object.freeze([
       'xterm-core',
       'binary-input',
       'fit',
-      'output-ack'
+      'output-ack',
+      'session-attach-v2'
     ])
   });
 })();

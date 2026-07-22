@@ -69,3 +69,15 @@ A device PASS requires a bounded receipt containing at least:
 ## WebView channel startup
 
 The terminal page must replace the loading overlay after receiving the exact `native-shell` marker with one transferred message port. It must not reject the native channel by comparing `MessageEvent.origin`, and it exposes a five-second startup diagnostic instead of leaving an indefinite loading overlay.
+
+
+## Protocol v2 and service-session boundary
+
+Repository verification compiles and exercises the pure Kotlin bounded replay buffer, executes
+the WebView protocol in Node, and statically verifies that the Android service owns the PTY while
+the Activity only binds a frontend. The owner APK build is required to compile the Android service
+and manifest integration.
+
+ADB runtime validation is deferred when no authorized device transport is available. The missing
+device gate must remain a non-claim: Activity recreation, WebView replacement, stale-generation
+rejection, task-removal cleanup, and replay truncation still require a later real-device test.
