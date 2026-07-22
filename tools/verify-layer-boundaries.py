@@ -78,6 +78,16 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt",
         failures,
     )
+    web_client = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt",
+        failures,
+    )
+    frontend_recovery = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalFrontendRecoveryState.kt",
+        failures,
+    )
     native = read(root, "app/src/main/c/shell_bridge.c", failures)
     architecture = read(root, "docs/architecture.md", failures)
 
@@ -229,6 +239,17 @@ def verify(root: Path) -> list[str]:
         fail("terminal geometry must deduplicate unchanged sizes", failures)
     if "bindService(serviceIntent, serviceConnection" not in activity or "TerminalSession(" in activity:
         fail("Activity must remain a replaceable service-bound frontend", failures)
+    if "override fun onRenderProcessGone" not in web_client or "onRendererGone(detail.didCrash())" not in web_client:
+        fail("Layer 2 must handle WebView renderer termination through the host callback", failures)
+    if "shutdown(rendererProcessGone = true)" not in controller or "sessionHost.detach" not in controller:
+        fail("renderer recovery must detach only the stale frontend attachment", failures)
+    if "installFrontend(binder)" not in activity or "recoverRenderer(" not in activity:
+        fail("Activity must install a replacement WebView against the same service binder", failures)
+    if "class TerminalFrontendRecoveryState" not in frontend_recovery:
+        fail("renderer recovery state must be isolated in Layer 2", failures)
+    for token in ("registerFrontend", "beginRecovery", "completeRecovery", "invalidate"):
+        if token not in frontend_recovery:
+            fail(f"renderer recovery state lacks token: {token}", failures)
     for token in (
         "setOnApplyWindowInsetsListener",
         "addOnLayoutChangeListener",
@@ -244,6 +265,8 @@ def verify(root: Path) -> list[str]:
         fail("geometry deduplication capability is not mirrored", failures)
     if "android-window-geometry" not in contract_kt:
         fail("native Android window geometry capability is missing", failures)
+    if "webview-renderer-recovery" not in contract_kt:
+        fail("native WebView renderer recovery capability is missing", failures)
     if "platform-bridge-v1" not in contract_js or "platform-bridge-v1" not in contract_kt:
         fail("platform bridge capability is not mirrored", failures)
     for capability in (

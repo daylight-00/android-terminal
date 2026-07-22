@@ -70,6 +70,11 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt",
         failures,
     )
+    frontend_recovery = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalFrontendRecoveryState.kt",
+        failures,
+    )
     web_client = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt",
@@ -155,12 +160,15 @@ def verify(root: Path) -> list[str]:
     require("Base64" in controller, "API 29 string message bridge must preserve PTY bytes", failures)
     require("shouldInterceptRequest" in web_client, "local asset interception is required", failures)
     require("TerminalContract.HOST" in web_client, "local asset host must come from TerminalContract", failures)
+    require("override fun onRenderProcessGone" in web_client, "WebView renderer termination must be handled", failures)
+    require("onRendererGone(detail.didCrash())" in web_client, "renderer termination must be forwarded without inspecting terminal semantics", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
     require("PROTOCOL_VERSION = 4" in terminal_contract, "terminal contract version 4 must be explicit", failures)
     require("protocolVersion: 4" in contract_js, "web terminal contract version 4 must be explicit", failures)
     require("session-attach-v2" in terminal_contract and "session-attach-v2" in contract_js, "session attach v2 capability must match", failures)
     require("geometry-dedup-v1" in terminal_contract and "geometry-dedup-v1" in contract_js, "geometry dedupe capability must match", failures)
     require("android-window-geometry" in terminal_contract, "native Android window geometry capability is required", failures)
+    require("webview-renderer-recovery" in terminal_contract, "native WebView renderer recovery capability is required", failures)
     require("platform-bridge-v1" in terminal_contract and "platform-bridge-v1" in contract_js, "platform bridge capability must match", failures)
     for capability in (
         "android-clipboard",
@@ -243,8 +251,15 @@ def verify(root: Path) -> list[str]:
     require("bindService(serviceIntent, serviceConnection" in activity, "Activity must bind the session service", failures)
     require("startService(serviceIntent)" in activity, "session host must survive Activity replacement", failures)
     require("TerminalSession(" not in activity, "Activity must not own the PTY session", failures)
+    require("installFrontend(binder)" in activity, "renderer replacement must reuse the bound session host", failures)
+    require("recoverRenderer(" in activity, "Activity must replace a failed WebView frontend", failures)
+    require("class TerminalFrontendRecoveryState" in frontend_recovery, "renderer recovery coordinator must be explicit", failures)
+    require("beginRecovery" in frontend_recovery and "completeRecovery" in frontend_recovery, "renderer recovery must reject duplicate and stale callbacks", failures)
+    require("shutdown(rendererProcessGone = true)" in controller, "controller must destroy only the failed frontend after renderer loss", failures)
+    require("sessionHost.detach" in controller, "renderer loss must invalidate the stale service attachment", failures)
     require("Upstream capability matrix" in capability_matrix, "capability matrix must be documented", failures)
     require("Frontend reconnection" in capability_matrix, "capability matrix must track frontend reconnection", failures)
+    require("WebView renderer recovery" in capability_matrix, "capability matrix must track renderer recovery", failures)
     require("| Clipboard |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)
     validation = read_required(root, "docs/VALIDATION.md", failures)
     require("ADB runtime validation is deferred" in validation, "ADB non-claim must be documented", failures)

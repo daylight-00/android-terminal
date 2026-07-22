@@ -19,6 +19,7 @@ import java.util.TreeMap
 internal class TerminalController(
     private val activity: Activity,
     private val sessionHost: TerminalSessionService.LocalBinder,
+    private val onRendererGone: (TerminalController, didCrash: Boolean) -> Unit,
 ) : AutoCloseable {
     val view: WebView = WebView(activity)
 
@@ -42,6 +43,7 @@ internal class TerminalController(
     private var pageChannelCreated = false
     private var pageReady = false
     private var closed = false
+    private var rendererRecoveryDispatched = false
     private var queuedBytes = 0
     private var inFlightSequence = 0L
     private var inFlightSize = 0
@@ -86,6 +88,17 @@ internal class TerminalController(
     }
 
     override fun close() {
+        shutdown(rendererProcessGone = false)
+    }
+
+    private fun handleRendererGone(didCrash: Boolean) {
+        if (closed || rendererRecoveryDispatched) return
+        rendererRecoveryDispatched = true
+        shutdown(rendererProcessGone = true)
+        onRendererGone(this, didCrash)
+    }
+
+    private fun shutdown(rendererProcessGone: Boolean) {
         if (closed) return
         closed = true
         val generation = connectionGeneration
@@ -105,9 +118,9 @@ internal class TerminalController(
             queueLock.notifyAll()
         }
         platformAdapter.close()
-        messagePort?.close()
+        runCatching { messagePort?.close() }
         messagePort = null
-        view.stopLoading()
+        if (!rendererProcessGone) runCatching { view.stopLoading() }
         (view.parent as? ViewGroup)?.removeView(view)
         view.destroy()
     }
@@ -160,9 +173,11 @@ internal class TerminalController(
             safeBrowsingEnabled = true
         }
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        view.webViewClient = LocalAssetWebViewClient(activity.assets) {
-            createMessageChannel()
-        }
+        view.webViewClient = LocalAssetWebViewClient(
+            assets = activity.assets,
+            onPageReady = { createMessageChannel() },
+            onRendererGone = ::handleRendererGone,
+        )
     }
 
     private fun createMessageChannel() {

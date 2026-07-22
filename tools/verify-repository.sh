@@ -22,6 +22,8 @@ check session-replay "$ROOT/tools/test-session-replay.sh"
 check terminal-geometry "$ROOT/tools/test-terminal-geometry.sh"
 check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
 check terminal-platform-adapter "$ROOT/tools/test-platform-adapter-compile.sh"
+check frontend-recovery "$ROOT/tools/test-frontend-recovery.sh"
+check renderer-recovery-api "$ROOT/tools/test-renderer-recovery-compile.sh"
 check asset-provisioner "$ROOT/tools/test-asset-provisioner.sh"
 check policy-verifier python3 "$ROOT/tools/verify_policy.py" "$ROOT"
 check layer-boundaries python3 "$ROOT/tools/verify-layer-boundaries.py" "$ROOT"
@@ -38,6 +40,8 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-terminal-geometry.sh" \
   "$ROOT/tools/test-platform-policy.sh" \
   "$ROOT/tools/test-platform-adapter-compile.sh" \
+  "$ROOT/tools/test-frontend-recovery.sh" \
+  "$ROOT/tools/test-renderer-recovery-compile.sh" \
   "$ROOT/tools/verify-repository.sh" \
   "$ROOT/tools/verify-native-ndk.sh" \
   "$ROOT/tools/test-verifier.sh"
@@ -83,6 +87,14 @@ check geometry-native-capability grep -Fq 'android-window-geometry' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check platform-adapter grep -Fq 'class TerminalPlatformAdapter' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
+check renderer-gone-handler grep -Fq 'override fun onRenderProcessGone' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt
+check renderer-recovery-state grep -Fq 'class TerminalFrontendRecoveryState' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalFrontendRecoveryState.kt
+check renderer-same-service grep -Fq 'installFrontend(binder)' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt
+check renderer-native-capability grep -Fq 'webview-renderer-recovery' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check platform-bridge-capability grep -Fq 'platform-bridge-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-clipboard-capability grep -Fq 'android-clipboard' \

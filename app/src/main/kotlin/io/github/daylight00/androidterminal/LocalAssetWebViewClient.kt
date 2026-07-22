@@ -2,6 +2,7 @@ package io.github.daylight00.androidterminal
 
 import android.content.res.AssetManager
 import android.net.Uri
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -12,6 +13,7 @@ import java.io.FileNotFoundException
 internal class LocalAssetWebViewClient(
     private val assets: AssetManager,
     private val onPageReady: () -> Unit,
+    private val onRendererGone: (didCrash: Boolean) -> Unit,
 ) : WebViewClient() {
     override fun shouldInterceptRequest(
         view: WebView,
@@ -31,6 +33,14 @@ internal class LocalAssetWebViewClient(
 
     override fun onPageFinished(view: WebView, url: String) {
         if (isAllowedDocument(Uri.parse(url))) onPageReady()
+    }
+
+    override fun onRenderProcessGone(
+        view: WebView,
+        detail: RenderProcessGoneDetail,
+    ): Boolean {
+        onRendererGone(detail.didCrash())
+        return true
     }
 
     private fun responseFor(uri: Uri): WebResourceResponse {

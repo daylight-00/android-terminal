@@ -50,7 +50,7 @@ connection status of upstream features.
 - WebView supplies the browser runtime already present on Android.
 - xterm.js supplies VT/xterm parsing, Unicode layout, selection, scrollback, cursor,
   color, IME integration, and rendering.
-- Kotlin only owns Android lifecycle, the Activity-independent session service, WebView policy, message batching, and JNI calls.
+- Kotlin only owns Android lifecycle, the Activity-independent session service, WebView policy and renderer recovery, message batching, and JNI calls.
 - C only owns the PTY and process syscalls that Android's managed API does not expose.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.

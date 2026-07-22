@@ -87,3 +87,7 @@ device gate must remain a non-claim: Activity recreation, WebView replacement, s
 replay truncation, IME show/hide, rotation, split-screen, clipboard privacy behavior, external-link
 routing, haptic bell behavior, accessibility services, physical-keyboard state, and OEM WebView
 viewport behavior still require a later real-device test.
+
+## WebView renderer recovery
+
+Repository verification checks that `onRenderProcessGone` destroys the failed WebView frontend, invalidates its attachment generation, and installs a replacement against the existing service-owned PTY. A pure Kotlin recovery coordinator rejects duplicate and stale callbacks. Real renderer termination remains an ADB/device gate.

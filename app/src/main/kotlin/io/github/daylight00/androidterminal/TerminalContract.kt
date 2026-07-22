@@ -46,6 +46,7 @@ internal object TerminalContract {
         "byte-transport",
         "pty-resize",
         "frontend-reconnect",
+        "webview-renderer-recovery",
         "android-window-geometry",
         "android-clipboard",
         "android-external-uri",

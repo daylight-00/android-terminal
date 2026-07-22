@@ -8,6 +8,7 @@ import android.content.ServiceConnection
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -16,32 +17,21 @@ import android.widget.FrameLayout
 class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private var controller: TerminalController? = null
+    private var sessionHost: TerminalSessionService.LocalBinder? = null
     private var serviceBound = false
+    private val frontendRecovery = TerminalFrontendRecoveryState()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val binder = service as? TerminalSessionService.LocalBinder ?: return
             if (isFinishing || isDestroyed) return
-            controller?.close()
-            val terminal = TerminalController(this@MainActivity, binder)
-            controller = terminal
-            root.removeAllViews()
-            root.addView(
-                terminal.view,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-            applyAppearance(resources.configuration)
-            root.requestApplyInsets()
-            root.post {
-                terminal.requestGeometrySync()
-                terminal.requestPlatformStateSync()
-            }
+            sessionHost = binder
+            installFrontend(binder)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
+            frontendRecovery.invalidate()
+            sessionHost = null
             controller?.close()
             controller = null
             root.removeAllViews()
@@ -104,6 +94,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        frontendRecovery.invalidate()
+        sessionHost = null
         controller?.close()
         controller = null
         if (serviceBound) {
@@ -111,6 +103,52 @@ class MainActivity : Activity() {
             serviceBound = false
         }
         super.onDestroy()
+    }
+
+    private fun installFrontend(binder: TerminalSessionService.LocalBinder) {
+        if (isFinishing || isDestroyed) return
+        controller?.close()
+        val frontendGeneration = frontendRecovery.registerFrontend()
+        val terminal = TerminalController(
+            activity = this,
+            sessionHost = binder,
+            onRendererGone = { failed, didCrash ->
+                recoverRenderer(failed, frontendGeneration, didCrash)
+            },
+        )
+        controller = terminal
+        root.removeAllViews()
+        root.addView(
+            terminal.view,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        applyAppearance(resources.configuration)
+        root.requestApplyInsets()
+        root.post {
+            terminal.requestGeometrySync()
+            terminal.requestPlatformStateSync()
+        }
+    }
+
+    private fun recoverRenderer(
+        failed: TerminalController,
+        frontendGeneration: Long,
+        didCrash: Boolean,
+    ) {
+        if (controller !== failed) return
+        if (!frontendRecovery.beginRecovery(frontendGeneration)) return
+        Log.e(TAG, "WebView renderer exited; didCrash=$didCrash; replacing frontend")
+        controller = null
+        root.removeAllViews()
+        root.post {
+            if (!frontendRecovery.completeRecovery(frontendGeneration)) return@post
+            val binder = sessionHost ?: return@post
+            if (isFinishing || isDestroyed) return@post
+            installFrontend(binder)
+        }
     }
 
     private fun applyAppearance(configuration: Configuration) {
@@ -133,5 +171,9 @@ class MainActivity : Activity() {
         }
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = flags
+    }
+
+    private companion object {
+        const val TAG = "AndroidTerminal"
     }
 }

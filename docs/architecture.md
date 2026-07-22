@@ -44,7 +44,7 @@ Android lifecycle and secure local WebView host
 
 Layer 2 supplies only the connections required to make upstream functionality usable on Android:
 
-- Activity and WebView lifecycle;
+- Activity and WebView lifecycle, including renderer-process replacement without restarting the PTY;
 - a started/bound Android service that owns the PTY independently of the Activity;
 - exact local HTTPS-like asset origin and CSP;
 - versioned message contract, connection generations, and capability handshake;
