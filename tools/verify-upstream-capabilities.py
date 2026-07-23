@@ -29,25 +29,27 @@ EXPECTED_ADDONS = {
     ),
 }
 
-REQUIRED_CORE_IDS = {
-    "terminal-emulation",
-    "pty-input",
-    "pty-output-flow-control",
-    "geometry",
-    "focus-ime-hardware-keyboard",
-    "clipboard-selection-paste",
-    "osc52-clipboard",
-    "osc8-links",
-    "bell",
-    "title",
-    "platform-color-scheme",
-    "accessibility",
-    "localizable-strings",
-    "font-scale",
-    "window-metric-reports",
-    "public-extension-apis",
-    "frontend-lifecycle",
+EXPECTED_CORE = {
+    'terminal-emulation': ('native-already', 'connected'),
+    'pty-input': ('layer2-runtime', 'connected'),
+    'pty-output-flow-control': ('layer2-runtime', 'connected-with-bounds'),
+    'geometry': ('layer2-runtime', 'connected'),
+    'focus-ime-hardware-keyboard': ('native-already', 'connected'),
+    'clipboard-selection-paste': ('layer2-runtime', 'connected'),
+    'osc52-clipboard': ('layer2-runtime', 'pending'),
+    'osc8-links': ('layer2-runtime', 'connected'),
+    'bell': ('layer2-runtime', 'connected-with-bounds'),
+    'title': ('layer2-capability', 'connected-with-bounds'),
+    'platform-color-scheme': ('layer2-capability', 'connected'),
+    'accessibility': ('layer2-runtime', 'connected'),
+    'localizable-strings': ('layer2-runtime', 'connected-with-bounds'),
+    'font-scale': ('layer2-runtime', 'connected'),
+    'window-metric-reports': ('layer2-runtime', 'connected-with-bounds'),
+    'public-extension-apis': ('native-already', 'available'),
+    'frontend-lifecycle': ('layer2-runtime', 'connected-with-bounds'),
 }
+
+REQUIRED_CORE_IDS = set(EXPECTED_CORE)
 
 ALLOWED_CLASSIFICATIONS = {
     "layer2-runtime",
@@ -107,6 +109,15 @@ def verify(root: Path) -> list[str]:
         core_ids.append(identifier)
         if row.get("classification") not in ALLOWED_CLASSIFICATIONS:
             fail(f"core capability has invalid classification: {identifier}", failures)
+        expected = EXPECTED_CORE.get(identifier)
+        if expected is not None:
+            actual = (row.get("classification"), row.get("status"))
+            if actual != expected:
+                fail(
+                    f"core capability classification mismatch for {identifier}: "
+                    f"expected={expected!r} actual={actual!r}",
+                    failures,
+                )
         for key in ("authority", "status", "android_boundary", "layer3_boundary"):
             if not nonempty_string(row.get(key)):
                 fail(f"core capability lacks {key}: {identifier}", failures)

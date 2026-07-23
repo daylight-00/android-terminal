@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="xterm_prompt_label">터미널 입력</string>
+    <string name="xterm_too_much_output">터미널 출력이 너무 많아 화면 읽기 안내를 중지했습니다.</string>
+</resources>

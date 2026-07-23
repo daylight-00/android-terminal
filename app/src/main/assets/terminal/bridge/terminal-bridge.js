@@ -42,7 +42,7 @@
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
-  if (!platformIntegration || platformIntegration.contractVersion !== 3) {
+  if (!platformIntegration || platformIntegration.contractVersion !== 4) {
     fail('Android terminal platform integration is unavailable.');
     return;
   }
@@ -95,6 +95,8 @@
   let restoringSnapshot = false;
   const pendingPlatformRequests = new Map();
   const platformStateListeners = new Set();
+  const titleStateListeners = new Set();
+  let lastTitleState = '';
   const MAX_PENDING_PLATFORM_REQUESTS = 16;
   const MAX_SNAPSHOT_BASE64_CHARACTERS = Math.ceil(contract.serializedSnapshotMaxBytes / 3) * 4;
   const SNAPSHOT_DELAY_MILLIS = 200;
@@ -153,7 +155,8 @@
 
   window.AndroidTerminalBridge = Object.freeze({
     flushSnapshot,
-    getRendererState() { return rendererController.getState(); }
+    getRendererState() { return rendererController.getState(); },
+    getWindowOperations() { return windowOperations; }
   });
 
   function requestPlatform(operation, payload = {}, timeoutMillis = 5000) {
@@ -251,16 +254,75 @@
     });
   }
 
+  function boundedTitle(value) {
+    return Array.from(String(value || ''))
+      .filter((character) => {
+        const codePoint = character.codePointAt(0);
+        return codePoint >= 0x20 && codePoint !== 0x7f;
+      })
+      .slice(0, 1024)
+      .join('');
+  }
+
+  function updateTitleState(value, publishToNative) {
+    const title = boundedTitle(value);
+    if (title === lastTitleState) return false;
+    lastTitleState = title;
+    if (publishToNative) {
+      post({type: contract.messages.sessionTitle, title});
+    }
+    for (const listener of [...titleStateListeners]) {
+      try {
+        listener(title);
+      } catch (error) {
+        console.error('Layer 3 title-state listener failed.', error);
+      }
+    }
+    return true;
+  }
+
+  function onTitleState(listener) {
+    if (typeof listener !== 'function') {
+      throw new TypeError('A Layer 3 title-state listener must be a function.');
+    }
+    titleStateListeners.add(listener);
+    listener(lastTitleState);
+    let active = true;
+    return Object.freeze({
+      dispose() {
+        if (!active) return;
+        active = false;
+        titleStateListeners.delete(listener);
+      }
+    });
+  }
+
+  const windowOperations = platformIntegration.configureWindowOperations(terminal, {
+    getTitle() { return lastTitleState; }
+  });
+
   window.AndroidTerminalLayer2 = Object.freeze({
-    contractVersion: 1,
+    contractVersion: 2,
     terminal,
     platform,
     onPlatformState,
+    onTitleState,
+    getTitleState() {
+      return lastTitleState;
+    },
     getPlatformState() {
       return lastPlatformState ? {...lastPlatformState} : null;
     },
     requestGeometrySync() {
       scheduleGeometry();
+    },
+    getWindowReportState() {
+      return Object.freeze({
+        title: lastTitleState,
+        rows: terminal.rows,
+        columns: terminal.cols,
+        windowOptions: {...terminal.options.windowOptions}
+      });
     }
   });
 
@@ -277,6 +339,9 @@
   };
   terminal.onBell(() => {
     platform.bell().catch(() => {});
+  });
+  terminal.onTitleChange((value) => {
+    updateTitleState(value, true);
   });
 
   function measureGeometry(type) {
@@ -378,6 +443,9 @@
       colorScheme: nativeMessage.colorScheme === 'light' ? 'light' : 'dark',
       accessibilityEnabled: Boolean(nativeMessage.accessibilityEnabled),
       touchExplorationEnabled: Boolean(nativeMessage.touchExplorationEnabled),
+      localeTag: typeof nativeMessage.localeTag === 'string' ? nativeMessage.localeTag : '',
+      promptLabel: typeof nativeMessage.promptLabel === 'string' ? nativeMessage.promptLabel : '',
+      tooMuchOutput: typeof nativeMessage.tooMuchOutput === 'string' ? nativeMessage.tooMuchOutput : '',
       hardwareKeyboardPresent: Boolean(nativeMessage.hardwareKeyboardPresent),
       fontScale: Number(nativeMessage.fontScale) || 1,
       sharedStorageAccessGranted: Boolean(nativeMessage.sharedStorageAccessGranted),
@@ -439,6 +507,7 @@
           fail(message('incompatibleNativeMessage', 'Native terminal platform capabilities are incomplete.'));
           return;
         }
+        updateTitleState(nativeMessage.title, false);
         const finishAttachment = () => {
           status.classList.add('hidden');
           terminal.focus();

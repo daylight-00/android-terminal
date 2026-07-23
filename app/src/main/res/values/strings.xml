@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="xterm_prompt_label">Terminal input</string>
+    <string name="xterm_too_much_output">Too much terminal output to announce.</string>
+</resources>

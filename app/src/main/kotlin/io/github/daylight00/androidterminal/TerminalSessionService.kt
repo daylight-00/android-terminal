@@ -79,6 +79,16 @@ class TerminalSessionService : Service() {
             throughSequence,
             bytes,
         )
+
+        fun updateTitle(
+            connectionGeneration: Long,
+            sessionId: String,
+            value: String,
+        ): Boolean = this@TerminalSessionService.updateTitle(
+            connectionGeneration,
+            sessionId,
+            value,
+        )
     }
 
     private val binder = LocalBinder()
@@ -93,6 +103,7 @@ class TerminalSessionService : Service() {
     private var state = TerminalSessionState.IDLE
     private var exitCode: Int? = null
     private var failure: String? = null
+    private var title = ""
 
     private var client: Client? = null
     private var connectionGeneration = 0L
@@ -159,6 +170,7 @@ class TerminalSessionService : Service() {
                 state = state,
                 exitCode = exitCode,
                 failure = failure,
+                title = title,
                 serializedSnapshot = if (snapshotUsable) serializedSnapshot?.bytes else null,
                 serializedThroughSequence = if (snapshotUsable) {
                     serializedSnapshot?.throughSequence ?: 0L
@@ -224,6 +236,17 @@ class TerminalSessionService : Service() {
         )
     }
 
+    private fun updateTitle(
+        generation: Long,
+        expectedSessionId: String,
+        value: String,
+    ): Boolean = synchronized(lock) {
+        if (generation != connectionGeneration || expectedSessionId != sessionId) return false
+        if (state != TerminalSessionState.STARTING && state != TerminalSessionState.RUNNING) return false
+        title = TerminalSessionTitle.sanitize(value)
+        true
+    }
+
     private fun withCurrentAttachment(
         generation: Long,
         expectedSessionId: String,
@@ -244,6 +267,7 @@ class TerminalSessionService : Service() {
         state = TerminalSessionState.STARTING
         exitCode = null
         failure = null
+        title = ""
         replayBuffer.reset()
         serializedSnapshotStore.reset()
 
@@ -357,6 +381,7 @@ internal data class TerminalAttachment(
     val state: TerminalSessionState,
     val exitCode: Int?,
     val failure: String?,
+    val title: String,
     val serializedSnapshot: ByteArray?,
     val serializedThroughSequence: Long,
     val replayAvailable: Boolean,

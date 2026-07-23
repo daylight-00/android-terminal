@@ -91,9 +91,9 @@
       "id": "title",
       "authority": "Terminal.onTitleChange",
       "classification": "layer2-capability",
-      "status": "pending",
-      "android_boundary": "Layer 2 must retain the current OSC 0/2 title as neutral session state.",
-      "layer3_boundary": "Displaying the title in tabs, toolbar, notification, or task label is Layer 3."
+      "status": "connected-with-bounds",
+      "android_boundary": "Terminal.onTitleChange is sanitized to 1024 Unicode code points, retained by the service-owned native session, restored on frontend attachment, and reported truthfully through the safe title query.",
+      "layer3_boundary": "Displaying the neutral title in tabs, toolbar, notification, or task label is Layer 3."
     },
     {
       "id": "platform-color-scheme",
@@ -107,16 +107,16 @@
       "id": "accessibility",
       "authority": "xterm screenReaderMode and localizable strings",
       "classification": "layer2-runtime",
-      "status": "partial",
-      "android_boundary": "Android accessibility and touch-exploration state control screenReaderMode.",
-      "layer3_boundary": "Product-specific accessibility UI is Layer 3; localization of upstream strings remains a pending Layer 2 Android-resource bridge."
+      "status": "connected",
+      "android_boundary": "Android accessibility and touch-exploration state control screenReaderMode; Android locale resources supply the upstream accessibility strings.",
+      "layer3_boundary": "Product-specific accessibility UI is Layer 3."
     },
     {
       "id": "localizable-strings",
       "authority": "Terminal.strings / ILocalizableStrings",
       "classification": "layer2-runtime",
-      "status": "pending",
-      "android_boundary": "Android locale resources must supply upstream promptLabel and tooMuchOutput strings.",
+      "status": "connected-with-bounds",
+      "android_boundary": "Android resources provide promptLabel and tooMuchOutput through Terminal.strings, bounded to 512 Unicode code points per value.",
       "layer3_boundary": "Product copy outside the upstream terminal strings is Layer 3."
     },
     {
@@ -131,8 +131,8 @@
       "id": "window-metric-reports",
       "authority": "IWindowOptions and terminal geometry",
       "classification": "layer2-runtime",
-      "status": "pending",
-      "android_boundary": "Only truthful cell, pixel, rows/columns, title, refresh, and bounded resize reports may be enabled; desktop move/stack/iconify operations remain inapplicable.",
+      "status": "connected-with-bounds",
+      "android_boundary": "Truthful xterm cell-pixel, window-pixel, and row/column reports plus upstream title push/pop are enabled. Public CSI handlers map refresh and current-title reports; desktop position, stacking, screen-size, iconify, maximize, fullscreen, and host resize requests remain disabled or not applicable.",
       "layer3_boundary": "Fullscreen or product window-management UI is Layer 3."
     },
     {

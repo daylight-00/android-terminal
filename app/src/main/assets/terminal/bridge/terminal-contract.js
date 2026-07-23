@@ -7,6 +7,7 @@
     resize: 'resize',
     ack: 'ack',
     platformRequest: 'platform-request',
+    sessionTitle: 'session-title',
     snapshot: 'snapshot',
     restoreAck: 'restore-ack',
     attached: 'attached',
@@ -40,6 +41,7 @@
       'android-haptic-bell',
       'android-system-theme',
       'android-accessibility-state',
+      'android-localized-xterm-strings',
       'android-hardware-keyboard-state',
       'android-font-scale-state',
       'android-document-transport',
@@ -59,7 +61,10 @@
       'document-transport-v1',
       'serialize-state-v1',
       'webgl-renderer-fallback-v1',
-      'layer3-scaffold-v1'
+      'layer3-scaffold-v1',
+      'session-title-state-v1',
+      'localized-xterm-strings-v1',
+      'safe-window-reports-v1'
     ])
   });
 })();

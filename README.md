@@ -61,10 +61,12 @@ machine-verified inventory.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
 - A bounded protocol v6 platform bridge connects explicit clipboard actions, OSC 8 links, official
-  plain-text web-link activation, bell events, Android color-scheme state, accessibility state,
-  Android font scale, hardware-keyboard presence, and SAF document import/export without adding a
+  plain-text web-link activation, bell events, service-owned OSC 0/2 title state, Android-localized
+  xterm accessibility strings, truthful safe window reports, Android color-scheme state, accessibility
+  state, Android font scale, hardware-keyboard presence, and SAF document import/export without adding a
   terminal parser or replacing WebView/xterm input semantics.
-- Layer 2 exposes the stable `AndroidTerminalLayer2` capability. The Layer 3 scaffold loads after it,
+- Layer 2 exposes the stable `AndroidTerminalLayer2` capability. It includes neutral title-state,
+  platform-state, geometry-sync, and safe-window-report views. The Layer 3 scaffold loads after it,
   currently owns only the project light/dark terminal palettes, and never accesses WebMessagePort,
   JNI, PTY internals, or xterm.js private APIs.
 - Android font scale multiplies the font size reported by each new upstream xterm.js instance. Layer 2

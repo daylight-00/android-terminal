@@ -21,6 +21,9 @@ for token in (
     "performHapticFeedback",
     "AccessibilityStateChangeListener",
     "TouchExplorationStateChangeListener",
+    "configuration.locales[0].toLanguageTag()",
+    "R.string.xterm_prompt_label",
+    "R.string.xterm_too_much_output",
 ):
     if token not in source:
         raise SystemExit(f"missing Android platform API token: {token}")
@@ -62,6 +65,7 @@ open class Activity {
     fun startActivity(intent: Intent) {}
     fun startActivityForResult(intent: Intent, requestCode: Int) {}
     fun runOnUiThread(action: () -> Unit) = action()
+    fun getString(id: Int): String = "localized-$id"
     companion object { const val RESULT_OK: Int = -1 }
 }
 KT
@@ -124,10 +128,15 @@ KT
 cat > "$WORK/android/content/res/Configuration.kt" <<'KT'
 package android.content.res
 
+class LocaleList {
+    operator fun get(index: Int): java.util.Locale = java.util.Locale.ENGLISH
+}
+
 class Configuration {
     var uiMode: Int = 0
     var keyboard: Int = KEYBOARD_NOKEYS
     var fontScale: Float = 1f
+    var locales: LocaleList = LocaleList()
     companion object {
         const val UI_MODE_NIGHT_MASK: Int = 0x30
         const val UI_MODE_NIGHT_YES: Int = 0x20
@@ -216,6 +225,17 @@ open class WebView {
 KT
 
 
+
+cat > "$WORK/io/github/daylight00/androidterminal/R.kt" <<'KT'
+package io.github.daylight00.androidterminal
+object R {
+    object string {
+        const val xterm_prompt_label: Int = 1
+        const val xterm_too_much_output: Int = 2
+    }
+}
+KT
+
 cat > "$WORK/io/github/daylight00/androidterminal/TerminalSharedStorage.kt" <<'KT'
 package io.github.daylight00.androidterminal
 object TerminalSharedStorage {
@@ -245,6 +265,7 @@ kotlinc -nowarn \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \
   "$WORK/android/webkit/WebView.kt" \
   "$WORK/org/json/JSONObject.kt" \
+  "$WORK/io/github/daylight00/androidterminal/R.kt" \
   "$WORK/io/github/daylight00/androidterminal/TerminalSharedStorage.kt" \
   "$PACKAGE_ROOT/TerminalContract.kt" \
   "$PACKAGE_ROOT/TerminalPlatformState.kt" \
@@ -254,4 +275,4 @@ kotlinc -nowarn \
   "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" \
   -d "$WORK/platform-adapter.jar"
 
-echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape documents=saf-private-file storage-state=direct-path"
+echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path"

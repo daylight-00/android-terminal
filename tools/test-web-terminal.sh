@@ -77,6 +77,9 @@ const paths = process.argv.slice(2);
   const loadedAddons = [];
   const writes = [];
   const pastes = [];
+  const terminalInputs = [];
+  const refreshes = [];
+  const csiHandlers = [];
   const port = {
     onmessage: null,
     postMessage(value) { posted.push(JSON.parse(value)); },
@@ -88,7 +91,15 @@ const paths = process.argv.slice(2);
       this.rows = 0;
       this.cols = 0;
       this.options = {fontSize: 15, ...options};
+      this.strings = {promptLabel: 'upstream prompt', tooMuchOutput: 'upstream output'};
       this.selection = '';
+      this.parser = {
+        registerCsiHandler(identifier, callback) {
+          const registration = {identifier, callback, dispose() {}};
+          csiHandlers.push(registration);
+          return registration;
+        }
+      };
       terminalInstance = this;
     }
     loadAddon(addon) { loadedAddons.push(addon); }
@@ -96,11 +107,14 @@ const paths = process.argv.slice(2);
     onData(callback) { this.dataCallback = callback; return {dispose() {}}; }
     onBinary(callback) { this.binaryCallback = callback; return {dispose() {}}; }
     onBell(callback) { this.bellCallback = callback; return {dispose() {}}; }
+    onTitleChange(callback) { this.titleCallback = callback; return {dispose() {}}; }
     focus() { this.focused = true; }
     write(data, callback) { writes.push(data); if (callback) callback(); }
     hasSelection() { return this.selection !== ''; }
     getSelection() { return this.selection; }
     paste(value) { pastes.push(value); }
+    input(value, wasUserInput) { terminalInputs.push({value, wasUserInput}); }
+    refresh(start, end) { refreshes.push({start, end}); }
   }
 
   class SerializeAddon {
@@ -217,7 +231,7 @@ const paths = process.argv.slice(2);
   if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
   if (!context.AndroidTerminalPlatformIntegration) throw new Error('platform integration export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
-  if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 1) {
+  if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 2) {
     throw new Error('stable Layer 2 customization capability missing');
   }
   if (!context.AndroidTerminalCustomization || context.AndroidTerminalCustomization.contractVersion !== 1) {
@@ -251,7 +265,7 @@ const paths = process.argv.slice(2);
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1', 'session-title-state-v1', 'localized-xterm-strings-v1', 'safe-window-reports-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard']) {
@@ -267,17 +281,24 @@ const paths = process.argv.slice(2);
     state: 'running',
     replayAvailable: true,
     replayTruncated: false,
+    title: 'restored title',
     nativeCapabilities: ['frontend-reconnect', ...requiredNative]
   })});
   flushFrames();
   if (!statusClasses.has('hidden')) throw new Error('loading overlay remained after attachment');
   if (posted.length !== 1) throw new Error('attachment emitted duplicate geometry');
+  if (context.AndroidTerminalLayer2.getTitleState() !== 'restored title') {
+    throw new Error('service-owned title state was not restored');
+  }
 
   sendNative({
     type: 'platform-state',
     colorScheme: 'light',
     accessibilityEnabled: true,
     touchExplorationEnabled: true,
+    localeTag: 'ko-KR',
+    promptLabel: '터미널 입력',
+    tooMuchOutput: '너무 많은 출력',
     hardwareKeyboardPresent: true,
     fontScale: 1.25,
     sharedStorageAccessGranted: true,
@@ -287,6 +308,10 @@ const paths = process.argv.slice(2);
   if (terminalInstance.options.theme.background !== '#fafafa') throw new Error('system theme was not applied');
   if (terminalInstance.options.screenReaderMode !== true) throw new Error('screen reader mode was not applied');
   if (terminalInstance.options.fontSize !== 18.75) throw new Error('Android font scale was not applied to the upstream default');
+  if (terminalInstance.strings.promptLabel !== '터미널 입력' ||
+      terminalInstance.strings.tooMuchOutput !== '너무 많은 출력') {
+    throw new Error('Android localized xterm strings were not applied');
+  }
   const state = context.AndroidTerminalPlatform.getState();
   if (!state || !state.hardwareKeyboardPresent || state.fontScale !== 1.25 ||
       !state.sharedStorageAccessGranted || state.sharedStoragePath !== '/storage/emulated/0') {
@@ -466,7 +491,40 @@ const paths = process.argv.slice(2);
     throw new Error('serialized state was not restored through xterm write');
   }
 
-  console.log('PASS web-terminal-channel contract=6 serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,links,bell,documents layer3=optional-theme geometry=deduplicated');
+  const titleEvents = [];
+  const titleSubscription = context.AndroidTerminalLayer2.onTitleState((value) => titleEvents.push(value));
+  const countBeforeTitle = posted.length;
+  terminalInstance.titleCallback('build 1\u0007');
+  const titleMessage = posted[posted.length - 1];
+  if (posted.length !== countBeforeTitle + 1 || titleMessage.type !== 'session-title' || titleMessage.title !== 'build 1') {
+    throw new Error('xterm title did not reach the service-owned Android state');
+  }
+  if (titleEvents[titleEvents.length - 1] !== 'build 1') throw new Error('Layer 3 title capability was not notified');
+  terminalInstance.titleCallback('build 1');
+  if (posted.length !== countBeforeTitle + 1) throw new Error('duplicate title state was not deduplicated');
+
+  const windowState = context.AndroidTerminalLayer2.getWindowReportState();
+  const expectedWindowOptions = ['getWinSizePixels', 'getCellSizePixels', 'getWinSizeChars', 'pushTitle', 'popTitle'];
+  for (const key of expectedWindowOptions) {
+    if (windowState.windowOptions[key] !== true) throw new Error(`safe window option missing: ${key}`);
+  }
+  for (const key of ['fullscreenWin', 'setWinPosition', 'getScreenSizePixels', 'getScreenSizeChars', 'setWinSizePixels', 'setWinSizeChars']) {
+    if (windowState.windowOptions[key]) throw new Error(`unsafe or inapplicable window option enabled: ${key}`);
+  }
+  const windowHandler = csiHandlers.find((entry) => entry.identifier && entry.identifier.final === 't');
+  if (!windowHandler) throw new Error('public CSI window-operation handler missing');
+  if (windowHandler.callback([7]) !== true || refreshes.length !== 1 || refreshes[0].start !== 0 || refreshes[0].end !== terminalInstance.rows - 1) {
+    throw new Error('safe refresh window operation was not mapped to xterm.refresh');
+  }
+  if (windowHandler.callback([21]) !== true) throw new Error('window-title report was not handled');
+  const titleReport = terminalInputs[terminalInputs.length - 1];
+  if (!titleReport || titleReport.value !== '\x1b]lbuild 1\x1b\\' || titleReport.wasUserInput !== false) {
+    throw new Error('window-title report did not use xterm.input');
+  }
+  if (windowHandler.callback([18]) !== false) throw new Error('upstream-owned window report was intercepted');
+  titleSubscription.dispose();
+
+  console.log('PASS web-terminal-channel contract=6 serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,documents layer3=optional-theme geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -488,6 +546,9 @@ required = {
         "session-attach-v2",
         "geometry-dedup-v1",
         "platform-bridge-v2",
+        "session-title-state-v1",
+        "localized-xterm-strings-v1",
+        "safe-window-reports-v1",
         "web-links-v1",
         "document-transport-v1",
         "serialize-state-v1",
@@ -498,10 +559,12 @@ required = {
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
     platform_path: (
         "window.AndroidTerminalPlatformIntegration = Object.freeze",
-        "contractVersion: 3",
+        "contractVersion: 4",
         "isExternalUriAllowed",
         "applyPlatformState",
         "applyFontScale(terminal, state.fontScale)",
+        "applyLocalizedStrings(terminal, state)",
+        "configureWindowOperations",
     ),
     bridge_path: (
         "new window.Terminal()",
@@ -517,6 +580,10 @@ required = {
         "terminal.paste(text)",
         "terminal.options.linkHandler",
         "terminal.onBell(",
+        "terminal.onTitleChange(",
+        "contractVersion: 2",
+        "getTitleState()",
+        "getWindowReportState()",
         "window.AndroidTerminalPlatform = platform",
         "importDocument(options = {})",
         "exportDocument(path, options = {})",
@@ -543,6 +610,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon web-links=official-addon platform=bounded-documents,font-scale geometry=deduplicated")
+print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon web-links=official-addon platform=bounded-documents,font-scale,title,localized-strings,safe-window-reports geometry=deduplicated")
 PY
 fi

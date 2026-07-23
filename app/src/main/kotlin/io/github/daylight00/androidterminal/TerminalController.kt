@@ -224,6 +224,7 @@ internal class TerminalController(
             TerminalContract.MessageType.SNAPSHOT -> ifCurrentMessage(message, ::handleSerializedSnapshot)
             TerminalContract.MessageType.RESTORE_ACK -> ifCurrentMessage(message, ::handleRestoreAck)
             TerminalContract.MessageType.PLATFORM_REQUEST -> ifCurrentMessage(message, ::handlePlatformRequest)
+            TerminalContract.MessageType.SESSION_TITLE -> ifCurrentMessage(message, ::handleSessionTitle)
             else -> sendError("unsupported terminal page message")
         }
     }
@@ -272,6 +273,7 @@ internal class TerminalController(
                 .put("state", attachment.state.wireName)
                 .put("exitCode", attachment.exitCode ?: JSONObject.NULL)
                 .put("failure", attachment.failure ?: JSONObject.NULL)
+                .put("title", attachment.title)
                 .put("serializedSnapshotAvailable", serializedSnapshot != null)
                 .put(
                     "serializedSnapshotData",
@@ -352,6 +354,14 @@ internal class TerminalController(
         if (throughSequence != expectedSerializedThroughSequence) return
         attachmentReadyForDrain = true
         drainOutput()
+    }
+
+    private fun handleSessionTitle(message: JSONObject) {
+        sessionHost.updateTitle(
+            connectionGeneration,
+            sessionId,
+            message.optString("title"),
+        )
     }
 
     private fun handlePlatformRequest(message: JSONObject) {
@@ -477,6 +487,9 @@ internal class TerminalController(
                 .put("colorScheme", state.colorScheme)
                 .put("accessibilityEnabled", state.accessibilityEnabled)
                 .put("touchExplorationEnabled", state.touchExplorationEnabled)
+                .put("localeTag", state.localeTag)
+                .put("promptLabel", state.promptLabel)
+                .put("tooMuchOutput", state.tooMuchOutput)
                 .put("hardwareKeyboardPresent", state.hardwareKeyboardPresent)
                 .put("fontScale", state.fontScale)
                 .put("sharedStorageAccessGranted", state.sharedStorageAccessGranted)

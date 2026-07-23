@@ -39,16 +39,16 @@ A WebView feature that turns the application into a general browser is outside t
 | OSC 52 clipboard | xterm OSC 52 + official ClipboardAddon provider | Layer 2 runtime | **Pending** | Official addon backed by Android `ClipboardManager` | Clipboard UX and policy |
 | OSC 8 links | core `linkHandler` | Layer 2 runtime | Connected | Validated HTTP/HTTPS URI to `ACTION_VIEW` | Menus, previews, history, browser UI |
 | Bell | `onBell` | Layer 2 runtime | Connected with bounds | Neutral rate-limited Android haptic signal | Sound, pattern, and enablement preferences |
-| Terminal title | `onTitleChange` | Layer 2 capability | **Pending** | Retain current OSC 0/2 title as neutral session state | Toolbar, tab, notification, or task-label presentation |
+| Terminal title | `onTitleChange` | Layer 2 capability | Connected with bounds | Sanitize to 1024 Unicode code points, retain in the service-owned session, restore on attachment, and answer truthful title reports | Toolbar, tab, notification, or task-label presentation |
 | Platform color scheme | Android `uiMode` + public xterm theme option | Layer 2 capability | Connected | Expose light/dark state through the stable customization capability; Layer 2 defines no palette | Theme objects and user theme selection |
-| Accessibility | `screenReaderMode` | Layer 2 runtime | Partial | Android accessibility and touch exploration drive screen-reader mode | Product-specific accessibility UI |
-| Localizable xterm strings | `Terminal.strings` / `ILocalizableStrings` | Layer 2 runtime | **Pending** | Bind `promptLabel` and `tooMuchOutput` to Android locale resources | Product copy outside upstream strings |
+| Accessibility | `screenReaderMode` + upstream localizable strings | Layer 2 runtime | Connected | Android accessibility/touch exploration drive screen-reader mode; Android resources provide upstream accessibility strings | Product-specific accessibility UI |
+| Localizable xterm strings | `Terminal.strings` / `ILocalizableStrings` | Layer 2 runtime | Connected with bounds | Bind `promptLabel` and `tooMuchOutput` to Android locale resources with a neutral 512-code-point bound | Product copy outside upstream strings |
 | Font scale | public `options.fontSize` | Layer 2 runtime | Connected | Android scale multiplies each instance's captured upstream default, then refits | Font family, explicit size, line height, letter spacing |
-| Safe window reports | `IWindowOptions`, actual geometry/title | Layer 2 runtime | **Pending** | Enable only truthful cell/pixel/row/column/title/refresh and bounded resize operations | Fullscreen/product window-management UI |
+| Safe window reports | `IWindowOptions`, public parser/input/refresh APIs, actual geometry/title | Layer 2 runtime | Connected with bounds | Enable truthful cell-pixel, window-pixel, row/column, title-stack, refresh, and current-title behavior; leave desktop/screen/position/resize operations disabled | Fullscreen/product window-management UI |
 | Public extension APIs | addons, parser, buffer, markers, decorations, link providers, key/wheel handlers | Native already | Available | No wrapper where Android is unnecessary; private xterm APIs remain forbidden | Layer 3 may consume the stable public surface |
 | Frontend lifecycle | serialize/write APIs + Android Service/WebView lifecycle | Layer 2 runtime | Connected with bounds | Service-owned PTY survives replacement frontend; snapshot + bounded raw tail restore it | Tabs, persistence, session/workspace management |
 
-Desktop move, raise/lower, iconify, and desktop maximize operations are not meaningful for this Android activity model and are not mapped to approximate behavior.
+Desktop move, raise/lower, iconify, maximize, screen-size, host-position, and terminal-driven Activity resize operations are not meaningful or not safely equivalent for this Android activity model and are not mapped to approximate behavior.
 
 ## Existing Android Layer 2 foundation
 
@@ -115,7 +115,7 @@ The current scaffold owns the project palette used to present Android light/dark
 A Layer 2 completion claim requires:
 
 1. every maintained official addon to have one explicit classification;
-2. every relevant stable core capability to be connected, native already, or explicitly pending;
+2. every relevant stable core capability to be connected, connected with bounds, native already, or explicitly pending only when its selected official addon remains unintegrated;
 3. unmodified Layer 1 bytes and public upstream APIs only;
 4. success, expected-negative, and incomplete/missing verification for each changed authority;
 5. bounded device evidence for Android runtime claims;

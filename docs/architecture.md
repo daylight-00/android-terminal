@@ -53,7 +53,8 @@ Current Layer 2 responsibilities include:
 - versioned WebMessagePort contract, attachment generations, capability handshake, bounded byte transport, ACK/backpressure, and explicit failures;
 - Android window, inset, rotation, focus, IME viewport, `ResizeObserver`, and `visualViewport` geometry reduced through `addon-fit` to deduplicated `TIOCSWINSZ` updates;
 - xterm input callbacks connected to PTY writes without reinterpreting keyboard or terminal semantics;
-- clipboard, OSC 8 URI activation, official plain-text web-link activation, bell, Android color-scheme state, accessibility, touch exploration, hardware-keyboard state, and font scale mapped to Android native APIs;
+- clipboard, OSC 8 URI activation, official plain-text web-link activation, bell, Android color-scheme state, accessibility, touch exploration, hardware-keyboard state, font scale, Android-localized upstream strings, and neutral service-owned title state mapped through public APIs;
+- truthful xterm window reports for cell pixels, terminal pixels, rows/columns, title stack, refresh, and current title, while desktop position/stacking/screen/fullscreen/terminal-driven host resize operations remain disabled;
 - official WebGL renderer activation with one-way fallback to xterm core DOM rendering after activation failure or public `onContextLoss` notification;
 - official serialize-addon snapshots plus a bounded raw PTY tail for replacement frontends;
 - SAF import/export for explicit document transactions;
@@ -99,6 +100,14 @@ or use WebView text zoom as a second scaling authority. A font-scale change is d
 it connects Android's accessibility/display configuration to an upstream public capability; the
 font size and rendering semantics remain upstream-owned.
 
+### Core host integration boundary
+
+OSC 0/2 title changes remain upstream-parsed. Layer 2 listens through `Terminal.onTitleChange`, removes C0/DEL control characters, bounds the value to 1024 Unicode code points, stores it with the service-owned PTY session, and restores it to a replacement frontend. Layer 3 decides whether and where that neutral title is displayed.
+
+Android resources supply only xterm's public `promptLabel` and `tooMuchOutput` strings. Layer 2 transports the current locale tag and applies those values through `Terminal.strings`, with a neutral 512-code-point bound. Product copy remains Layer 3.
+
+The window-operation bridge enables only truthful reports that xterm can answer from its own geometry and title state. Upstream default handlers retain cell-pixel, terminal-pixel, row/column, and title-stack semantics; public parser/input/refresh APIs handle refresh and current-title reports. Android desktop-window approximations are forbidden.
+
 ### Upstream update delegation
 
 Layer 2 never copies upstream feature logic merely to expose it on Android. For each capability it must, in order:
@@ -112,7 +121,7 @@ This keeps feature-update responsibility with xterm.js while this repository own
 
 ## Layer 3: optional customization scaffold
 
-Layer 3 exists physically and loads after Layer 2. Its presence does not define Layer 2 completion: the PTY, WebMessagePort, lifecycle recovery, renderer fallback, explicit clipboard actions, link activation, accessibility, font-scale adaptation, storage, and document transport must remain complete when Layer 3 is empty or omitted.
+Layer 3 exists physically and loads after Layer 2. Its presence does not define Layer 2 completion: the PTY, WebMessagePort, lifecycle recovery, renderer fallback, explicit clipboard actions, link activation, accessibility, localized upstream strings, neutral title state, safe window reports, font-scale adaptation, storage, and document transport must remain complete when Layer 3 is empty or omitted.
 
 The dependency direction is fixed:
 

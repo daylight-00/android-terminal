@@ -12,7 +12,7 @@ const source = fs.readFileSync(process.argv[2], 'utf8');
 const context = vm.createContext({URL, window: {}});
 vm.runInContext(source, context, {filename: 'terminal-platform.js'});
 const integration = context.window.AndroidTerminalPlatformIntegration;
-if (!integration || integration.contractVersion !== 3) {
+if (!integration || integration.contractVersion !== 4) {
   throw new Error('font-scale platform contract is unavailable');
 }
 
@@ -67,7 +67,7 @@ for token in (
     'Number(terminal.options.fontSize)',
     'upstreamFontSizes.get(terminal) * boundedFontScale(value)',
     'applyFontScale(terminal, state.fontScale)',
-    'contractVersion: 3',
+    'contractVersion: 4',
 ):
     if token not in source:
         raise SystemExit(f'missing font-scale mapping token: {token}')

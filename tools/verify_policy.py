@@ -45,6 +45,13 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt",
         failures,
     )
+    session_title = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionTitle.kt",
+        failures,
+    )
+    strings_default = read_required(root, "app/src/main/res/values/strings.xml", failures)
+    strings_ko = read_required(root, "app/src/main/res/values-ko/strings.xml", failures)
     replay_buffer = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt",
@@ -148,8 +155,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 15" in build, "versionCode must identify the capability-inventory release", failures)
-    require("versionName '0.17.0'" in build, "versionName must identify the capability-inventory release", failures)
+    require("versionCode 16" in build, "versionCode must identify the core-host integration release", failures)
+    require("versionName '0.18.0'" in build, "versionName must identify the core-host integration release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -306,7 +313,24 @@ def verify(root: Path) -> list[str]:
     require("Number(terminal.options.fontSize)" in platform_js, "font-scale mapping must consume the upstream font size", failures)
     require("upstreamFontSizes.get(terminal) * boundedFontScale(value)" in platform_js, "font-scale mapping must scale from the upstream baseline without compounding", failures)
     require("applyFontScale(terminal, state.fontScale)" in platform_js, "Android font scale must map through the public xterm option", failures)
-    require("contractVersion: 3" in platform_js and "platformIntegration.contractVersion !== 3" in javascript, "platform integration contract must be version 3", failures)
+    require("contractVersion: 4" in platform_js and "platformIntegration.contractVersion !== 4" in javascript, "platform integration contract must be version 4", failures)
+    require("contractVersion: 2" in javascript, "stable Layer 2 capability contract must be version 2", failures)
+    require("TerminalContract.MessageType.SESSION_TITLE" in controller and "handleSessionTitle" in controller, "controller must accept neutral session-title state", failures)
+    require("fun updateTitle(" in session_service and "title = TerminalSessionTitle.sanitize(value)" in session_service, "service must own bounded terminal-title state", failures)
+    require("MAX_CODE_POINTS = 1024" in session_title and "codePointAt(index)" in session_title, "terminal title must be Unicode-code-point bounded", failures)
+    require("terminal.onTitleChange(" in javascript and "onTitleState" in javascript and "getTitleState()" in javascript, "Layer 2 must expose neutral title state to Layer 3", failures)
+    require("configuration.locales[0].toLanguageTag()" in platform_adapter, "Android locale tag must enter platform state", failures)
+    require("R.string.xterm_prompt_label" in platform_adapter and "R.string.xterm_too_much_output" in platform_adapter, "Android resources must supply xterm localizable strings", failures)
+    require('name="xterm_prompt_label"' in strings_default and 'name="xterm_too_much_output"' in strings_default, "default xterm localization resources are required", failures)
+    require('name="xterm_prompt_label"' in strings_ko and 'name="xterm_too_much_output"' in strings_ko, "Korean xterm localization resources are required", failures)
+    require("terminal.strings.promptLabel" in platform_js and "terminal.strings.tooMuchOutput" in platform_js, "Layer 2 must apply Android-localized upstream strings", failures)
+    for capability in ("session-title-state-v1", "localized-xterm-strings-v1", "safe-window-reports-v1"):
+        require(capability in terminal_contract and capability in contract_js, f"core host capability must match: {capability}", failures)
+    require("android-localized-xterm-strings" in terminal_contract and "android-localized-xterm-strings" in contract_js, "localized-string native capability must match", failures)
+    for token in ("getWinSizePixels: true", "getCellSizePixels: true", "getWinSizeChars: true", "pushTitle: true", "popTitle: true", "registerCsiHandler({final: 't'}", "terminal.refresh(", "terminal.input("):
+        require(token in platform_js, f"safe window-report integration token is required: {token}", failures)
+    for forbidden in ("fullscreenWin: true", "setWinPosition: true", "getScreenSizePixels: true", "getScreenSizeChars: true", "setWinSizePixels: true", "setWinSizeChars: true"):
+        require(forbidden not in platform_js, f"unsafe or desktop-only window operation must remain disabled: {forbidden}", failures)
     require('android:configChanges="fontScale|' in manifest, "Activity must receive font-scale configuration changes without replacing the PTY host", failures)
     require("upstream-default=preserved" in font_scale_test and "Android font scale was not applied" in font_scale_test, "font-scale semantic test must cover upstream ownership and positive behavior", failures)
     require("new WebglAddon.WebglAddon(false)" in renderer, "official xterm WebGL addon must own accelerated rendering", failures)
@@ -399,6 +423,9 @@ def verify(root: Path) -> list[str]:
     require("| Explicit clipboard actions |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)
     require("| `@xterm/addon-web-links` |" in capability_matrix and "Detected links use validated Android `ACTION_VIEW` bridge" in capability_matrix, "capability matrix must track official Web Links integration", failures)
     require("| Font scale |" in capability_matrix and "captured upstream default" in capability_matrix, "capability matrix must track completed Android font scaling", failures)
+    require("| Terminal title |" in capability_matrix and "Connected with bounds" in capability_matrix, "capability matrix must track service-owned terminal title", failures)
+    require("| Localizable xterm strings |" in capability_matrix and "Android locale resources" in capability_matrix, "capability matrix must track Android-localized xterm strings", failures)
+    require("| Safe window reports |" in capability_matrix and "desktop/screen/position/resize operations disabled" in capability_matrix, "capability matrix must track the safe Android window-report subset", failures)
     validation = read_required(root, "docs/VALIDATION.md", failures)
     require("ADB runtime validation is deferred" in validation, "ADB non-claim must be documented", failures)
 

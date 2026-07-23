@@ -61,6 +61,9 @@ internal class TerminalPlatformAdapter(
             colorScheme = colorScheme,
             accessibilityEnabled = accessibilityManager?.isEnabled == true,
             touchExplorationEnabled = accessibilityManager?.isTouchExplorationEnabled == true,
+            localeTag = configuration.locales[0].toLanguageTag(),
+            promptLabel = activity.getString(R.string.xterm_prompt_label),
+            tooMuchOutput = activity.getString(R.string.xterm_too_much_output),
             hardwareKeyboardPresent = configuration.keyboard != Configuration.KEYBOARD_NOKEYS &&
                 configuration.keyboard != Configuration.KEYBOARD_UNDEFINED,
             fontScale = configuration.fontScale.toDouble().coerceIn(0.5, 3.0),

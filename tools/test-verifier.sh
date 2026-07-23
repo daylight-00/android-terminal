@@ -269,3 +269,44 @@ if python3 "$ROOT/tools/verify-layer-boundaries.py" "$ASSET_ALLOWLIST_NEGATIVE" 
   exit 1
 fi
 printf 'PASS verifier-asset-allowlist-negative\n'
+
+CORE_HOST_NEGATIVE=$TMP/core-host-negative
+copy_fixture "$CORE_HOST_NEGATIVE"
+python3 - "$CORE_HOST_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-platform.js" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("getWinSizePixels: true", "getScreenSizePixels: true", 1)
+path.write_text(text, encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$CORE_HOST_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-core-host-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-core-host-negative\n'
+
+CORE_HOST_TITLE_NEGATIVE=$TMP/core-host-title-negative
+copy_fixture "$CORE_HOST_TITLE_NEGATIVE"
+python3 - "$CORE_HOST_TITLE_NEGATIVE/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("title = TerminalSessionTitle.sanitize(value)", "title = value", 1)
+path.write_text(text, encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify_policy.py" "$CORE_HOST_TITLE_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-core-host-title-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-core-host-title-negative\n'
+
+CORE_HOST_INCOMPLETE=$TMP/core-host-incomplete
+copy_fixture "$CORE_HOST_INCOMPLETE"
+rm -f -- "$CORE_HOST_INCOMPLETE/app/src/main/res/values/strings.xml"
+if python3 "$ROOT/tools/verify_policy.py" "$CORE_HOST_INCOMPLETE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-core-host-incomplete unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-core-host-incomplete\n'

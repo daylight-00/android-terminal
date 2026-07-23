@@ -26,7 +26,7 @@ The runtime is divided into unmodified upstream, required Android integration, a
 ### Web terminal frontend
 
 Pinned xterm.js production files provide the terminal parser, screen model, Unicode and
-IME behavior, scrollback, selection, cursor, and core DOM renderer. The official WebGL addon is a Layer 1 renderer automatically attempted by Layer 2; Layer 2 disposes it on its public context-loss event and falls back to the core renderer without touching terminal state. `addon-fit` computes rows and columns from the WebView geometry. Protocol v3 treats Android root
+IME behavior, scrollback, selection, cursor, and core DOM renderer. The official WebGL addon is a Layer 1 renderer automatically attempted by Layer 2; Layer 2 disposes it on its public context-loss event and falls back to the core renderer without touching terminal state. `addon-fit` computes rows and columns from the WebView geometry. Protocol v6 treats Android root
 layout, window-inset, configuration, focus, `ResizeObserver`, and `visualViewport` changes as
 geometry invalidations. Only positive, changed row/column and pixel dimensions are forwarded to the
 service and then to `TIOCSWINSZ`; transient zero layouts and duplicates are discarded without
@@ -99,3 +99,8 @@ size metadata in a local receipt. Acquisition retains exact package metadata for
 - Device-runtime success and OEM `/system/bin` policy require owner-device evidence.
 
 The initial native-to-page channel transfer is target-origin restricted on Android. Page JavaScript validates the channel marker and transferred port rather than assuming `MessageEvent.origin` identifies the native sender.
+
+
+## Core host state and window reports
+
+Layer 2 retains OSC 0/2 title state with the service-owned PTY and exposes it through the stable Layer 2 capability; presentation remains Layer 3. Android locale resources populate xterm's public accessibility strings. Window reports are limited to truthful cell/terminal geometry, rows/columns, title stack, refresh, and current-title behavior through public xterm APIs. Desktop position, stacking, iconify, maximize, screen metrics, fullscreen, and terminal-driven host resizing are not mapped.

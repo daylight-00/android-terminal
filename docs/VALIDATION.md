@@ -26,7 +26,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 - direct `/system/bin/sh` execution and `TERM=xterm-256color`;
 - no AndroidX, Compose, Rust, network permission, or bundled shell/userland;
 - local asset allowlist and restrictive WebView policy;
-- success, expected-negative, and missing-input verifier fixtures, including the Android font-scale authority.
+- success, expected-negative, and missing-input verifier fixtures, including Android font-scale, service-owned title, localized-string, and safe-window-report authorities.
 
 ## External asset gate
 
@@ -86,7 +86,7 @@ the PTY while the Activity only binds a frontend. The geometry test rejects tran
 deduplicates unchanged sizes, and verifies changed WebView/IME viewport geometry before it can reach
 `TIOCSWINSZ`. It also compiles the pure URI/clipboard policy and the Android platform adapter
 against an API-shape stub, then executes the clipboard, OSC 8 link, bell, Layer 3 palette, accessibility,
-document import/export request-result, and stale-attachment paths in Node. Pure Kotlin tests verify
+Android-localized xterm strings, service-owned title restore/update, safe window reports, document import/export request-result, and stale-attachment paths in Node. Pure Kotlin tests verify
 private-HOME path confinement, name sanitation, MIME bounding, collision handling, and the document
 size limit. The API-shape compile covers `ACTION_OPEN_DOCUMENT`, `ACTION_CREATE_DOCUMENT`,
 `OpenableColumns`, and streaming `ContentResolver` access. The owner APK build remains the authority
@@ -118,6 +118,10 @@ option. Static verification requires `fontScale` in Activity configuration handl
 native/page capabilities, and the dedicated success, expected-negative, and missing-authority
 fixtures. Actual glyph metrics, user-visible sizing, rotation behavior, and PTY geometry after a
 system font-size change remain device evidence.
+
+## Core title, localization, and safe-window integration
+
+Repository verification executes `Terminal.onTitleChange` transport, control-character removal, the 1024-code-point service title bound, replacement-frontend restoration, and Layer 3 title-state notification. It compiles Android locale/resource mapping and checks application of `promptLabel` and `tooMuchOutput` through the public `Terminal.strings` surface. The Node fixture enables only truthful xterm cell-pixel, terminal-pixel, row/column, title-stack, refresh, and current-title behavior; expected-negative fixtures reject desktop/screen window operations, an unsanitized service title, and missing localization authority. Actual OSC title behavior, TalkBack announcements, locale switching, font metrics, and terminal-query responses remain device evidence.
 
 ## WebGL renderer fallback
 

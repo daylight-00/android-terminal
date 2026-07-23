@@ -85,6 +85,13 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt",
         failures,
     )
+    session_title = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionTitle.kt",
+        failures,
+    )
+    strings_default = read(root, "app/src/main/res/values/strings.xml", failures)
+    strings_ko = read(root, "app/src/main/res/values-ko/strings.xml", failures)
     replay = read(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/SessionReplayBuffer.kt",
@@ -176,6 +183,7 @@ def verify(root: Path) -> list[str]:
         "resize": "resize",
         "ack": "ack",
         "platformRequest": "platform-request",
+        "sessionTitle": "session-title",
         "snapshot": "snapshot",
         "restoreAck": "restore-ack",
         "attached": "attached",
@@ -212,6 +220,11 @@ def verify(root: Path) -> list[str]:
         "new window.WebLinksAddon.WebLinksAddon(",
         "platform.openExternalUri(uri)",
         "terminal.onBell(",
+        "terminal.onTitleChange(",
+        "contract.messages.sessionTitle",
+        "onTitleState",
+        "getTitleState()",
+        "getWindowReportState()",
         "contract.messages.platformRequest",
         "contract.messages.platformState",
         "contract.messages.platformResult",
@@ -223,6 +236,7 @@ def verify(root: Path) -> list[str]:
         "window.AndroidTerminalLayer2 = Object.freeze",
         "onPlatformState",
         "requestGeometrySync()",
+        "contractVersion: 2",
     ):
         if token not in bridge_js:
             fail(f"Layer 2 bridge lacks required public integration token: {token}", failures)
@@ -241,7 +255,7 @@ def verify(root: Path) -> list[str]:
         fail("font size adaptation must remain isolated in the Android platform mapping", failures)
 
     for token in (
-        "contractVersion: 3",
+        "contractVersion: 4",
         "isExternalUriAllowed",
         "applyPlatformState",
         "terminal.options.screenReaderMode",
@@ -249,9 +263,54 @@ def verify(root: Path) -> list[str]:
         "Number(terminal.options.fontSize)",
         "upstreamFontSizes.get(terminal) * boundedFontScale(value)",
         "applyFontScale(terminal, state.fontScale)",
+        "applyLocalizedStrings(terminal, state)",
+        "terminal.strings.promptLabel",
+        "terminal.strings.tooMuchOutput",
+        "configureWindowOperations",
+        "getWinSizePixels: true",
+        "getCellSizePixels: true",
+        "getWinSizeChars: true",
+        "pushTitle: true",
+        "popTitle: true",
+        "registerCsiHandler({final: 't'}",
+        "terminal.refresh(",
+        "terminal.input(",
     ):
         if token not in platform_js:
             fail(f"Layer 2 platform mapping lacks token: {token}", failures)
+    for forbidden_window_option in (
+        "fullscreenWin: true",
+        "setWinPosition: true",
+        "getScreenSizePixels: true",
+        "getScreenSizeChars: true",
+        "setWinSizePixels: true",
+        "setWinSizeChars: true",
+    ):
+        if forbidden_window_option in platform_js:
+            fail(f"unsafe or desktop-only window operation enabled: {forbidden_window_option}", failures)
+    for token in (
+        "MAX_CODE_POINTS = 1024",
+        "codePointAt(index)",
+        "codePoint == 0x7f",
+    ):
+        if token not in session_title:
+            fail(f"service title sanitizer lacks token: {token}", failures)
+    for token in (
+        'name="xterm_prompt_label"',
+        'name="xterm_too_much_output"',
+    ):
+        if token not in strings_default or token not in strings_ko:
+            fail(f"Android xterm localization resources lack token: {token}", failures)
+    for capability in (
+        "session-title-state-v1",
+        "localized-xterm-strings-v1",
+        "safe-window-reports-v1",
+    ):
+        if capability not in contract_js or capability not in contract_kt:
+            fail(f"page capability must match across JavaScript and Kotlin: {capability}", failures)
+    if "android-localized-xterm-strings" not in contract_js or "android-localized-xterm-strings" not in contract_kt:
+        fail("native localized-string capability must match", failures)
+
     if "terminal.options.theme" in platform_js or "darkTheme" in platform_js or "lightTheme" in platform_js:
         fail("project terminal palettes belong to Layer 3, not Layer 2", failures)
     for token in (

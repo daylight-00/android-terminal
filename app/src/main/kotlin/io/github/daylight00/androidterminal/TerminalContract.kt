@@ -17,6 +17,7 @@ internal object TerminalContract {
         const val RESIZE = "resize"
         const val ACK = "ack"
         const val PLATFORM_REQUEST = "platform-request"
+        const val SESSION_TITLE = "session-title"
         const val SNAPSHOT = "snapshot"
         const val RESTORE_ACK = "restore-ack"
         const val ATTACHED = "attached"
@@ -51,6 +52,9 @@ internal object TerminalContract {
         "serialize-state-v1",
         "webgl-renderer-fallback-v1",
         "layer3-scaffold-v1",
+        "session-title-state-v1",
+        "localized-xterm-strings-v1",
+        "safe-window-reports-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(
@@ -66,6 +70,7 @@ internal object TerminalContract {
         "android-haptic-bell",
         "android-system-theme",
         "android-accessibility-state",
+        "android-localized-xterm-strings",
         "android-hardware-keyboard-state",
         "android-font-scale-state",
         "android-document-transport",

@@ -23,6 +23,7 @@ check session-replay "$ROOT/tools/test-session-replay.sh"
 check terminal-geometry "$ROOT/tools/test-terminal-geometry.sh"
 check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
 check terminal-font-scale "$ROOT/tools/test-font-scale.sh"
+check core-host-integration "$ROOT/tools/test-core-host-integration.sh"
 check layer3-scaffold "$ROOT/tools/test-layer3-scaffold.sh"
 check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
 check terminal-document-transport "$ROOT/tools/test-document-transport.sh"
@@ -48,6 +49,7 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-terminal-geometry.sh" \
   "$ROOT/tools/test-platform-policy.sh" \
   "$ROOT/tools/test-font-scale.sh" \
+  "$ROOT/tools/test-core-host-integration.sh" \
   "$ROOT/tools/test-layer3-scaffold.sh" \
   "$ROOT/tools/test-document-policy.sh" \
   "$ROOT/tools/test-document-transport.sh" \
@@ -75,8 +77,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 15' app/build.gradle
-check version-name grep -Fxq "        versionName '0.17.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 16' app/build.gradle
+check version-name grep -Fxq "        versionName '0.18.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -132,6 +134,22 @@ check android-font-scale-capability grep -Fq 'android-font-scale-state' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check page-font-scale-capability grep -Fq 'android-font-scale-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check page-title-capability grep -Fq 'session-title-state-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check page-localized-strings-capability grep -Fq 'localized-xterm-strings-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check page-safe-window-capability grep -Fq 'safe-window-reports-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check native-localized-strings-capability grep -Fq 'android-localized-xterm-strings' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check service-title-state grep -Fq 'title = TerminalSessionTitle.sanitize(value)' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
+check xterm-title-event grep -Fq 'terminal.onTitleChange(' \
+  app/src/main/assets/terminal/bridge/terminal-bridge.js
+check xterm-localized-strings grep -Fq 'terminal.strings.promptLabel' \
+  app/src/main/assets/terminal/bridge/terminal-platform.js
+check safe-window-report grep -Fq 'getWinSizePixels: true' \
+  app/src/main/assets/terminal/bridge/terminal-platform.js
 check manifest-font-scale-config grep -Fq 'android:configChanges="fontScale|' app/src/main/AndroidManifest.xml
 check android-document-capability grep -Fq 'android-document-transport' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
