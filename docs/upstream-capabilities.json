@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-24",
+  "upstream": {
+    "project": "xtermjs/xterm.js",
+    "maintained_addon_source": "https://github.com/xtermjs/xterm.js#addons",
+    "public_api_source": "https://xtermjs.org/docs/api/terminal/classes/terminal/",
+    "pinned_core": "@xterm/xterm@6.0.0"
+  },
+  "classification": {
+    "layer2-runtime": "Automatically active when the upstream capability and Android have a necessary operational intersection.",
+    "layer2-capability": "Layer 2 exposes the neutral engine or bridge; Layer 3 owns optional UI, preference, or product policy.",
+    "native-already": "The public upstream capability works in System WebView without an Android-specific adapter.",
+    "not-applicable": "The capability has no necessary intersection with the selected native-PTY Android host.",
+    "experimental": "The upstream capability is not part of the Layer 2 completion gate until upstream stabilizes it."
+  },
+  "core_capabilities": [
+    {
+      "id": "terminal-emulation",
+      "authority": "@xterm/xterm core",
+      "classification": "native-already",
+      "status": "connected",
+      "android_boundary": "Raw PTY bytes enter Terminal.write; parsing, buffers, modes, cursor, selection, scrollback, reflow, mouse protocol, and rendering remain upstream-owned.",
+      "layer3_boundary": "none"
+    },
+    {
+      "id": "pty-input",
+      "authority": "Terminal.onData and Terminal.onBinary",
+      "classification": "layer2-runtime",
+      "status": "connected",
+      "android_boundary": "WebView/xterm input is transported byte-preservingly to the service-owned PTY.",
+      "layer3_boundary": "Custom key actions may call the public Layer 2 input capability later; Layer 2 does not reinterpret ordinary keys."
+    },
+    {
+      "id": "pty-output-flow-control",
+      "authority": "Terminal.write callback and onWriteParsed",
+      "classification": "layer2-runtime",
+      "status": "connected-with-bounds",
+      "android_boundary": "One in-flight output batch, ordered sequence ACK, and bounded replay/snapshot state.",
+      "layer3_boundary": "none"
+    },
+    {
+      "id": "geometry",
+      "authority": "Terminal.resize and @xterm/addon-fit",
+      "classification": "layer2-runtime",
+      "status": "connected",
+      "android_boundary": "Android layout, insets, rotation, IME viewport, ResizeObserver, and visualViewport converge on deduplicated TIOCSWINSZ.",
+      "layer3_boundary": "Optional layout chrome must request refit through the public Layer 2 capability."
+    },
+    {
+      "id": "focus-ime-hardware-keyboard",
+      "authority": "xterm DOM input and WebView",
+      "classification": "native-already",
+      "status": "connected",
+      "android_boundary": "WebView remains IME and key authority; Android reports physical-keyboard state without duplicate key translation.",
+      "layer3_boundary": "Optional modifier bars and special keys are Layer 3."
+    },
+    {
+      "id": "clipboard-selection-paste",
+      "authority": "Terminal selection APIs and Terminal.paste",
+      "classification": "layer2-runtime",
+      "status": "connected",
+      "android_boundary": "Bounded explicit copy/paste operations use Android ClipboardManager.",
+      "layer3_boundary": "Clipboard buttons or gestures are Layer 3."
+    },
+    {
+      "id": "osc52-clipboard",
+      "authority": "@xterm/xterm OSC 52 support plus @xterm/addon-clipboard provider",
+      "classification": "layer2-runtime",
+      "status": "pending",
+      "android_boundary": "Official ClipboardAddon must use an Android-backed IClipboardProvider.",
+      "layer3_boundary": "Permission prompts or clipboard UX are Layer 3; protocol semantics remain upstream."
+    },
+    {
+      "id": "osc8-links",
+      "authority": "xterm core linkHandler",
+      "classification": "layer2-runtime",
+      "status": "connected",
+      "android_boundary": "Validated HTTP/HTTPS activation is routed to ACTION_VIEW.",
+      "layer3_boundary": "Link history, previews, menus, and browser UI are Layer 3."
+    },
+    {
+      "id": "bell",
+      "authority": "Terminal.onBell",
+      "classification": "layer2-runtime",
+      "status": "connected-with-bounds",
+      "android_boundary": "Rate-limited Android haptic feedback provides a neutral host signal.",
+      "layer3_boundary": "User-selectable sound, vibration pattern, or enablement policy is Layer 3."
+    },
+    {
+      "id": "title",
+      "authority": "Terminal.onTitleChange",
+      "classification": "layer2-capability",
+      "status": "pending",
+      "android_boundary": "Layer 2 must retain the current OSC 0/2 title as neutral session state.",
+      "layer3_boundary": "Displaying the title in tabs, toolbar, notification, or task label is Layer 3."
+    },
+    {
+      "id": "platform-color-scheme",
+      "authority": "Android Configuration.uiMode and xterm public theme option",
+      "classification": "layer2-capability",
+      "status": "connected",
+      "android_boundary": "Layer 2 reports light/dark state through the public customization capability but does not define a terminal palette.",
+      "layer3_boundary": "Actual theme objects and user theme preferences are Layer 3."
+    },
+    {
+      "id": "accessibility",
+      "authority": "xterm screenReaderMode and localizable strings",
+      "classification": "layer2-runtime",
+      "status": "partial",
+      "android_boundary": "Android accessibility and touch-exploration state control screenReaderMode.",
+      "layer3_boundary": "Product-specific accessibility UI is Layer 3; localization of upstream strings remains a pending Layer 2 Android-resource bridge."
+    },
+    {
+      "id": "localizable-strings",
+      "authority": "Terminal.strings / ILocalizableStrings",
+      "classification": "layer2-runtime",
+      "status": "pending",
+      "android_boundary": "Android locale resources must supply upstream promptLabel and tooMuchOutput strings.",
+      "layer3_boundary": "Product copy outside the upstream terminal strings is Layer 3."
+    },
+    {
+      "id": "font-scale",
+      "authority": "Terminal.options.fontSize",
+      "classification": "layer2-runtime",
+      "status": "connected",
+      "android_boundary": "Android fontScale multiplies each terminal instance's captured upstream default and refits geometry without compounding.",
+      "layer3_boundary": "Font family, explicit font size preference, line height, and letter spacing are Layer 3."
+    },
+    {
+      "id": "window-metric-reports",
+      "authority": "IWindowOptions and terminal geometry",
+      "classification": "layer2-runtime",
+      "status": "pending",
+      "android_boundary": "Only truthful cell, pixel, rows/columns, title, refresh, and bounded resize reports may be enabled; desktop move/stack/iconify operations remain inapplicable.",
+      "layer3_boundary": "Fullscreen or product window-management UI is Layer 3."
+    },
+    {
+      "id": "public-extension-apis",
+      "authority": "loadAddon, parser, buffer, markers, decorations, link providers, key/wheel handlers",
+      "classification": "native-already",
+      "status": "available",
+      "android_boundary": "Layer 2 does not wrap public APIs that require no Android operation and never uses xterm private APIs.",
+      "layer3_boundary": "Layer 3 may consume public xterm APIs only through the stable Layer 2 customization surface."
+    },
+    {
+      "id": "frontend-lifecycle",
+      "authority": "Android Service/WebView lifecycle plus xterm write/serialize APIs",
+      "classification": "layer2-runtime",
+      "status": "connected-with-bounds",
+      "android_boundary": "Service-owned PTY survives Activity/WebView replacement; serialized state and bounded raw tail restore the frontend.",
+      "layer3_boundary": "Session tabs, persistence, and workspace management are Layer 3."
+    }
+  ],
+  "official_addons": [
+    {
+      "package": "@xterm/addon-attach",
+      "classification": "not-applicable",
+      "status": "excluded",
+      "default_activation": "none",
+      "android_boundary": "The selected backend is a native service-owned PTY, not a WebSocket process transport.",
+      "layer3_boundary": "A future remote/WebSocket session product is Layer 3."
+    },
+    {
+      "package": "@xterm/addon-clipboard",
+      "classification": "layer2-runtime",
+      "status": "pending",
+      "default_activation": "automatic",
+      "android_boundary": "Use the official addon with an Android ClipboardManager-backed IClipboardProvider for OSC 52.",
+      "layer3_boundary": "Clipboard UI and user policy are Layer 3."
+    },
+    {
+      "package": "@xterm/addon-fit",
+      "classification": "layer2-runtime",
+      "status": "connected",
+      "default_activation": "automatic",
+      "android_boundary": "Fits the WebView container and feeds bounded PTY geometry.",
+      "layer3_boundary": "none"
+    },
+    {
+      "package": "@xterm/addon-image",
+      "classification": "layer2-runtime",
+      "status": "pending",
+      "default_activation": "automatic",
+      "android_boundary": "Use upstream defaults for SIXEL, IIP, partial Kitty graphics, storage, payload, pixel, and size-report behavior unless Android evidence requires a neutral safety bound.",
+      "layer3_boundary": "User-selectable protocol toggles and custom limits are Layer 3."
+    },
+    {
+      "package": "@xterm/addon-ligatures",
+      "classification": "layer2-capability",
+      "status": "pending",
+      "default_activation": "registered",
+      "android_boundary": "Expose the official addon without selecting a font or ligature policy.",
+      "layer3_boundary": "Font and ligature enablement are Layer 3."
+    },
+    {
+      "package": "@xterm/addon-progress",
+      "classification": "layer2-runtime",
+      "status": "pending",
+      "default_activation": "automatic",
+      "android_boundary": "Parse OSC 9;4 and expose neutral progress state through Layer 2.",
+      "layer3_boundary": "Toolbar, notification, tab badge, and display policy are Layer 3."
+    },
+    {
+      "package": "@xterm/addon-search",
+      "classification": "layer2-capability",
+      "status": "pending",
+      "default_activation": "registered",
+      "android_boundary": "Expose official buffer-search operations and result state.",
+      "layer3_boundary": "Search field, Ctrl+F, navigation controls, decorations, and preferences are Layer 3."
+    },
+    {
+      "package": "@xterm/addon-serialize",
+      "classification": "layer2-runtime",
+      "status": "connected-with-bounds",
+      "default_activation": "automatic",
+      "android_boundary": "Opaque snapshots plus output watermark and bounded raw tail support replacement frontends.",
+      "layer3_boundary": "Persistent session history is Layer 3."
+    },
+    {
+      "package": "@xterm/addon-unicode-graphemes",
+      "classification": "experimental",
+      "status": "excluded-from-completion-gate",
+      "default_activation": "none",
+      "android_boundary": "Upstream marks the addon experimental and not yet published to npm.",
+      "layer3_boundary": "May enter a separate experiment only after an explicit decision."
+    },
+    {
+      "package": "@xterm/addon-unicode11",
+      "classification": "layer2-capability",
+      "status": "pending",
+      "default_activation": "registered",
+      "android_boundary": "Register the official Unicode 11 provider without selecting it as active.",
+      "layer3_boundary": "Active Unicode-version policy is Layer 3."
+    },
+    {
+      "package": "@xterm/addon-web-fonts",
+      "classification": "layer2-capability",
+      "status": "pending",
+      "default_activation": "registered",
+      "android_boundary": "Expose official font preload and relayout capability for local APK assets.",
+      "layer3_boundary": "Font assets, family choice, and fallback policy are Layer 3."
+    },
+    {
+      "package": "@xterm/addon-web-links",
+      "classification": "layer2-runtime",
+      "status": "connected",
+      "default_activation": "automatic",
+      "android_boundary": "Detected HTTP/HTTPS links use the same validated ACTION_VIEW bridge as OSC 8.",
+      "layer3_boundary": "Link UI, history, preview, and browser behavior are Layer 3."
+    },
+    {
+      "package": "@xterm/addon-webgl",
+      "classification": "layer2-runtime",
+      "status": "connected-with-bounds",
+      "default_activation": "automatic-attempt",
+      "android_boundary": "Attempt WebGL2 and permanently fall back to xterm core DOM rendering after activation failure or context loss.",
+      "layer3_boundary": "Renderer preference UI is Layer 3; Layer 2 must not require it."
+    }
+  ],
+  "webview_boundary": [
+    {
+      "capability": "local DOM, canvas, WebGL2, ResizeObserver, visualViewport, WebMessagePort, IME and accessibility primitives used by xterm.js",
+      "classification": "layer2-runtime-or-native-already"
+    },
+    {
+      "capability": "generic remote navigation, browser history, arbitrary file chooser, download manager, web authentication, page permissions and browser chrome",
+      "classification": "not-applicable"
+    }
+  ]
+}

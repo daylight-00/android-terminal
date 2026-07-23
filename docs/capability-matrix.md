@@ -1,56 +1,122 @@
 # Upstream capability matrix
 
-This matrix is the authority for Layer 2 completion. A capability is complete only when the pinned upstream public surface works in System WebView and every required Android native connection is present. Layer 3 is reserved and does not block or disable Layer 2 capabilities.
+This document is the human-readable view of [`upstream-capabilities.json`](upstream-capabilities.json), the machine-verified authority for Layer 2 completion.
 
-## Status definitions
+The project connects only the necessary intersection between xterm.js/System WebView and Android native operation:
 
-| Status | Meaning |
+```text
+unmodified upstream capability
+            ∩
+Android operation required to make it usable
+            =
+Layer 2 integration scope
+```
+
+A WebView feature that turns the application into a general browser is outside this intersection. A product preference or optional UI belongs to Layer 3 even when it consumes a Layer 2 capability.
+
+## Classification
+
+| Classification | Meaning |
 |---|---|
-| Native already | Upstream works in Android System WebView without an additional Android adapter. |
-| Connected | Layer 2 supplies the required Android/PTY connection through a public upstream API. |
-| Connected with bounds | The connection is complete but intentionally bounded for lifecycle or resource safety. |
-| Upstream pending | An official upstream addon or selected upstream public surface is not yet vendored/connected. |
-| Device gate pending | Repository evidence exists; real Android behavior still needs bounded device evidence. |
-| Intentionally excluded | The feature belongs outside the thin Layer 2 host. |
+| **Layer 2 runtime** | Automatically active because the upstream feature needs an Android or PTY connection to operate completely. |
+| **Layer 2 capability** | Layer 2 exposes a neutral engine/state/API; Layer 3 owns optional UI, preference, or presentation. |
+| **Native already** | The upstream public capability works in System WebView without another Android adapter. |
+| **Not applicable** | No necessary intersection exists with the selected service-owned native PTY host. |
+| **Experimental** | Excluded from the Layer 2 completion gate until upstream stabilizes it. |
 
-## Current capability coverage
+`Connected with bounds` means the capability is complete but carries a neutral lifecycle, ordering, memory, or safety bound. It does not authorize product policy in Layer 2.
 
-| Capability | Upstream authority | Layer 2 Android connection | Status |
-|---|---|---|---|
-| VT/xterm parsing and screen state | `@xterm/xterm` core | Raw PTY output is delivered to `Terminal.write()` | Connected |
-| Keyboard and IME input | `@xterm/xterm` core | `onData()` and `onBinary()` are transported to the PTY; WebView remains input authority | Connected |
-| Geometry | `@xterm/addon-fit` | Android layout/insets/configuration/focus and WebView viewport signals converge on positive deduplicated `TIOCSWINSZ` updates | Connected |
-| Output flow control | xterm `write(data, callback)` | One in-flight batch and bounded ACK queue | Connected with bounds |
-| Activity-independent shell session | Android native shell and PTY | Started/bound Service owns the PTY independently of Activity/WebView | Connected |
-| Frontend reconnection | xterm public `write()` | Attachment identity reconnects replacement frontends to the same service session | Connected |
-| WebView renderer recovery | Android System WebView | `onRenderProcessGone` replaces only the frontend and preserves the PTY session | Connected; device gate pending |
-| Screen/scrollback restoration | `@xterm/addon-serialize` plus raw PTY bytes | Bounded opaque snapshot with output watermark plus contiguous raw tail | Connected with bounds; device gate pending |
-| Clipboard | xterm selection and `paste()` APIs | Focus-gated bounded text bridge to Android `ClipboardManager` | Connected |
-| Search | `@xterm/addon-search` | Not yet vendored or connected | Upstream pending |
-| OSC 8 links | xterm core `linkHandler` | Validated HTTP/HTTPS activation through Android `ACTION_VIEW` | Connected |
-| Plain-text web links | `@xterm/addon-web-links` | Official link detection routes validated HTTP/HTTPS activation through the existing Android `ACTION_VIEW` boundary | Connected; device gate pending |
-| Bell | xterm `onBell` | Rate-limited Android haptic feedback | Connected; device gate pending |
-| System theme | xterm `options.theme` | Android light/dark configuration maps to Layer 2 host palettes | Connected |
-| Hardware keyboard | WebView DOM and xterm input APIs | No key duplication; Android physical-keyboard presence is reported | Native already + state connected |
-| Accessibility | xterm `screenReaderMode` | Android accessibility and touch-exploration listeners control screen-reader mode | Connected; device gate pending |
-| Font scale | xterm public `options.fontSize` | Android configuration scales the captured upstream default, bounded to 0.5–3.0, then re-runs fit/PTY geometry without a custom base font | Connected |
-| Images | official xterm image addon | Not yet vendored or connected | Upstream pending |
-| WebGL renderer | `@xterm/addon-webgl` | Automatically attempted; public context-loss event causes permanent per-frontend DOM fallback without session loss | Connected; device gate pending |
-| SAF import/export | Android Storage Access Framework | Selected document bytes stream to/from bounded private-HOME regular files | Connected; device gate pending |
-| Direct shared-storage paths | Android storage permission model | API 28 compatibility target, API 29 runtime permissions, API 30+ all-files settings, `EXTERNAL_STORAGE`, and non-destructive `HOME/storage` link | Connected; device gate pending |
-| Writable app-private executable launch | Android app compatibility behavior and native `execve()` | API 28 compatibility target; no custom linker, loader shim, relocation service, or bundled userland | Connected; device gate pending |
-| WebView download/upload/file chooser APIs | Android System WebView | No remote page or generic browser surface exists in the current secure local host | Intentionally excluded from current page model |
-| Bundled shell/userland/package manager | none | Deliberately absent from Layer 2 | Intentionally excluded; Layer 3 only |
-| Custom VT parser or screen renderer | none | Forbidden | Intentionally excluded |
-| SAF/FUSE virtual mount | none | Not required once direct shared-storage permission and explicit SAF transactions are available | Intentionally excluded |
+## Core capability inventory
+
+| Capability | Upstream authority | Classification | Status | Layer 2 Android boundary | Layer 3 boundary |
+|---|---|---|---|---|---|
+| Terminal emulation | `@xterm/xterm` parser, buffers, modes, cursor, selection, scrollback, reflow, mouse protocol, renderers | Native already | Connected | Raw PTY bytes enter `Terminal.write()`; Android does not reinterpret terminal state | None |
+| PTY input | `onData`, `onBinary` | Layer 2 runtime | Connected | Byte-preserving transport to the service-owned PTY | Special keys, modifier bars, and macros |
+| PTY output and flow control | `write(data, callback)`, `onWriteParsed` | Layer 2 runtime | Connected with bounds | Ordered sequence ACK, one in-flight batch, bounded recovery state | None |
+| Geometry | `resize`, `@xterm/addon-fit` | Layer 2 runtime | Connected | Android layout/insets/rotation/IME viewport converge on deduplicated `TIOCSWINSZ` | Optional layout chrome must request refit through Layer 2 |
+| Focus, IME, hardware keyboard | xterm DOM input and System WebView | Native already | Connected | WebView remains input authority; Android reports hardware-keyboard state only | Optional key UI |
+| Explicit clipboard actions | selection APIs and `paste()` | Layer 2 runtime | Connected | Bounded Android `ClipboardManager` read/write | Buttons, gestures, and preference policy |
+| OSC 52 clipboard | xterm OSC 52 + official ClipboardAddon provider | Layer 2 runtime | **Pending** | Official addon backed by Android `ClipboardManager` | Clipboard UX and policy |
+| OSC 8 links | core `linkHandler` | Layer 2 runtime | Connected | Validated HTTP/HTTPS URI to `ACTION_VIEW` | Menus, previews, history, browser UI |
+| Bell | `onBell` | Layer 2 runtime | Connected with bounds | Neutral rate-limited Android haptic signal | Sound, pattern, and enablement preferences |
+| Terminal title | `onTitleChange` | Layer 2 capability | **Pending** | Retain current OSC 0/2 title as neutral session state | Toolbar, tab, notification, or task-label presentation |
+| Platform color scheme | Android `uiMode` + public xterm theme option | Layer 2 capability | Connected | Expose light/dark state through the stable customization capability; Layer 2 defines no palette | Theme objects and user theme selection |
+| Accessibility | `screenReaderMode` | Layer 2 runtime | Partial | Android accessibility and touch exploration drive screen-reader mode | Product-specific accessibility UI |
+| Localizable xterm strings | `Terminal.strings` / `ILocalizableStrings` | Layer 2 runtime | **Pending** | Bind `promptLabel` and `tooMuchOutput` to Android locale resources | Product copy outside upstream strings |
+| Font scale | public `options.fontSize` | Layer 2 runtime | Connected | Android scale multiplies each instance's captured upstream default, then refits | Font family, explicit size, line height, letter spacing |
+| Safe window reports | `IWindowOptions`, actual geometry/title | Layer 2 runtime | **Pending** | Enable only truthful cell/pixel/row/column/title/refresh and bounded resize operations | Fullscreen/product window-management UI |
+| Public extension APIs | addons, parser, buffer, markers, decorations, link providers, key/wheel handlers | Native already | Available | No wrapper where Android is unnecessary; private xterm APIs remain forbidden | Layer 3 may consume the stable public surface |
+| Frontend lifecycle | serialize/write APIs + Android Service/WebView lifecycle | Layer 2 runtime | Connected with bounds | Service-owned PTY survives replacement frontend; snapshot + bounded raw tail restore it | Tabs, persistence, session/workspace management |
+
+Desktop move, raise/lower, iconify, and desktop maximize operations are not meaningful for this Android activity model and are not mapped to approximate behavior.
+
+## Existing Android Layer 2 foundation
+
+These host capabilities are not xterm.js addons, but they remain prerequisite Layer 2 infrastructure for the inventory above.
+
+| Host capability | Status | Boundary |
+|---|---|---|
+| Direct shared-storage paths | Connected; device gate passed | Android storage permission and non-destructive `HOME/storage` mapping expose ordinary POSIX paths without pretending SAF URIs are files. |
+| SAF document transport | Connected with bounds | Explicit import/export copies between a selected document and private POSIX files. |
+| Frontend reconnection | Connected with bounds | A service-owned PTY survives Activity and WebView replacement. |
+| WebView renderer recovery | Connected with bounds | Replacement frontend restores an opaque upstream snapshot plus bounded post-watermark output. |
+
+## Official maintained addon inventory
+
+The official xterm.js repository currently lists the following 13 maintained addons. Every addon appears exactly once in the machine-readable authority.
+
+| Official addon | Classification | Status | Default Layer 2 state | Android integration | Layer 3 boundary |
+|---|---|---|---|---|---|
+| `@xterm/addon-attach` | Not applicable | Excluded | None | Current backend is a native PTY, not WebSocket transport | Future remote session product |
+| `@xterm/addon-clipboard` | Layer 2 runtime | **Pending** | Automatic | Android-backed `IClipboardProvider` for OSC 52 | Clipboard UI/policy |
+| `@xterm/addon-fit` | Layer 2 runtime | Connected | Automatic | Container fit → bounded PTY geometry | None |
+| `@xterm/addon-image` | Layer 2 runtime | **Pending** | Automatic | Official SIXEL/IIP/partial Kitty support; begin with upstream defaults | User protocol toggles and custom resource limits |
+| `@xterm/addon-ligatures` | Layer 2 capability | **Pending** | Registered | Expose official renderer integration without selecting font policy | Font and ligature enablement |
+| `@xterm/addon-progress` | Layer 2 runtime | **Pending** | Automatic | Parse OSC 9;4 and expose neutral progress state | Toolbar, notification, tab badge, display policy |
+| `@xterm/addon-search` | Layer 2 capability | **Pending** | Registered | Expose official search engine/result state | Search field, shortcuts, controls, decorations |
+| `@xterm/addon-serialize` | Layer 2 runtime | Connected with bounds | Automatic | Replacement-frontend snapshot authority | Persistent history |
+| `@xterm/addon-unicode-graphemes` | Experimental | Excluded from completion gate | None | Upstream marks it experimental and not published to npm | Explicit later experiment only |
+| `@xterm/addon-unicode11` | Layer 2 capability | **Pending** | Registered | Register provider without selecting it active | Active Unicode-version policy |
+| `@xterm/addon-web-fonts` | Layer 2 capability | **Pending** | Registered | Local asset preload/relayout capability | Font assets, family choice, fallback policy |
+| `@xterm/addon-web-links` | Layer 2 runtime | Connected | Automatic | Detected links use validated Android `ACTION_VIEW` bridge | Link UX/history/browser behavior |
+| `@xterm/addon-webgl` | Layer 2 runtime | Connected with bounds | Automatic attempt | WebGL2 with one-way DOM fallback | Renderer preference UI |
+
+The inventory follows the current maintained-addon list, while implementation pins must be compatible with the repository's pinned `@xterm/xterm@6.0.0`. A pending addon does not receive a guessed version: its exact official version and integrity are frozen only after bounded compatibility preflight.
+
+`@xterm/addon-canvas` is legacy for this baseline. The selected renderer path is xterm core DOM plus the official WebGL addon, so canvas is not part of the maintained inventory or completion gate.
+
+## System WebView boundary
+
+### In scope
+
+- local DOM and CSS required by xterm.js;
+- canvas and WebGL2 used by official renderers/addons;
+- `ResizeObserver`, `visualViewport`, focus, IME, accessibility primitives;
+- `WebMessagePort` transport to Android;
+- local font loading required by a future official Web Fonts integration.
+
+### Not applicable
+
+- generic remote navigation and browser history;
+- arbitrary page permissions or web authentication;
+- generic browser file chooser and download manager;
+- browser chrome, tabs, bookmarks, or general-purpose page hosting.
+
+These exclusions are product boundaries, not incomplete Layer 2 terminal adaptation.
+
+## Layer 3 scaffold rule
+
+Layer 3 exists as an optional scaffold and is loaded after Layer 2. Layer 2 must operate when the scaffold is empty or omitted. Layer 3 may consume only the stable `AndroidTerminalLayer2` capability and public xterm.js APIs exposed through it.
+
+The current scaffold owns the project palette used to present Android light/dark state. It does not own PTY transport, WebMessagePort, JNI, lifecycle recovery, renderer fallback, clipboard transport, link validation, font-scale adaptation, or any xterm private object.
 
 ## Completion rule
 
-For every future row:
+A Layer 2 completion claim requires:
 
-1. preserve unmodified upstream bytes in Layer 1;
-2. use core or an official addon public API;
-3. add the thinnest Android native connection needed for full operation;
-4. provide success, expected-negative, and incomplete/missing verification for the changed authority;
-5. require device evidence for Android runtime claims;
-6. keep unrelated product features and userland out of Layer 2.
+1. every maintained official addon to have one explicit classification;
+2. every relevant stable core capability to be connected, native already, or explicitly pending;
+3. unmodified Layer 1 bytes and public upstream APIs only;
+4. success, expected-negative, and incomplete/missing verification for each changed authority;
+5. bounded device evidence for Android runtime claims;
+6. optional UI, preferences, userland, and product policy to remain in Layer 3.

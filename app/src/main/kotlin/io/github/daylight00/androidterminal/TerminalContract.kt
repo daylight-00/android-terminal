@@ -50,7 +50,7 @@ internal object TerminalContract {
         "document-transport-v1",
         "serialize-state-v1",
         "webgl-renderer-fallback-v1",
-        "layer2-only-runtime-v1",
+        "layer3-scaffold-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(

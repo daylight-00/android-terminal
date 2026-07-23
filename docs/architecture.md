@@ -5,11 +5,11 @@ Android Terminal is a thin Android host for unmodified upstream xterm.js and And
 ## Layer authority
 
 ```text
-Layer 3  reserved product customization; absent from the active runtime
-   ↓
-Layer 2  complete Android adaptation and native integration
-   ↓
 Layer 1  unmodified upstream xterm.js/addons and Android-provided runtime
+   ↓ public upstream APIs
+Layer 2  complete Android adaptation and native integration
+   ↓ stable optional capability
+Layer 3  product customization scaffold
 ```
 
 The classification test is responsibility, not file language or feature size:
@@ -53,7 +53,7 @@ Current Layer 2 responsibilities include:
 - versioned WebMessagePort contract, attachment generations, capability handshake, bounded byte transport, ACK/backpressure, and explicit failures;
 - Android window, inset, rotation, focus, IME viewport, `ResizeObserver`, and `visualViewport` geometry reduced through `addon-fit` to deduplicated `TIOCSWINSZ` updates;
 - xterm input callbacks connected to PTY writes without reinterpreting keyboard or terminal semantics;
-- clipboard, OSC 8 URI activation, official plain-text web-link activation, bell, system theme, accessibility, touch exploration, hardware-keyboard state, and font scale mapped to Android native APIs;
+- clipboard, OSC 8 URI activation, official plain-text web-link activation, bell, Android color-scheme state, accessibility, touch exploration, hardware-keyboard state, and font scale mapped to Android native APIs;
 - official WebGL renderer activation with one-way fallback to xterm core DOM rendering after activation failure or public `onContextLoss` notification;
 - official serialize-addon snapshots plus a bounded raw PTY tail for replacement frontends;
 - SAF import/export for explicit document transactions;
@@ -110,18 +110,30 @@ Layer 2 never copies upstream feature logic merely to expose it on Android. For 
 
 This keeps feature-update responsibility with xterm.js while this repository owns only Android integration.
 
-## Layer 3: reserved and inactive
+## Layer 3: optional customization scaffold
 
-Layer 3 is not part of the current runtime, asset graph, or build authority. No `customization/**` script, native customization object, userland, package manager, command profile, modifier bar, workspace manager, or product-specific feature is loaded.
+Layer 3 exists physically and loads after Layer 2. Its presence does not define Layer 2 completion: the PTY, WebMessagePort, lifecycle recovery, renderer fallback, explicit clipboard actions, link activation, accessibility, font-scale adaptation, storage, and document transport must remain complete when Layer 3 is empty or omitted.
 
-A future Layer 3 change requires an explicit owner decision and must consume only public Layer 2 capabilities. It may not access WebMessagePort, JNI, PTY internals, or xterm.js private APIs. Ambiguous behavior remains in Layer 2 only when it is necessary to make an upstream capability operable on Android; otherwise it stays unimplemented.
+The dependency direction is fixed:
+
+```text
+Layer 1 public API
+        ↓
+Layer 2 stable capability (`AndroidTerminalLayer2`)
+        ↓
+Layer 3 customization
+```
+
+Layer 2 never imports or names the Layer 3 implementation. Layer 3 may use only the stable Layer 2 capability and public xterm.js APIs exposed through it; it may not access WebMessagePort, JNI, PTY/session internals, or xterm.js private objects.
+
+The current scaffold contains no custom UI. It owns the project light/dark terminal palettes because palette choice is product policy, while Layer 2 owns only the Android `uiMode` state and neutral notification. Future special keys, modifier bars, user themes, font selection, search UI, progress presentation, userland, and workspace features also belong here and require separate owner decisions.
 
 ## Upgrade and change boundary
 
 ```text
 upstream update       vendor/** and exact receipt only
 Android adaptation    bridge/**, Kotlin platform host, JNI/C, manifest, verifier
-product customization reserved; no active runtime path
+product customization customization/** and TerminalCustomization.kt only
 ```
 
-`tools/verify-layer-boundaries.py` rejects modified or unexpected Layer 1 assets, active Layer 3 runtime files, xterm.js private API use, custom terminal semantics, and Android adaptation that bypasses the stable contract. Current and pending integrations are tracked in [`capability-matrix.md`](capability-matrix.md).
+`tools/verify-layer-boundaries.py` rejects modified or unexpected Layer 1 assets, Layer 2 dependencies on Layer 3, Layer 3 access to transport/native internals, xterm.js private API use, custom terminal semantics, and Android adaptation that bypasses the stable contract. The machine authority is [`upstream-capabilities.json`](upstream-capabilities.json), verified by `tools/verify-upstream-capabilities.py`; [`capability-matrix.md`](capability-matrix.md) is its human-readable view.

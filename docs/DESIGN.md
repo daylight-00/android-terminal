@@ -9,7 +9,7 @@ that existing environment interactive inside an app UID.
 
 ## Three-layer ownership
 
-The runtime is divided into unmodified upstream, required Android integration, and a reserved inactive customization layer. The canonical file ownership and upgrade rules are defined in `docs/architecture.md`; this document describes the lower-level runtime and security mechanics inside those boundaries.
+The runtime is divided into unmodified upstream, required Android integration, and an optional downstream customization scaffold. The canonical file ownership and upgrade rules are defined in `docs/architecture.md`; this document describes the lower-level runtime and security mechanics inside those boundaries.
 
 ## Standard platform boundary
 

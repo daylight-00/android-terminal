@@ -12,12 +12,12 @@ const source = fs.readFileSync(process.argv[2], 'utf8');
 const context = vm.createContext({URL, window: {}});
 vm.runInContext(source, context, {filename: 'terminal-platform.js'});
 const integration = context.window.AndroidTerminalPlatformIntegration;
-if (!integration || integration.contractVersion !== 2) {
+if (!integration || integration.contractVersion !== 3) {
   throw new Error('font-scale platform contract is unavailable');
 }
 
 function terminalWithUpstreamDefault(fontSize) {
-  return {options: {fontSize, theme: null, screenReaderMode: false}};
+  return {options: {fontSize, theme: {background: 'upstream-default'}, screenReaderMode: false}};
 }
 
 const terminal = terminalWithUpstreamDefault(15);
@@ -37,7 +37,7 @@ integration.applyPlatformState(terminal, {
 });
 if (terminal.options.fontSize !== 30) throw new Error('font scale compounded instead of using the upstream baseline');
 if (!terminal.options.screenReaderMode) throw new Error('accessibility mapping regressed');
-if (terminal.options.theme.background !== '#fafafa') throw new Error('theme mapping regressed');
+if (terminal.options.theme.background !== 'upstream-default') throw new Error('Layer 2 changed a Layer 3 theme value');
 
 integration.applyPlatformState(terminal, {fontScale: 0.1});
 if (terminal.options.fontSize !== 7.5) throw new Error('minimum Android font scale bound failed');
@@ -67,7 +67,7 @@ for token in (
     'Number(terminal.options.fontSize)',
     'upstreamFontSizes.get(terminal) * boundedFontScale(value)',
     'applyFontScale(terminal, state.fontScale)',
-    'contractVersion: 2',
+    'contractVersion: 3',
 ):
     if token not in source:
         raise SystemExit(f'missing font-scale mapping token: {token}')

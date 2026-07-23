@@ -6,10 +6,11 @@ CODEC="$ROOT/app/src/main/assets/terminal/bridge/terminal-codec.js"
 PLATFORM="$ROOT/app/src/main/assets/terminal/bridge/terminal-platform.js"
 BRIDGE="$ROOT/app/src/main/assets/terminal/bridge/terminal-bridge.js"
 RENDERER="$ROOT/app/src/main/assets/terminal/bridge/terminal-renderer.js"
+CUSTOMIZATION="$ROOT/app/src/main/assets/terminal/customization/customization.js"
 NODE_COMMAND=${NODE_COMMAND:-node}
 
 if command -v "$NODE_COMMAND" >/dev/null 2>&1; then
-  for script in "$CONTRACT" "$CODEC" "$RENDERER" "$PLATFORM" "$BRIDGE"; do
+  for script in "$CONTRACT" "$CODEC" "$RENDERER" "$PLATFORM" "$BRIDGE" "$CUSTOMIZATION"; do
     "$NODE_COMMAND" --check "$script"
   done
 
@@ -48,7 +49,7 @@ equalBytes(codec.base64ToBytes(codec.stringToUtf8Base64('ASCII 한글 😀 \\u00
 console.log('PASS web-terminal-codec runtime=node');
 JS
 
-  "$NODE_COMMAND" - "$CONTRACT" "$CODEC" "$RENDERER" "$PLATFORM" "$BRIDGE" <<'JS'
+  "$NODE_COMMAND" - "$CONTRACT" "$CODEC" "$RENDERER" "$PLATFORM" "$BRIDGE" "$CUSTOMIZATION" <<'JS'
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
@@ -216,6 +217,12 @@ const paths = process.argv.slice(2);
   if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
   if (!context.AndroidTerminalPlatformIntegration) throw new Error('platform integration export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
+  if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 1) {
+    throw new Error('stable Layer 2 customization capability missing');
+  }
+  if (!context.AndroidTerminalCustomization || context.AndroidTerminalCustomization.contractVersion !== 1) {
+    throw new Error('Layer 3 scaffold missing');
+  }
   if (!context.AndroidTerminalBridge || typeof context.AndroidTerminalBridge.getRendererState !== 'function') {
     throw new Error('renderer state facade missing');
   }
@@ -459,7 +466,7 @@ const paths = process.argv.slice(2);
     throw new Error('serialized state was not restored through xterm write');
   }
 
-  console.log('PASS web-terminal-channel contract=6 serialize=official-addon web-links=official-addon platform=clipboard,theme,accessibility,font-scale,links,bell,documents geometry=deduplicated');
+  console.log('PASS web-terminal-channel contract=6 serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,links,bell,documents layer3=optional-theme geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -491,7 +498,7 @@ required = {
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
     platform_path: (
         "window.AndroidTerminalPlatformIntegration = Object.freeze",
-        "contractVersion: 2",
+        "contractVersion: 3",
         "isExternalUriAllowed",
         "applyPlatformState",
         "applyFontScale(terminal, state.fontScale)",

@@ -17,6 +17,7 @@ SUCCESS=$TMP/success
 copy_fixture "$SUCCESS"
 python3 "$ROOT/tools/verify_policy.py" "$SUCCESS" >/dev/null
 python3 "$ROOT/tools/verify-layer-boundaries.py" "$SUCCESS" >/dev/null
+python3 "$ROOT/tools/verify-upstream-capabilities.py" "$SUCCESS" >/dev/null
 python3 "$ROOT/tools/verify-web-assets.py" "$SUCCESS" >/dev/null
 printf 'PASS verifier-success-fixture\n'
 
@@ -183,3 +184,88 @@ if python3 "$ROOT/tools/verify_policy.py" "$WEB_LINKS_INCOMPLETE" >/dev/null 2>&
   exit 1
 fi
 printf 'PASS verifier-web-links-incomplete\n'
+
+CAPABILITY_NEGATIVE=$TMP/capability-negative
+copy_fixture "$CAPABILITY_NEGATIVE"
+python3 - "$CAPABILITY_NEGATIVE/docs/upstream-capabilities.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["official_addons"] = [
+    row for row in data["official_addons"]
+    if row["package"] != "@xterm/addon-image"
+]
+path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify-upstream-capabilities.py" "$CAPABILITY_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-capability-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-capability-negative\n'
+
+CAPABILITY_INCOMPLETE=$TMP/capability-incomplete
+copy_fixture "$CAPABILITY_INCOMPLETE"
+rm -f -- "$CAPABILITY_INCOMPLETE/docs/upstream-capabilities.json"
+if python3 "$ROOT/tools/verify-upstream-capabilities.py" "$CAPABILITY_INCOMPLETE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-capability-incomplete unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-capability-incomplete\n'
+
+LAYER3_NEGATIVE=$TMP/layer3-negative
+copy_fixture "$LAYER3_NEGATIVE"
+printf '\nconst nativePort = null;\n' >> "$LAYER3_NEGATIVE/app/src/main/assets/terminal/customization/customization.js"
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$LAYER3_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-layer3-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-layer3-negative\n'
+
+LAYER3_INCOMPLETE=$TMP/layer3-incomplete
+copy_fixture "$LAYER3_INCOMPLETE"
+rm -f -- "$LAYER3_INCOMPLETE/app/src/main/assets/terminal/customization/customization.js"
+if python3 "$ROOT/tools/verify_policy.py" "$LAYER3_INCOMPLETE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-layer3-incomplete unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-layer3-incomplete\n'
+
+LAYER2_DEPENDENCY_NEGATIVE=$TMP/layer2-dependency-negative
+copy_fixture "$LAYER2_DEPENDENCY_NEGATIVE"
+printf '\nvoid window.AndroidTerminalCustomization;\n' >> "$LAYER2_DEPENDENCY_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-bridge.js"
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$LAYER2_DEPENDENCY_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-layer2-dependency-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-layer2-dependency-negative\n'
+
+THEME_AUTHORITY_NEGATIVE=$TMP/theme-authority-negative
+copy_fixture "$THEME_AUTHORITY_NEGATIVE"
+printf '\nterminal.options.theme = {};\n' >> "$THEME_AUTHORITY_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-platform.js"
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$THEME_AUTHORITY_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-theme-authority-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-theme-authority-negative\n'
+
+ASSET_ALLOWLIST_NEGATIVE=$TMP/asset-allowlist-negative
+copy_fixture "$ASSET_ALLOWLIST_NEGATIVE"
+python3 - "$ASSET_ALLOWLIST_NEGATIVE/app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace(
+    '''            "/terminal/customization/customization.js" to Asset(\n                "terminal/customization/customization.js",\n                "application/javascript",\n            ),\n''',
+    '',
+    1,
+)
+path.write_text(text, encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$ASSET_ALLOWLIST_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-asset-allowlist-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-asset-allowlist-negative\n'

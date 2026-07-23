@@ -13,7 +13,9 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 
 ## Layer-boundary verifier
 
-`tools/verify-layer-boundaries.py` checks that upstream assets remain isolated, Layer 2 uses only the stable contract and public xterm.js surface, and the active runtime contains no Layer 3 authority. It also requires matching protocol versions, the declared script load order, and a complete Android-native mapping for each capability marked connected.
+`tools/verify-layer-boundaries.py` checks that upstream assets remain isolated, Layer 2 uses only the stable contract and public xterm.js surface, Layer 3 loads strictly after Layer 2, Layer 2 never depends on the Layer 3 implementation, and Layer 3 cannot reach transport/native/private internals. It also requires matching protocol versions, the declared script load order, and a complete Android-native mapping for each capability marked connected.
+
+`tools/verify-upstream-capabilities.py` validates the machine-readable xterm.js core/addon inventory, requires every officially maintained addon to appear exactly once with the approved classification, and binds the human-readable capability matrix to that authority. Success, missing-row, missing-authority, Layer 3 bypass, Layer 2 dependency, and theme-authority fixtures are mandatory.
 
 ## Repository verifier
 
@@ -83,7 +85,7 @@ geometry state, executes protocol v6 in Node, and statically verifies that the A
 the PTY while the Activity only binds a frontend. The geometry test rejects transient zero layouts,
 deduplicates unchanged sizes, and verifies changed WebView/IME viewport geometry before it can reach
 `TIOCSWINSZ`. It also compiles the pure URI/clipboard policy and the Android platform adapter
-against an API-shape stub, then executes the clipboard, OSC 8 link, bell, theme, accessibility,
+against an API-shape stub, then executes the clipboard, OSC 8 link, bell, Layer 3 palette, accessibility,
 document import/export request-result, and stale-attachment paths in Node. Pure Kotlin tests verify
 private-HOME path confinement, name sanitation, MIME bounding, collision handling, and the document
 size limit. The API-shape compile covers `ACTION_OPEN_DOCUMENT`, `ACTION_CREATE_DOCUMENT`,

@@ -96,6 +96,21 @@ def verify(root: Path) -> list[str]:
     renderer = read_required(root, "app/src/main/assets/terminal/bridge/terminal-renderer.js", failures)
     codec = read_required(root, "app/src/main/assets/terminal/bridge/terminal-codec.js", failures)
     platform_js = read_required(root, "app/src/main/assets/terminal/bridge/terminal-platform.js", failures)
+    customization_js = read_required(
+        root,
+        "app/src/main/assets/terminal/customization/customization.js",
+        failures,
+    )
+    customization_css = read_required(
+        root,
+        "app/src/main/assets/terminal/customization/customization.css",
+        failures,
+    )
+    customization_kt = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt",
+        failures,
+    )
     terminal_contract = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt",
@@ -122,16 +137,19 @@ def verify(root: Path) -> list[str]:
     settings = read_required(root, "settings.gradle", failures)
     readme = read_required(root, "README.md", failures)
     capability_matrix = read_required(root, "docs/capability-matrix.md", failures)
+    capability_inventory = read_required(root, "docs/upstream-capabilities.json", failures)
 
     require("rootProject.name = 'android-terminal'" in settings, "root project must be android-terminal", failures)
     require("namespace 'io.github.daylight00.androidterminal'" in build, "namespace must match android-terminal", failures)
     require("applicationId 'io.github.daylight00.androidterminal'" in build, "application ID must match android-terminal", failures)
     require('android:label="Terminal"' in manifest, "installed app label must be Terminal", failures)
     require(readme.startswith("# Android Terminal\n\nA thin terminal frontend for Android’s native shell, powered by xterm.js."), "README title/description must match product identity", failures)
+    require('"official_addons"' in capability_inventory and "@xterm/addon-clipboard" in capability_inventory and "@xterm/addon-image" in capability_inventory, "machine-readable upstream capability authority is incomplete", failures)
+    require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 14" in build, "versionCode must identify the Web Links integration release", failures)
-    require("versionName '0.16.0'" in build, "versionName must identify the Web Links integration release", failures)
+    require("versionCode 15" in build, "versionCode must identify the capability-inventory release", failures)
+    require("versionName '0.17.0'" in build, "versionName must identify the capability-inventory release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -183,6 +201,12 @@ def verify(root: Path) -> list[str]:
     require("TerminalContract.HOST" in web_client, "local asset host must come from TerminalContract", failures)
     require("override fun onRenderProcessGone" in web_client, "WebView renderer termination must be handled", failures)
     require("onRendererGone(detail.didCrash())" in web_client, "renderer termination must be forwarded without inspecting terminal semantics", failures)
+    for asset_path in (
+        "/terminal/vendor/addon-web-links.js",
+        "/terminal/customization/customization.css",
+        "/terminal/customization/customization.js",
+    ):
+        require(asset_path in web_client, f"local asset allowlist is missing: {asset_path}", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
     require("PROTOCOL_VERSION = 6" in terminal_contract, "terminal contract version 6 must be explicit", failures)
     require("protocolVersion: 6" in contract_js, "web terminal contract version 6 must be explicit", failures)
@@ -256,7 +280,7 @@ def verify(root: Path) -> list[str]:
     require("parsed.userInfo != null" in platform_policy, "credential-bearing external URIs must be rejected", failures)
     require("ALLOWED_EXTERNAL_URI_SCHEMES" in platform_policy, "native URI scheme policy must stay in Layer 2", failures)
     require("TerminalPlatformPolicy.ALLOWED_EXTERNAL_URI_SCHEMES" in platform_adapter, "platform adapter must consume the Layer 2 URI allowlist", failures)
-    require("hapticBellEnabled" not in platform_adapter, "bell must not depend on inactive Layer 3 policy", failures)
+    require("hapticBellEnabled" not in platform_adapter, "Layer 2 bell integration must not depend on optional Layer 3 policy", failures)
     require("sharedStorageAccessGranted" in platform_state and "sharedStoragePath" in platform_state, "platform state must report shared-storage status", failures)
     require("TerminalSessionService.LocalBinder" in controller, "WebView transport must attach to the service session host", failures)
     require("TerminalSession(" not in controller, "WebView transport must not own the PTY session", failures)
@@ -282,7 +306,7 @@ def verify(root: Path) -> list[str]:
     require("Number(terminal.options.fontSize)" in platform_js, "font-scale mapping must consume the upstream font size", failures)
     require("upstreamFontSizes.get(terminal) * boundedFontScale(value)" in platform_js, "font-scale mapping must scale from the upstream baseline without compounding", failures)
     require("applyFontScale(terminal, state.fontScale)" in platform_js, "Android font scale must map through the public xterm option", failures)
-    require("contractVersion: 2" in platform_js and "platformIntegration.contractVersion !== 2" in javascript, "font-scale platform integration contract must be version 2", failures)
+    require("contractVersion: 3" in platform_js and "platformIntegration.contractVersion !== 3" in javascript, "platform integration contract must be version 3", failures)
     require('android:configChanges="fontScale|' in manifest, "Activity must receive font-scale configuration changes without replacing the PTY host", failures)
     require("upstream-default=preserved" in font_scale_test and "Android font scale was not applied" in font_scale_test, "font-scale semantic test must cover upstream ownership and positive behavior", failures)
     require("new WebglAddon.WebglAddon(false)" in renderer, "official xterm WebGL addon must own accelerated rendering", failures)
@@ -302,9 +326,18 @@ def verify(root: Path) -> list[str]:
     require("/terminal/bridge/terminal-contract.js" in html, "stable web contract must load locally", failures)
     require("/terminal/bridge/terminal-renderer.js" in html, "Layer 2 renderer controller must load locally", failures)
     require("/terminal/bridge/terminal-platform.js" in html, "Layer 2 platform mapping must load locally", failures)
-    require("/terminal/customization/" not in html and 'id="custom-ui-root"' not in html, "active Layer 3 runtime must remain absent", failures)
-    require(not (root / "app/src/main/assets/terminal/customization").exists(), "active Layer 3 assets must remain absent", failures)
-    require(not (root / "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt").exists(), "active native Layer 3 authority must remain absent", failures)
+    require("/terminal/bridge/terminal-bridge.js" in html, "Layer 2 terminal bridge must load locally", failures)
+    require("/terminal/customization/customization.css" in html, "Layer 3 stylesheet scaffold must load locally", failures)
+    require("/terminal/customization/customization.js" in html, "Layer 3 JavaScript scaffold must load locally", failures)
+    require(html.find("/terminal/bridge/terminal-bridge.js") < html.find("/terminal/customization/customization.js"), "Layer 3 must load after Layer 2", failures)
+    require('id="custom-ui-root"' not in html, "Layer 3 must not reserve product UI before a feature decision", failures)
+    require("window.AndroidTerminalLayer2 = Object.freeze" in javascript, "Layer 2 must expose the stable customization capability", failures)
+    require("AndroidTerminalCustomization" not in javascript and "/terminal/customization/" not in javascript, "Layer 2 must not depend on Layer 3", failures)
+    require("terminal.options.theme" not in platform_js and "darkTheme" not in platform_js and "lightTheme" not in platform_js, "project palettes must not remain in Layer 2", failures)
+    require("window.AndroidTerminalCustomization" in customization_js and "layer2.onPlatformState" in customization_js, "Layer 3 JavaScript scaffold must consume the public Layer 2 capability", failures)
+    require("layer2.terminal.options.theme" in customization_js, "project palette must be owned by Layer 3", failures)
+    require("CONTRACT_VERSION = 1" in customization_kt, "Layer 3 native scaffold contract is required", failures)
+    require("nativePort" not in customization_js and "NativePty" not in customization_kt, "Layer 3 must not bypass Layer 2 internals", failures)
 
     require("@xterm/xterm/-/xterm-6.0.0.tgz" in acquisition, "xterm.js URL must be pinned", failures)
     require("@xterm/addon-fit/-/addon-fit-0.11.0.tgz" in acquisition, "addon-fit URL must be pinned", failures)
@@ -342,7 +375,7 @@ def verify(root: Path) -> list[str]:
         require(token in shared_storage, f"shared-storage adapter token is required: {token}", failures)
     require("TerminalSharedStorage.requestAccess(this)" in activity, "Activity storage access flow is required", failures)
     require("TerminalSharedStorage.prepareHomeLink(homeDirectory)" in session, "HOME/storage preparation is required", failures)
-    require("layer2-only-runtime-v1" in terminal_contract and "layer2-only-runtime-v1" in contract_js, "Layer 2-only runtime capability must match", failures)
+    require("layer3-scaffold-v1" in terminal_contract and "layer3-scaffold-v1" in contract_js, "Layer 3 scaffold capability must match", failures)
 
     require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)
@@ -360,16 +393,16 @@ def verify(root: Path) -> list[str]:
     require("sessionHost.detach" in controller, "renderer loss must invalidate the stale service attachment", failures)
     require("Upstream capability matrix" in capability_matrix, "capability matrix must be documented", failures)
     require("Layer 2 completion" in capability_matrix, "capability matrix must remain the Layer 2 completion authority", failures)
-    require("Direct shared-storage paths" in capability_matrix, "capability matrix must track direct shared storage", failures)
-    require("Frontend reconnection" in capability_matrix, "capability matrix must track frontend reconnection", failures)
-    require("WebView renderer recovery" in capability_matrix, "capability matrix must track renderer recovery", failures)
-    require("| Clipboard |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)
-    require("| Plain-text web links |" in capability_matrix and "Connected; device gate pending" in capability_matrix, "capability matrix must track official Web Links integration", failures)
-    require("| Font scale |" in capability_matrix and "scales the captured upstream default" in capability_matrix, "capability matrix must track completed Android font scaling", failures)
+    require("direct shared-storage" in capability_matrix.lower() or "shared-storage" in capability_matrix.lower(), "capability matrix must track direct shared storage", failures)
+    require("Frontend lifecycle" in capability_matrix and "replacement frontend" in capability_matrix, "capability matrix must track frontend reconnection", failures)
+    require("renderer fallback" in capability_matrix or "DOM fallback" in capability_matrix, "capability matrix must track renderer recovery", failures)
+    require("| Explicit clipboard actions |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)
+    require("| `@xterm/addon-web-links` |" in capability_matrix and "Detected links use validated Android `ACTION_VIEW` bridge" in capability_matrix, "capability matrix must track official Web Links integration", failures)
+    require("| Font scale |" in capability_matrix and "captured upstream default" in capability_matrix, "capability matrix must track completed Android font scaling", failures)
     validation = read_required(root, "docs/VALIDATION.md", failures)
     require("ADB runtime validation is deferred" in validation, "ADB non-claim must be documented", failures)
 
-    source_texts = "\n".join((root_build, build, manifest, activity, session, session_service, controller, web_client))
+    source_texts = "\n".join((root_build, build, manifest, activity, session, session_service, controller, web_client, customization_kt))
     require("androidx." not in source_texts, "AndroidX is not allowed", failures)
     require("compose" not in source_texts.lower(), "Compose is not allowed", failures)
 

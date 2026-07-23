@@ -23,6 +23,7 @@ check session-replay "$ROOT/tools/test-session-replay.sh"
 check terminal-geometry "$ROOT/tools/test-terminal-geometry.sh"
 check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
 check terminal-font-scale "$ROOT/tools/test-font-scale.sh"
+check layer3-scaffold "$ROOT/tools/test-layer3-scaffold.sh"
 check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
 check terminal-document-transport "$ROOT/tools/test-document-transport.sh"
 check terminal-platform-adapter "$ROOT/tools/test-platform-adapter-compile.sh"
@@ -32,6 +33,7 @@ check renderer-recovery-api "$ROOT/tools/test-renderer-recovery-compile.sh"
 check asset-provisioner "$ROOT/tools/test-asset-provisioner.sh"
 check policy-verifier python3 "$ROOT/tools/verify_policy.py" "$ROOT"
 check layer-boundaries python3 "$ROOT/tools/verify-layer-boundaries.py" "$ROOT"
+check upstream-capabilities python3 "$ROOT/tools/verify-upstream-capabilities.py" "$ROOT"
 check web-assets python3 "$ROOT/tools/verify-web-assets.py" "$ROOT"
 check verifier-fixtures "$ROOT/tools/test-verifier.sh"
 check shell-syntax bash -n \
@@ -46,6 +48,7 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-terminal-geometry.sh" \
   "$ROOT/tools/test-platform-policy.sh" \
   "$ROOT/tools/test-font-scale.sh" \
+  "$ROOT/tools/test-layer3-scaffold.sh" \
   "$ROOT/tools/test-document-policy.sh" \
   "$ROOT/tools/test-document-transport.sh" \
   "$ROOT/tools/test-platform-adapter-compile.sh" \
@@ -61,6 +64,7 @@ check python-syntax python3 -m py_compile \
   "$ROOT/tools/provision-web-terminal-assets.py" \
   "$ROOT/tools/verify_policy.py" \
   "$ROOT/tools/verify-layer-boundaries.py" \
+  "$ROOT/tools/verify-upstream-capabilities.py" \
   "$ROOT/tools/verify-web-assets.py"
 check identity-name test "$(git config --local user.name)" = 'daylight-00'
 check identity-email test "$(git config --local user.email)" = 'hwjang00@snu.ac.kr'
@@ -71,8 +75,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 14' app/build.gradle
-check version-name grep -Fxq "        versionName '0.16.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 15' app/build.gradle
+check version-name grep -Fxq "        versionName '0.17.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -139,9 +143,12 @@ check legacy-external-storage grep -Fq 'android:requestLegacyExternalStorage="tr
   app/src/main/AndroidManifest.xml
 check home-storage-link grep -Fq 'TerminalSharedStorage.prepareHomeLink(homeDirectory)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
-check layer2-only-runtime grep -Fq 'layer2-only-runtime-v1' \
+check layer3-scaffold grep -Fq 'layer3-scaffold-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
-check no-active-layer3 sh -c '! test -e app/src/main/assets/terminal/customization && ! test -e app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt'
+check layer3-js-scaffold test -f app/src/main/assets/terminal/customization/customization.js
+check layer3-css-scaffold test -f app/src/main/assets/terminal/customization/customization.css
+check layer3-native-scaffold test -f app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt
+check layer2-does-not-depend-layer3 sh -c '! grep -Eq "AndroidTerminalCustomization|/terminal/customization/" app/src/main/assets/terminal/bridge/terminal-bridge.js'
 check saf-document-transport grep -Fq 'class TerminalDocumentTransport' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentTransport.kt
 check private-home-document-policy grep -Fq 'resolvePrivateExportSource' \

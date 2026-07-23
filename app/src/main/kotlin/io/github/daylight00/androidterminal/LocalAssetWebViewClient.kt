@@ -98,6 +98,14 @@ internal class LocalAssetWebViewClient(
                 "terminal/bridge/bridge.css",
                 "text/css",
             ),
+            "/terminal/customization/customization.css" to Asset(
+                "terminal/customization/customization.css",
+                "text/css",
+            ),
+            "/terminal/customization/customization.js" to Asset(
+                "terminal/customization/customization.js",
+                "application/javascript",
+            ),
             "/terminal/bridge/terminal-contract.js" to Asset(
                 "terminal/bridge/terminal-contract.js",
                 "application/javascript",
@@ -126,6 +134,10 @@ internal class LocalAssetWebViewClient(
             ),
             "/terminal/vendor/addon-serialize.js" to Asset(
                 "terminal/vendor/addon-serialize.js",
+                "application/javascript",
+            ),
+            "/terminal/vendor/addon-web-links.js" to Asset(
+                "terminal/vendor/addon-web-links.js",
                 "application/javascript",
             ),
             "/terminal/vendor/addon-webgl.js" to Asset(

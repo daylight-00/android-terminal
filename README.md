@@ -36,17 +36,20 @@ AndroidX, Rust, custom terminal parser, or custom terminal renderer.
 ## Architecture
 
 ```text
-Layer 3  reserved product customization; absent from the active runtime
-   ↓
+Layer 1  unmodified xterm.js/addons and Android-provided runtime
+   ↓ public upstream APIs
 Layer 2  complete Android adaptation, native integration, stable protocol, PTY/JNI bridge
-   ↓
-Layer 1  unmodified xterm.js/addon-fit/addon-serialize/addon-web-links/addon-webgl + Android-provided WebView/Bionic/native shell
+   ↓ stable optional capability
+Layer 3  product customization scaffold; optional and downstream of Layer 2
 ```
 
 The repository is a platform host. Layer 1 owns terminal and shell semantics, Layer 2
-connects upstream capabilities completely to Android, and Layer 3 is reserved and inactive. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
-upgrade boundary and [`docs/capability-matrix.md`](docs/capability-matrix.md) for the
-connection status of upstream features.
+connects upstream capabilities completely to Android, and Layer 3 consumes only the stable
+optional Layer 2 capability. Layer 2 must remain operational when the customization scaffold is
+empty or omitted. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
+upgrade boundary, [`docs/capability-matrix.md`](docs/capability-matrix.md) for the human-readable
+classification, and [`docs/upstream-capabilities.json`](docs/upstream-capabilities.json) for the
+machine-verified inventory.
 
 ## Thin-layer decisions
 
@@ -58,9 +61,12 @@ connection status of upstream features.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
 - A bounded protocol v6 platform bridge connects explicit clipboard actions, OSC 8 links, official
-  plain-text web-link activation, bell events, system theme, accessibility state, Android font scale,
-  hardware-keyboard presence, and SAF document import/export without adding a terminal parser or
-  replacing WebView/xterm input semantics.
+  plain-text web-link activation, bell events, Android color-scheme state, accessibility state,
+  Android font scale, hardware-keyboard presence, and SAF document import/export without adding a
+  terminal parser or replacing WebView/xterm input semantics.
+- Layer 2 exposes the stable `AndroidTerminalLayer2` capability. The Layer 3 scaffold loads after it,
+  currently owns only the project light/dark terminal palettes, and never accesses WebMessagePort,
+  JNI, PTY internals, or xterm.js private APIs.
 - Android font scale multiplies the font size reported by each new upstream xterm.js instance. Layer 2
   captures that upstream default once, applies a bounded system scale through the public `fontSize`
   option, and refits geometry without defining a project-specific base font or preference.
@@ -70,7 +76,8 @@ connection status of upstream features.
 - The manifest targets API 28 as a narrow Android compatibility boundary so the native shell can execute owner-provided binaries from the writable app-private HOME without adding a custom linker or loader path. The minimum runtime and native ABI floor remain API 29.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
-  origin and rejects every other resource or navigation. No Layer 3 script is loaded.
+  origin and rejects every other resource or navigation. The optional Layer 3 script is local,
+  loads after Layer 2, and may consume only the stable customization capability.
 
 ## Upstream asset provisioning
 

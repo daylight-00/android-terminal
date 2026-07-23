@@ -42,7 +42,7 @@
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
-  if (!platformIntegration || platformIntegration.contractVersion !== 2) {
+  if (!platformIntegration || platformIntegration.contractVersion !== 3) {
     fail('Android terminal platform integration is unavailable.');
     return;
   }
@@ -94,6 +94,7 @@
   let lastSnapshotSequence = -1;
   let restoringSnapshot = false;
   const pendingPlatformRequests = new Map();
+  const platformStateListeners = new Set();
   const MAX_PENDING_PLATFORM_REQUESTS = 16;
   const MAX_SNAPSHOT_BASE64_CHARACTERS = Math.ceil(contract.serializedSnapshotMaxBytes / 3) * 4;
   const SNAPSHOT_DELAY_MILLIS = 200;
@@ -234,6 +235,35 @@
   });
   window.AndroidTerminalPlatform = platform;
 
+  function onPlatformState(listener) {
+    if (typeof listener !== 'function') {
+      throw new TypeError('A Layer 3 platform-state listener must be a function.');
+    }
+    platformStateListeners.add(listener);
+    if (lastPlatformState) listener({...lastPlatformState});
+    let active = true;
+    return Object.freeze({
+      dispose() {
+        if (!active) return;
+        active = false;
+        platformStateListeners.delete(listener);
+      }
+    });
+  }
+
+  window.AndroidTerminalLayer2 = Object.freeze({
+    contractVersion: 1,
+    terminal,
+    platform,
+    onPlatformState,
+    getPlatformState() {
+      return lastPlatformState ? {...lastPlatformState} : null;
+    },
+    requestGeometrySync() {
+      scheduleGeometry();
+    }
+  });
+
   const webLinksAddon = new window.WebLinksAddon.WebLinksAddon((_event, uri) => {
     platform.openExternalUri(uri).catch(() => {});
   });
@@ -355,6 +385,13 @@
         ? nativeMessage.sharedStoragePath : ''
     });
     platformIntegration.applyPlatformState(terminal, lastPlatformState);
+    for (const listener of [...platformStateListeners]) {
+      try {
+        listener({...lastPlatformState});
+      } catch (error) {
+        console.error('Layer 3 platform-state listener failed.', error);
+      }
+    }
     scheduleGeometry();
   }
 
