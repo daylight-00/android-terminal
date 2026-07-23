@@ -24,7 +24,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 - direct `/system/bin/sh` execution and `TERM=xterm-256color`;
 - no AndroidX, Compose, Rust, network permission, or bundled shell/userland;
 - local asset allowlist and restrictive WebView policy;
-- success, expected-negative, and missing-input verifier fixtures.
+- success, expected-negative, and missing-input verifier fixtures, including the Android font-scale authority.
 
 ## External asset gate
 
@@ -95,6 +95,18 @@ device gate must remain a non-claim: Activity recreation, WebView replacement, s
 serialized-state restore, bounded snapshot/tail gap handling, IME show/hide, rotation, split-screen, clipboard privacy behavior, external-link
 routing, haptic bell behavior, accessibility services, physical-keyboard state, WebGL activation/context loss/DOM fallback, SAF provider import/export, cancellation and large-file behavior, and OEM WebView
 viewport behavior still require a later real-device test.
+
+## Android font-scale adaptation
+
+Repository verification executes the Layer 2 platform mapper with fake xterm.js instances whose
+public upstream defaults differ. It proves that Android scale is bounded to 0.5–3.0, repeated
+updates recompute from the captured upstream baseline instead of compounding, invalid scale input
+returns to scale 1, and no project-specific numeric base font is encoded. The main channel test also
+checks capability negotiation and the mapping of Android `fontScale` to xterm's public `fontSize`
+option. Static verification requires `fontScale` in Activity configuration handling, the mirrored
+native/page capabilities, and the dedicated success, expected-negative, and missing-authority
+fixtures. Actual glyph metrics, user-visible sizing, rotation behavior, and PTY geometry after a
+system font-size change remain device evidence.
 
 ## WebGL renderer fallback
 

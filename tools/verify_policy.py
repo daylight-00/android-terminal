@@ -117,6 +117,7 @@ def verify(root: Path) -> list[str]:
     cmake_build = read_required(root, "tools/build-native-bridge-cmake.sh", failures)
     cmake_project = read_required(root, "app/src/main/c/CMakeLists.txt", failures)
     build_tools_project = read_required(root, "build-tools/pyproject.toml", failures)
+    font_scale_test = read_required(root, "tools/test-font-scale.sh", failures)
 
     settings = read_required(root, "settings.gradle", failures)
     readme = read_required(root, "README.md", failures)
@@ -129,6 +130,8 @@ def verify(root: Path) -> list[str]:
     require(readme.startswith("# Android Terminal\n\nA thin terminal frontend for Android’s native shell, powered by xterm.js."), "README title/description must match product identity", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
+    require("versionCode 13" in build, "versionCode must identify the font-scale integration release", failures)
+    require("versionName '0.15.0'" in build, "versionName must identify the font-scale integration release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -236,8 +239,9 @@ def verify(root: Path) -> list[str]:
     require("applyPlatformState" in platform_js, "Layer 2 must map Android platform state", failures)
     require("isExternalUriAllowed" in platform_js, "Layer 2 must define bounded URI activation mapping", failures)
     require("new window.Terminal()" in javascript, "Layer 2 must preserve upstream terminal defaults", failures)
-    for option in ("cursorBlink", "cursorStyle", "fontFamily", "fontSize", "letterSpacing", "lineHeight", "scrollback"):
+    for option in ("cursorBlink", "cursorStyle", "fontFamily", "letterSpacing", "lineHeight", "scrollback"):
         require(option not in javascript and option not in platform_js, f"product option must not leak into Layer 2: {option}", failures)
+    require("fontSize" not in javascript, "font size adaptation must remain isolated in the Android platform mapping", failures)
     require("TerminalHostAppearance.backgroundColor" in controller, "native host appearance mapping must stay in Layer 2", failures)
     require("TerminalPlatformAdapter(activity, view)" in controller, "controller must delegate Android capabilities to the platform adapter", failures)
     require("TerminalContract.MessageType.PLATFORM_REQUEST" in controller, "controller must accept bounded platform requests", failures)
@@ -267,6 +271,16 @@ def verify(root: Path) -> list[str]:
     require("serialize-state-v1" in terminal_contract and "serialize-state-v1" in contract_js, "serialize page capability must match", failures)
     require("new window.SerializeAddon.SerializeAddon()" in javascript and "serializeAddon.serialize()" in javascript, "official xterm serialize addon must own snapshot generation", failures)
     require("webgl-renderer-fallback-v1" in terminal_contract and "webgl-renderer-fallback-v1" in contract_js, "WebGL fallback page capability must match", failures)
+    require("android-font-scale-v1" in terminal_contract and "android-font-scale-v1" in contract_js, "font-scale page capability must match", failures)
+    require("android-font-scale-state" in terminal_contract and "android-font-scale-state" in contract_js, "native font-scale capability must match", failures)
+    require("fontScale" in platform_state and "configuration.fontScale.toDouble().coerceIn(0.5, 3.0)" in platform_adapter, "Android font-scale state must be bounded and transported", failures)
+    require("const upstreamFontSizes = new WeakMap()" in platform_js, "font-scale mapping must capture each upstream terminal default", failures)
+    require("Number(terminal.options.fontSize)" in platform_js, "font-scale mapping must consume the upstream font size", failures)
+    require("upstreamFontSizes.get(terminal) * boundedFontScale(value)" in platform_js, "font-scale mapping must scale from the upstream baseline without compounding", failures)
+    require("applyFontScale(terminal, state.fontScale)" in platform_js, "Android font scale must map through the public xterm option", failures)
+    require("contractVersion: 2" in platform_js and "platformIntegration.contractVersion !== 2" in javascript, "font-scale platform integration contract must be version 2", failures)
+    require('android:configChanges="fontScale|' in manifest, "Activity must receive font-scale configuration changes without replacing the PTY host", failures)
+    require("upstream-default=preserved" in font_scale_test and "Android font scale was not applied" in font_scale_test, "font-scale semantic test must cover upstream ownership and positive behavior", failures)
     require("new WebglAddon.WebglAddon(false)" in renderer, "official xterm WebGL addon must own accelerated rendering", failures)
     require("candidate.onContextLoss" in renderer and "fallback('context-loss')" in renderer, "WebGL context loss must fall back through the public addon event", failures)
     require("permanentlyFellBack" in renderer, "a failed WebGL frontend must not retry in a loop", failures)
@@ -341,6 +355,7 @@ def verify(root: Path) -> list[str]:
     require("Frontend reconnection" in capability_matrix, "capability matrix must track frontend reconnection", failures)
     require("WebView renderer recovery" in capability_matrix, "capability matrix must track renderer recovery", failures)
     require("| Clipboard |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)
+    require("| Font scale |" in capability_matrix and "scales the captured upstream default" in capability_matrix, "capability matrix must track completed Android font scaling", failures)
     validation = read_required(root, "docs/VALIDATION.md", failures)
     require("ADB runtime validation is deferred" in validation, "ADB non-claim must be documented", failures)
 

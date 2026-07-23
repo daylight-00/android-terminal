@@ -42,7 +42,7 @@
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
-  if (!platformIntegration || platformIntegration.contractVersion !== 1) {
+  if (!platformIntegration || platformIntegration.contractVersion !== 2) {
     fail('Android terminal platform integration is unavailable.');
     return;
   }

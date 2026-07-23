@@ -41,6 +41,7 @@
       'android-system-theme',
       'android-accessibility-state',
       'android-hardware-keyboard-state',
+      'android-font-scale-state',
       'android-document-transport',
       'android-shared-storage-direct-path',
       'xterm-serialized-state'
@@ -53,6 +54,7 @@
       'session-attach-v2',
       'geometry-dedup-v1',
       'platform-bridge-v2',
+      'android-font-scale-v1',
       'document-transport-v1',
       'serialize-state-v1',
       'webgl-renderer-fallback-v1',

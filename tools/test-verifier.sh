@@ -108,3 +108,34 @@ if python3 "$ROOT/tools/verify-layer-boundaries.py" "$STORAGE_INCOMPLETE" >/dev/
   exit 1
 fi
 printf 'PASS verifier-storage-incomplete\n'
+
+FONT_SCALE_NEGATIVE=$TMP/font-scale-negative
+copy_fixture "$FONT_SCALE_NEGATIVE"
+python3 - "$FONT_SCALE_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-platform.js" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(
+    text.replace(
+        "upstreamFontSizes.get(terminal) * boundedFontScale(value)",
+        "Number(terminal.options.fontSize) * boundedFontScale(value)",
+        1,
+    ),
+    encoding="utf-8",
+)
+PY
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$FONT_SCALE_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-font-scale-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-font-scale-negative\n'
+
+FONT_SCALE_INCOMPLETE=$TMP/font-scale-incomplete
+copy_fixture "$FONT_SCALE_INCOMPLETE"
+rm -f -- "$FONT_SCALE_INCOMPLETE/tools/test-font-scale.sh"
+if python3 "$ROOT/tools/verify_policy.py" "$FONT_SCALE_INCOMPLETE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-font-scale-incomplete unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-font-scale-incomplete\n'

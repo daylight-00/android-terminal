@@ -204,20 +204,25 @@ def verify(root: Path) -> list[str]:
         "cursorBlink",
         "cursorStyle",
         "fontFamily",
-        "fontSize",
         "letterSpacing",
         "lineHeight",
         "scrollback",
     ):
         if token in bridge_js or token in bridge_css or token in platform_js:
             fail(f"unnecessary product option leaked into Layer 2: {token}", failures)
+    if "fontSize" in bridge_js or "fontSize" in bridge_css:
+        fail("font size adaptation must remain isolated in the Android platform mapping", failures)
 
     for token in (
-        "contractVersion: 1",
+        "contractVersion: 2",
         "isExternalUriAllowed",
         "applyPlatformState",
         "terminal.options.theme",
         "terminal.options.screenReaderMode",
+        "const upstreamFontSizes = new WeakMap()",
+        "Number(terminal.options.fontSize)",
+        "upstreamFontSizes.get(terminal) * boundedFontScale(value)",
+        "applyFontScale(terminal, state.fontScale)",
     ):
         if token not in platform_js:
             fail(f"Layer 2 platform mapping lacks token: {token}", failures)
@@ -346,6 +351,14 @@ def verify(root: Path) -> list[str]:
         fail("native WebView renderer recovery capability is missing", failures)
     if "platform-bridge-v2" not in contract_js or "platform-bridge-v2" not in contract_kt:
         fail("platform bridge capability is not mirrored", failures)
+    if "android-font-scale-v1" not in contract_js or "android-font-scale-v1" not in contract_kt:
+        fail("font-scale page capability is not mirrored", failures)
+    if "android-font-scale-state" not in contract_js or "android-font-scale-state" not in contract_kt:
+        fail("native font-scale capability is not mirrored", failures)
+    if 'android:configChanges="fontScale|' not in manifest:
+        fail("Activity does not own font-scale configuration changes", failures)
+    if "configuration.fontScale.toDouble().coerceIn(0.5, 3.0)" not in platform_adapter:
+        fail("Android font-scale state is not bounded at the native boundary", failures)
     for capability in (
         "android-clipboard",
         "android-external-uri",

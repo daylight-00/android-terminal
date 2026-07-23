@@ -57,8 +57,11 @@ connection status of upstream features.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
 - A bounded protocol v6 platform bridge connects explicit clipboard actions, OSC 8 links, bell
-  events, system theme, accessibility state, hardware-keyboard presence, and SAF document
-  import/export without adding a terminal parser or replacing WebView/xterm input semantics.
+  events, system theme, accessibility state, Android font scale, hardware-keyboard presence, and
+  SAF document import/export without adding a terminal parser or replacing WebView/xterm input semantics.
+- Android font scale multiplies the font size reported by each new upstream xterm.js instance. Layer 2
+  captures that upstream default once, applies a bounded system scale through the public `fontSize`
+  option, and refits geometry without defining a project-specific base font or preference.
 - The official serialize addon produces opaque xterm framebuffer snapshots; Layer 2 stores them with an output-sequence watermark and bridges later bytes through a bounded raw tail journal without interpreting terminal state.
 - The official WebGL addon is attempted by Layer 2. Activation failure or context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched.
 - Android shared-storage permissions expose ordinary POSIX paths through `EXTERNAL_STORAGE` and a non-destructive `HOME/storage` symlink. SAF imports remain real files under app-private `HOME/imports`, and exports accept only validated HOME-relative regular files; no `content://` URI is presented as a POSIX path or virtual mount.

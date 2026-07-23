@@ -53,7 +53,7 @@ Current Layer 2 responsibilities include:
 - versioned WebMessagePort contract, attachment generations, capability handshake, bounded byte transport, ACK/backpressure, and explicit failures;
 - Android window, inset, rotation, focus, IME viewport, `ResizeObserver`, and `visualViewport` geometry reduced through `addon-fit` to deduplicated `TIOCSWINSZ` updates;
 - xterm input callbacks connected to PTY writes without reinterpreting keyboard or terminal semantics;
-- clipboard, OSC 8 URI activation, bell, system theme, accessibility, touch exploration, hardware-keyboard state, and font-scale signals mapped to Android native APIs;
+- clipboard, OSC 8 URI activation, bell, system theme, accessibility, touch exploration, hardware-keyboard state, and font scale mapped to Android native APIs;
 - official WebGL renderer activation with one-way fallback to xterm core DOM rendering after activation failure or public `onContextLoss` notification;
 - official serialize-addon snapshots plus a bounded raw PTY tail for replacement frontends;
 - SAF import/export for explicit document transactions;
@@ -72,6 +72,21 @@ The app keeps `minSdk 29` and the native bridge API floor at 29, but declares `t
 Direct POSIX shared-storage access is Layer 2 because Android's permission model otherwise prevents the native shell from using ordinary paths such as `/storage/emulated/0/Download`. The app declares `MANAGE_EXTERNAL_STORAGE`, uses the API 28 compatibility target with API 29 read/write runtime permissions, and directs API 30+ users to the app-specific all-files settings screen. Grant status remains a device/user decision.
 
 Layer 2 creates `HOME/storage` only when that path is absent and never replaces an existing owner-created entry. The symlink does not bypass Android permissions. SAF remains available for explicit document import/export and does not become a virtual mount.
+
+### Android font-scale mapping
+
+Android configuration owns the user-selected `fontScale`; xterm.js owns the terminal's default
+font size and rendering behavior. Layer 2 reads the public `terminal.options.fontSize` value from
+each newly created upstream terminal instance, freezes that value as the instance baseline, and
+multiplies it by the bounded Android scale. Repeated configuration updates always recompute from
+the captured upstream baseline, so scaling does not compound.
+
+The adapter does not encode xterm.js's current numeric default, define a terminal font preference,
+or use WebView text zoom as a second scaling authority. A font-scale change is delivered through
+`onConfigurationChanged`, mapped through the public xterm option, and followed by the existing
+`addon-fit`/geometry path before any changed dimensions reach `TIOCSWINSZ`. This is Layer 2 because
+it connects Android's accessibility/display configuration to an upstream public capability; the
+font size and rendering semantics remain upstream-owned.
 
 ### Upstream update delegation
 

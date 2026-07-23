@@ -84,7 +84,7 @@ const paths = process.argv.slice(2);
     constructor(options) {
       this.rows = 0;
       this.cols = 0;
-      this.options = {...options};
+      this.options = {fontSize: 15, ...options};
       this.selection = '';
       terminalInstance = this;
     }
@@ -231,7 +231,7 @@ const paths = process.argv.slice(2);
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard', 'web-links']) {
@@ -266,6 +266,7 @@ const paths = process.argv.slice(2);
   flushFrames();
   if (terminalInstance.options.theme.background !== '#fafafa') throw new Error('system theme was not applied');
   if (terminalInstance.options.screenReaderMode !== true) throw new Error('screen reader mode was not applied');
+  if (terminalInstance.options.fontSize !== 18.75) throw new Error('Android font scale was not applied to the upstream default');
   const state = context.AndroidTerminalPlatform.getState();
   if (!state || !state.hardwareKeyboardPresent || state.fontScale !== 1.25 ||
       !state.sharedStorageAccessGranted || state.sharedStoragePath !== '/storage/emulated/0') {
@@ -438,7 +439,7 @@ const paths = process.argv.slice(2);
     throw new Error('serialized state was not restored through xterm write');
   }
 
-  console.log('PASS web-terminal-channel contract=6 serialize=official-addon platform=clipboard,theme,accessibility,links,bell,documents geometry=deduplicated');
+  console.log('PASS web-terminal-channel contract=6 serialize=official-addon platform=clipboard,theme,accessibility,font-scale,links,bell,documents geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -469,9 +470,10 @@ required = {
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
     platform_path: (
         "window.AndroidTerminalPlatformIntegration = Object.freeze",
-        "contractVersion: 1",
+        "contractVersion: 2",
         "isExternalUriAllowed",
         "applyPlatformState",
+        "applyFontScale(terminal, state.fontScale)",
     ),
     bridge_path: (
         "new window.Terminal()",
@@ -511,6 +513,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon platform=bounded-documents geometry=deduplicated")
+print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon platform=bounded-documents,font-scale geometry=deduplicated")
 PY
 fi

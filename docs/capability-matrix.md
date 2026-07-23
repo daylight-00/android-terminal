@@ -33,7 +33,7 @@ This matrix is the authority for Layer 2 completion. A capability is complete on
 | System theme | xterm `options.theme` | Android light/dark configuration maps to Layer 2 host palettes | Connected |
 | Hardware keyboard | WebView DOM and xterm input APIs | No key duplication; Android physical-keyboard presence is reported | Native already + state connected |
 | Accessibility | xterm `screenReaderMode` | Android accessibility and touch-exploration listeners control screen-reader mode | Connected; device gate pending |
-| Font scale | WebView/xterm public options | Android font-scale state is transported; final scaling behavior remains pending | Upstream pending |
+| Font scale | xterm public `options.fontSize` | Android configuration scales the captured upstream default, bounded to 0.5–3.0, then re-runs fit/PTY geometry without a custom base font | Connected |
 | Images | official xterm image addon | Not yet vendored or connected | Upstream pending |
 | WebGL renderer | `@xterm/addon-webgl` | Automatically attempted; public context-loss event causes permanent per-frontend DOM fallback without session loss | Connected; device gate pending |
 | SAF import/export | Android Storage Access Framework | Selected document bytes stream to/from bounded private-HOME regular files | Connected; device gate pending |

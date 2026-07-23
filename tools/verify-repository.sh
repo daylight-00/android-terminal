@@ -22,6 +22,7 @@ check webgl-renderer "$ROOT/tools/test-webgl-renderer.sh"
 check session-replay "$ROOT/tools/test-session-replay.sh"
 check terminal-geometry "$ROOT/tools/test-terminal-geometry.sh"
 check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
+check terminal-font-scale "$ROOT/tools/test-font-scale.sh"
 check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
 check terminal-document-transport "$ROOT/tools/test-document-transport.sh"
 check terminal-platform-adapter "$ROOT/tools/test-platform-adapter-compile.sh"
@@ -44,6 +45,7 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-session-replay.sh" \
   "$ROOT/tools/test-terminal-geometry.sh" \
   "$ROOT/tools/test-platform-policy.sh" \
+  "$ROOT/tools/test-font-scale.sh" \
   "$ROOT/tools/test-document-policy.sh" \
   "$ROOT/tools/test-document-transport.sh" \
   "$ROOT/tools/test-platform-adapter-compile.sh" \
@@ -69,6 +71,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
+check version-code grep -Fxq '        versionCode 13' app/build.gradle
+check version-name grep -Fxq "        versionName '0.15.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -117,6 +121,11 @@ check android-link-capability grep -Fq 'android-external-uri' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-accessibility-capability grep -Fq 'android-accessibility-state' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check android-font-scale-capability grep -Fq 'android-font-scale-state' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check page-font-scale-capability grep -Fq 'android-font-scale-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check manifest-font-scale-config grep -Fq 'android:configChanges="fontScale|' app/src/main/AndroidManifest.xml
 check android-document-capability grep -Fq 'android-document-transport' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-shared-storage-capability grep -Fq 'android-shared-storage-direct-path' \
