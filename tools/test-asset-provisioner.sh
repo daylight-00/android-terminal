@@ -42,7 +42,10 @@ make(fit, {
 })
 make(serialize, {
     "package/lib/addon-serialize.js": b"serialize-js",
-    "package/LICENSE": b"MIT serialize",
+    "package/package.json": (
+        b'{"name":"@xterm/addon-serialize","version":"0.13.0",'
+        b'"main":"lib/addon-serialize.js","license":"MIT"}'
+    ),
 })
 (root / "integrities").write_text(
     integrity(xterm) + "\n" + integrity(fit) + "\n" + integrity(serialize) + "\n"
@@ -76,11 +79,13 @@ test -s "$TMP/output/xterm.js"
 test -s "$TMP/output/xterm.css"
 test -s "$TMP/output/addon-fit.js"
 test -s "$TMP/output/addon-serialize.js"
+test -s "$TMP/output/PACKAGE.addon-serialize.json"
+test ! -e "$TMP/output/LICENSE.addon-serialize.txt"
 test -s "$TMP/output/ASSET_RECEIPT.json"
 printf 'PASS asset-provisioner-success\n'
 
 cp -a "$TMP/output" "$TMP/legacy-output"
-rm -f "$TMP/legacy-output/addon-serialize.js" "$TMP/legacy-output/LICENSE.addon-serialize.txt"
+rm -f "$TMP/legacy-output/addon-serialize.js" "$TMP/legacy-output/PACKAGE.addon-serialize.json"
 python3 - "$TMP/legacy-output/ASSET_RECEIPT.json" <<'PYLEGACY'
 import json
 import pathlib

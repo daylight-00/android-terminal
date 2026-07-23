@@ -20,6 +20,8 @@ Layer 1 has two upstream authorities.
 
 `app/src/main/assets/terminal/vendor/` contains the exact production files selected from the pinned official npm releases of `@xterm/xterm`, `@xterm/addon-fit`, and `@xterm/addon-serialize`. The files are acquired by `tools/acquire-web-terminal-assets.sh`, recorded in `ASSET_RECEIPT.json`, and are not edited by hand.
 
+`@xterm/addon-serialize@0.13.0` publishes no standalone `LICENSE` member. Layer 1 therefore retains its exact `package.json` to record the package-level `MIT` declaration, while `LICENSE.xterm.txt` preserves the upstream xterm.js project license. No license text is synthesized or attributed to a nonexistent archive member.
+
 xterm.js owns terminal parsing, screen state, Unicode layout, cursor behavior, selection, scrollback, IME integration, and rendering. `addon-fit` owns geometry-to-row/column calculation. `addon-serialize` owns xterm framebuffer and mode serialization.
 
 ### Device-provided runtime

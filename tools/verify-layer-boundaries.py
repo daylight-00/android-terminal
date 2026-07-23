@@ -382,7 +382,7 @@ def verify(root: Path) -> list[str]:
             "addon-serialize.js",
             "LICENSE.xterm.txt",
             "LICENSE.addon-fit.txt",
-            "LICENSE.addon-serialize.txt",
+            "PACKAGE.addon-serialize.json",
         }
         for path in vendor.iterdir():
             if not path.is_file() or path.name not in allowed:

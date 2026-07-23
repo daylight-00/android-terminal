@@ -24,6 +24,8 @@ class Package:
     url: str
     integrity: str
     members: dict[str, str]
+    metadata_member: str | None = None
+    expected_metadata: dict[str, object] | None = None
 
 
 def digest_file(path: pathlib.Path, algorithm: str) -> str:
@@ -86,6 +88,30 @@ def provision(packages: list[Package], destination: pathlib.Path) -> None:
 
         with tarfile.open(package.archive, mode="r:gz") as archive:
             members = safe_members(archive)
+            if package.metadata_member is not None:
+                metadata_info = members.get(package.metadata_member)
+                if metadata_info is None or not metadata_info.isfile():
+                    raise ValueError(
+                        f"required metadata missing from {package.name}@{package.version}: "
+                        f"{package.metadata_member}"
+                    )
+                metadata_source = archive.extractfile(metadata_info)
+                if metadata_source is None:
+                    raise ValueError(f"cannot read archive member: {package.metadata_member}")
+                metadata_bytes = metadata_source.read(MAX_MEMBER_BYTES + 1)
+                if len(metadata_bytes) != metadata_info.size or len(metadata_bytes) > MAX_MEMBER_BYTES:
+                    raise ValueError(f"archive member size mismatch: {package.metadata_member}")
+                try:
+                    metadata = json.loads(metadata_bytes.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise ValueError(f"invalid package metadata: {package.metadata_member}: {error}") from error
+                if not isinstance(metadata, dict):
+                    raise ValueError(f"package metadata must be an object: {package.metadata_member}")
+                for field, expected in (package.expected_metadata or {}).items():
+                    if metadata.get(field) != expected:
+                        raise ValueError(
+                            f"package metadata mismatch for {package.name}@{package.version}: {field}"
+                        )
             for source_member, output_name in package.members.items():
                 member = members.get(source_member)
                 if member is None or not member.isfile():
@@ -126,7 +152,10 @@ def provision(packages: list[Package], destination: pathlib.Path) -> None:
 These files were acquired by `tools/acquire-web-terminal-assets.sh` from the pinned
 official npm package URLs. `ASSET_RECEIPT.json` records the package coordinates,
 fixed npm SHA-512 integrity, acquired tarball SHA-256/size, and every installed file
-SHA-256/size. The application loads these files only from its APK assets.
+SHA-256/size. `@xterm/addon-serialize@0.13.0` does not publish a standalone
+LICENSE member, so its exact `package.json` is retained to record the MIT declaration;
+`LICENSE.xterm.txt` contains the upstream xterm.js project license. The application loads
+production JavaScript only from its APK assets.
 """
     (destination / "README.md").write_text(readme, encoding="utf-8")
     receipt = {
@@ -192,7 +221,14 @@ def main() -> int:
             integrity=arguments.serialize_integrity,
             members={
                 "package/lib/addon-serialize.js": "addon-serialize.js",
-                "package/LICENSE": "LICENSE.addon-serialize.txt",
+                "package/package.json": "PACKAGE.addon-serialize.json",
+            },
+            metadata_member="package/package.json",
+            expected_metadata={
+                "name": "@xterm/addon-serialize",
+                "version": "0.13.0",
+                "main": "lib/addon-serialize.js",
+                "license": "MIT",
             },
         ),
     ]

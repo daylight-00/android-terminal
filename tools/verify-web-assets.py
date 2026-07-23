@@ -31,7 +31,7 @@ EXPECTED_FILES = {
     "addon-serialize.js",
     "LICENSE.xterm.txt",
     "LICENSE.addon-fit.txt",
-    "LICENSE.addon-serialize.txt",
+    "PACKAGE.addon-serialize.json",
 }
 ALLOWED_FILES = EXPECTED_FILES | {"README.md", "ASSET_RECEIPT.json"}
 LEGACY_PACKAGES = {name: value for name, value in EXPECTED_PACKAGES.items() if name != "@xterm/addon-serialize"}
@@ -140,6 +140,27 @@ def verify(root: Path) -> tuple[str, list[str]]:
         source_member = entry.get("source_member")
         if not isinstance(source_member, str) or not source_member.startswith("package/"):
             failures.append(f"invalid source member in receipt: {name}")
+
+
+    if state == "provisioned":
+        metadata_path = vendor / "PACKAGE.addon-serialize.json"
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            failures.append(f"invalid addon-serialize package metadata: {error}")
+        else:
+            expected_metadata = {
+                "name": "@xterm/addon-serialize",
+                "version": "0.13.0",
+                "main": "lib/addon-serialize.js",
+                "license": "MIT",
+            }
+            if not isinstance(metadata, dict):
+                failures.append("addon-serialize package metadata must be an object")
+            else:
+                for field, value in expected_metadata.items():
+                    if metadata.get(field) != value:
+                        failures.append(f"addon-serialize package metadata mismatch: {field}")
 
     return (state if not failures else "invalid"), failures
 

@@ -271,6 +271,10 @@ def verify(root: Path) -> list[str]:
     require("sha512-TQwDdQGt" in acquisition, "xterm.js npm integrity must be pinned", failures)
     require("sha512-jYcgT6xt" in acquisition, "addon-fit npm integrity must be pinned", failures)
     require("sha512-kGs8o6LW" in acquisition, "addon-serialize npm integrity must be pinned", failures)
+    provisioner = read_required(root, "tools/provision-web-terminal-assets.py", failures)
+    require('"package/package.json": "PACKAGE.addon-serialize.json"' in provisioner, "addon-serialize package metadata must be retained", failures)
+    require('"license": "MIT"' in provisioner, "addon-serialize MIT package declaration must be validated", failures)
+    require('"package/LICENSE": "LICENSE.addon-serialize.txt"' not in provisioner, "provisioner must not require a nonexistent addon-serialize LICENSE member", failures)
 
     require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)

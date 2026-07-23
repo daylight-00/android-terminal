@@ -84,7 +84,9 @@ Repository source pins `@xterm/xterm` 6.0.0, `@xterm/addon-fit` 0.11.0, and `@xt
 pretend to contain bytes the assistant could not acquire through the project authority
 path. The owner-side acquisition script fetches official npm tarballs, validates fixed
 npm SHA-512 integrity values and safe members, then freezes extracted file SHA-256 and
-size metadata in a local receipt.
+size metadata in a local receipt. Because `@xterm/addon-serialize@0.13.0` contains no standalone
+`LICENSE` member, acquisition retains its exact `package.json` and validates the package-level
+`MIT` declaration instead of inventing an archive path.
 
 ## Known first-version limitations
 

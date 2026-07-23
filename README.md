@@ -76,7 +76,7 @@ run the bounded owner-side acquisition script:
 
 It downloads only the pinned official npm tarballs, checks their fixed npm SHA-512
 integrity values, validates archive members, installs only the required production
-files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`.
+files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`. The serialize package has no standalone `LICENSE` member, so its exact package metadata is retained and its `MIT` declaration is validated against the project-wide xterm.js license.
 The app never loads a CDN or remote page at runtime.
 
 ## Local verification
