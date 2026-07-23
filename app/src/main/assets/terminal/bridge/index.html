@@ -6,12 +6,10 @@
   <title>Terminal</title>
   <link rel="stylesheet" href="/terminal/vendor/xterm.css">
   <link rel="stylesheet" href="/terminal/bridge/bridge.css">
-  <link rel="stylesheet" href="/terminal/customization/customization.css">
 </head>
 <body>
   <main id="app-root">
     <section id="terminal" aria-label="Android system shell terminal"></section>
-    <div id="custom-ui-root" aria-hidden="true"></div>
     <div id="status" role="status" aria-live="polite"></div>
   </main>
   <script src="/terminal/vendor/xterm.js"></script>
@@ -21,7 +19,7 @@
   <script src="/terminal/bridge/terminal-contract.js"></script>
   <script src="/terminal/bridge/terminal-renderer.js"></script>
   <script src="/terminal/bridge/terminal-codec.js"></script>
-  <script src="/terminal/customization/customization.js"></script>
+  <script src="/terminal/bridge/terminal-platform.js"></script>
   <script src="/terminal/bridge/terminal-bridge.js"></script>
 </body>
 </html>

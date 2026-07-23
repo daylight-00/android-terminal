@@ -43,7 +43,8 @@ mkdir -p \
   "$WORK/android/view" \
   "$WORK/android/view/accessibility" \
   "$WORK/android/webkit" \
-  "$WORK/org/json"
+  "$WORK/org/json" \
+  "$WORK/io/github/daylight00/androidterminal"
 
 cat > "$WORK/android/app/Activity.kt" <<'KT'
 package android.app
@@ -214,6 +215,15 @@ open class WebView {
 }
 KT
 
+
+cat > "$WORK/io/github/daylight00/androidterminal/TerminalSharedStorage.kt" <<'KT'
+package io.github.daylight00.androidterminal
+object TerminalSharedStorage {
+    fun isAccessGranted(activity: android.app.Activity): Boolean = true
+    fun directory(): java.io.File = java.io.File("/storage/emulated/0")
+}
+KT
+
 cat > "$WORK/org/json/JSONObject.kt" <<'KT'
 package org.json
 class JSONObject {
@@ -235,8 +245,8 @@ kotlinc -nowarn \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \
   "$WORK/android/webkit/WebView.kt" \
   "$WORK/org/json/JSONObject.kt" \
+  "$WORK/io/github/daylight00/androidterminal/TerminalSharedStorage.kt" \
   "$PACKAGE_ROOT/TerminalContract.kt" \
-  "$PACKAGE_ROOT/TerminalCustomization.kt" \
   "$PACKAGE_ROOT/TerminalPlatformState.kt" \
   "$PACKAGE_ROOT/TerminalPlatformPolicy.kt" \
   "$PACKAGE_ROOT/TerminalDocumentPolicy.kt" \
@@ -244,4 +254,4 @@ kotlinc -nowarn \
   "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" \
   -d "$WORK/platform-adapter.jar"
 
-echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape documents=saf-private-file"
+echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape documents=saf-private-file storage-state=direct-path"

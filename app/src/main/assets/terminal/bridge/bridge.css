@@ -26,12 +26,6 @@ body {
   inset: 0;
 }
 
-#custom-ui-root {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
 #status {
   position: absolute;
   inset: 0;

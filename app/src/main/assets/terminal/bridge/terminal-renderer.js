@@ -4,7 +4,6 @@
   function create(context) {
     const terminal = context && context.terminal;
     const WebglAddon = context && context.WebglAddon;
-    const policy = context && context.policy ? context.policy : {};
     const onStateChange = context && typeof context.onStateChange === 'function'
       ? context.onStateChange : () => {};
 
@@ -43,10 +42,9 @@
       return publish('dom', reason);
     }
 
-    function activatePreferred() {
+    function activate() {
       if (disposed) return publish('dom', 'disposed');
       if (permanentlyFellBack) return state;
-      if (!policy.preferWebgl) return publish('dom', 'policy-disabled');
       if (!WebglAddon || typeof WebglAddon.WebglAddon !== 'function') {
         return fallback('webgl-unavailable');
       }
@@ -78,7 +76,7 @@
     }
 
     return Object.freeze({
-      activatePreferred,
+      activate,
       dispose,
       getState() { return state; }
     });

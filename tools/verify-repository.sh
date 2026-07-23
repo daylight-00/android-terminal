@@ -25,6 +25,7 @@ check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
 check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
 check terminal-document-transport "$ROOT/tools/test-document-transport.sh"
 check terminal-platform-adapter "$ROOT/tools/test-platform-adapter-compile.sh"
+check shared-storage-access "$ROOT/tools/test-shared-storage-access.sh"
 check frontend-recovery "$ROOT/tools/test-frontend-recovery.sh"
 check renderer-recovery-api "$ROOT/tools/test-renderer-recovery-compile.sh"
 check asset-provisioner "$ROOT/tools/test-asset-provisioner.sh"
@@ -46,6 +47,7 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-document-policy.sh" \
   "$ROOT/tools/test-document-transport.sh" \
   "$ROOT/tools/test-platform-adapter-compile.sh" \
+  "$ROOT/tools/test-shared-storage-access.sh" \
   "$ROOT/tools/test-frontend-recovery.sh" \
   "$ROOT/tools/test-renderer-recovery-compile.sh" \
   "$ROOT/tools/verify-no-saf-virtual-mount.sh" \
@@ -117,6 +119,17 @@ check android-accessibility-capability grep -Fq 'android-accessibility-state' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-document-capability grep -Fq 'android-document-transport' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check android-shared-storage-capability grep -Fq 'android-shared-storage-direct-path' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check manage-external-storage-permission grep -Fq 'android.permission.MANAGE_EXTERNAL_STORAGE' \
+  app/src/main/AndroidManifest.xml
+check legacy-external-storage grep -Fq 'android:requestLegacyExternalStorage="true"' \
+  app/src/main/AndroidManifest.xml
+check home-storage-link grep -Fq 'TerminalSharedStorage.prepareHomeLink(homeDirectory)' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
+check layer2-only-runtime grep -Fq 'layer2-only-runtime-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check no-active-layer3 sh -c '! test -e app/src/main/assets/terminal/customization && ! test -e app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt'
 check saf-document-transport grep -Fq 'class TerminalDocumentTransport' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentTransport.kt
 check private-home-document-policy grep -Fq 'resolvePrivateExportSource' \

@@ -148,11 +148,11 @@ internal class TerminalController(
     }
 
     fun updateAppearance(configuration: Configuration) {
-        view.setBackgroundColor(TerminalCustomization.backgroundColor(configuration))
+        view.setBackgroundColor(TerminalHostAppearance.backgroundColor(configuration))
     }
 
     private fun configureWebView() {
-        view.setBackgroundColor(TerminalCustomization.backgroundColor(activity.resources.configuration))
+        view.setBackgroundColor(TerminalHostAppearance.backgroundColor(activity.resources.configuration))
         view.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -172,7 +172,7 @@ internal class TerminalController(
             mediaPlaybackRequiresUserGesture = true
             builtInZoomControls = false
             displayZoomControls = false
-            textZoom = TerminalCustomization.webTextZoom
+            textZoom = TerminalHostAppearance.WEB_TEXT_ZOOM
             safeBrowsingEnabled = true
         }
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
@@ -478,7 +478,9 @@ internal class TerminalController(
                 .put("accessibilityEnabled", state.accessibilityEnabled)
                 .put("touchExplorationEnabled", state.touchExplorationEnabled)
                 .put("hardwareKeyboardPresent", state.hardwareKeyboardPresent)
-                .put("fontScale", state.fontScale),
+                .put("fontScale", state.fontScale)
+                .put("sharedStorageAccessGranted", state.sharedStorageAccessGranted)
+                .put("sharedStoragePath", state.sharedStoragePath),
         )
     }
 

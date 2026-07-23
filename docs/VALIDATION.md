@@ -13,7 +13,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 
 ## Layer-boundary verifier
 
-`tools/verify-layer-boundaries.py` checks that upstream assets remain isolated, Layer 2 uses only the stable contract and public xterm.js surface, product options remain in Layer 3, and Layer 3 does not access WebMessagePort, JNI, or PTY internals. It also requires matching protocol versions and the declared script load order.
+`tools/verify-layer-boundaries.py` checks that upstream assets remain isolated, Layer 2 uses only the stable contract and public xterm.js surface, and the active runtime contains no Layer 3 authority. It also requires matching protocol versions, the declared script load order, and a complete Android-native mapping for each capability marked connected.
 
 ## Repository verifier
 
@@ -94,7 +94,11 @@ viewport behavior still require a later real-device test.
 
 ## WebGL renderer fallback
 
-Repository verification executes the pure Layer 2 renderer controller with a fake official addon surface. It verifies policy-disabled startup, successful addon activation, public `onContextLoss` handling, disposal of the addon and event subscription, permanent fallback to xterm core DOM rendering for the current frontend, activation-failure fallback, and no retry loop. The production policy remains disabled until Layer 3 selects WebGL. Real System WebView GPU support and context-loss behavior remain device gates.
+Repository verification executes the pure Layer 2 renderer controller with a fake official addon surface. It verifies automatic addon activation, public `onContextLoss` handling, disposal of the addon and event subscription, permanent fallback to xterm core DOM rendering for the current frontend, activation-failure fallback, unavailable-addon fallback, and no retry loop. Real System WebView GPU support and context-loss behavior remain device gates.
+
+## Direct shared-storage adaptation
+
+Repository verification compiles and executes the API 29 runtime-permission and API 30+ all-files settings branches against Android API-shape stubs. It verifies app-specific settings first, generic settings fallback, grant-state reporting, and non-destructive creation of `HOME/storage`. Static policy verification binds the manifest declarations, `requestLegacyExternalStorage`, `EXTERNAL_STORAGE`, and the native capability contract. Real permission dialogs, OEM settings routing, direct read/write behavior, and protected `/Android` subtrees remain device gates.
 
 ## WebView renderer recovery
 

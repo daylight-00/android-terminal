@@ -55,6 +55,7 @@ open class Activity : android.content.Context() {
     open fun onWindowFocusChanged(hasFocus: Boolean) {}
     open fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
     open fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {}
+    open fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {}
     open fun onDestroy() {}
     fun setContentView(view: View) {}
     fun startService(intent: Intent): android.content.ComponentName? = null
@@ -175,9 +176,14 @@ object TerminalContract {
     const val DOCUMENT_PATH: String = "/terminal/index.html"
     const val HOST: String = "app.local"
 }
-object TerminalCustomization {
+object TerminalHostAppearance {
     fun backgroundColor(configuration: android.content.res.Configuration): Int = 0
     fun usesLightSystemBars(configuration: android.content.res.Configuration): Boolean = false
+}
+object TerminalSharedStorage {
+    const val RUNTIME_PERMISSION_REQUEST_CODE: Int = 0x5403
+    fun requestAccess(activity: android.app.Activity): Boolean = false
+    fun isAccessGranted(activity: android.app.Activity): Boolean = true
 }
 class TerminalSessionService {
     inner class LocalBinder : android.os.IBinder

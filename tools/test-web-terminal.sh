@@ -3,13 +3,13 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 CONTRACT="$ROOT/app/src/main/assets/terminal/bridge/terminal-contract.js"
 CODEC="$ROOT/app/src/main/assets/terminal/bridge/terminal-codec.js"
-CUSTOMIZATION="$ROOT/app/src/main/assets/terminal/customization/customization.js"
+PLATFORM="$ROOT/app/src/main/assets/terminal/bridge/terminal-platform.js"
 BRIDGE="$ROOT/app/src/main/assets/terminal/bridge/terminal-bridge.js"
 RENDERER="$ROOT/app/src/main/assets/terminal/bridge/terminal-renderer.js"
 NODE_COMMAND=${NODE_COMMAND:-node}
 
 if command -v "$NODE_COMMAND" >/dev/null 2>&1; then
-  for script in "$CONTRACT" "$CODEC" "$RENDERER" "$CUSTOMIZATION" "$BRIDGE"; do
+  for script in "$CONTRACT" "$CODEC" "$RENDERER" "$PLATFORM" "$BRIDGE"; do
     "$NODE_COMMAND" --check "$script"
   done
 
@@ -48,7 +48,7 @@ equalBytes(codec.base64ToBytes(codec.stringToUtf8Base64('ASCII 한글 😀 \\u00
 console.log('PASS web-terminal-codec runtime=node');
 JS
 
-  "$NODE_COMMAND" - "$CONTRACT" "$CODEC" "$RENDERER" "$CUSTOMIZATION" "$BRIDGE" <<'JS'
+  "$NODE_COMMAND" - "$CONTRACT" "$CODEC" "$RENDERER" "$PLATFORM" "$BRIDGE" <<'JS'
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
@@ -68,7 +68,6 @@ const paths = process.argv.slice(2);
     }
   };
   const container = {clientWidth: 0, clientHeight: 0};
-  const customRoot = {replaceChildren() { this.cleared = true; }};
   const posted = [];
   let portStarted = false;
   let resizeObserverCallback = null;
@@ -153,7 +152,6 @@ const paths = process.argv.slice(2);
     hidden: false,
     getElementById(id) {
       if (id === 'status') return status;
-      if (id === 'custom-ui-root') return customRoot;
       return container;
     },
     addEventListener(type, callback) { documentListeners.set(type, callback); }
@@ -206,16 +204,15 @@ const paths = process.argv.slice(2);
 
   if (!context.AndroidTerminalContract) throw new Error('contract export missing');
   if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
-  if (!context.TerminalCustomization) throw new Error('customization export missing');
+  if (!context.AndroidTerminalPlatformIntegration) throw new Error('platform integration export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
   if (!context.AndroidTerminalBridge || typeof context.AndroidTerminalBridge.getRendererState !== 'function') {
     throw new Error('renderer state facade missing');
   }
   const rendererState = context.AndroidTerminalBridge.getRendererState();
-  if (rendererState.mode !== 'dom' || rendererState.reason !== 'policy-disabled') {
-    throw new Error('default renderer policy state mismatch');
+  if (rendererState.mode !== 'webgl' || rendererState.reason !== 'active') {
+    throw new Error('Layer 2 WebGL activation state mismatch');
   }
-  if (!customRoot.cleared) throw new Error('custom UI root was not initialized');
   if (context.ClipboardAddon || context.WebLinksAddon) throw new Error('unselected addons leaked into Layer 2');
 
   const handler = listeners.get('message');
@@ -262,13 +259,16 @@ const paths = process.argv.slice(2);
     accessibilityEnabled: true,
     touchExplorationEnabled: true,
     hardwareKeyboardPresent: true,
-    fontScale: 1.25
+    fontScale: 1.25,
+    sharedStorageAccessGranted: true,
+    sharedStoragePath: '/storage/emulated/0'
   });
   flushFrames();
   if (terminalInstance.options.theme.background !== '#fafafa') throw new Error('system theme was not applied');
   if (terminalInstance.options.screenReaderMode !== true) throw new Error('screen reader mode was not applied');
   const state = context.AndroidTerminalPlatform.getState();
-  if (!state || !state.hardwareKeyboardPresent || state.fontScale !== 1.25) {
+  if (!state || !state.hardwareKeyboardPresent || state.fontScale !== 1.25 ||
+      !state.sharedStorageAccessGranted || state.sharedStoragePath !== '/storage/emulated/0') {
     throw new Error('platform state facade is incomplete');
   }
 
@@ -445,14 +445,14 @@ const paths = process.argv.slice(2);
 });
 JS
 else
-  python3 - "$CONTRACT" "$CODEC" "$CUSTOMIZATION" "$BRIDGE" <<'PY'
+  python3 - "$CONTRACT" "$CODEC" "$PLATFORM" "$BRIDGE" <<'PY'
 from __future__ import annotations
 
 import base64
 import pathlib
 import sys
 
-contract_path, codec_path, customization_path, bridge_path = map(pathlib.Path, sys.argv[1:])
+contract_path, codec_path, platform_path, bridge_path = map(pathlib.Path, sys.argv[1:])
 required = {
     contract_path: (
         "protocolVersion: 6",
@@ -467,14 +467,14 @@ required = {
         "platformResult: 'platform-result'",
     ),
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
-    customization_path: (
-        "window.TerminalCustomization = Object.freeze",
-        "contractVersion: 2",
+    platform_path: (
+        "window.AndroidTerminalPlatformIntegration = Object.freeze",
+        "contractVersion: 1",
         "isExternalUriAllowed",
         "applyPlatformState",
     ),
     bridge_path: (
-        "new window.Terminal(customization.terminalOptions)",
+        "new window.Terminal()",
         "new window.SerializeAddon.SerializeAddon()",
         "serializeAddon.serialize()",
         "terminal.onData(",

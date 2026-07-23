@@ -7,13 +7,11 @@ mkdir -p \
   "$WORK/app/src/main/kotlin" \
   "$WORK/app/src/main/c" \
   "$WORK/app/src/main/assets/terminal/bridge" \
-  "$WORK/app/src/main/assets/terminal/customization" \
   "$WORK/app/src/main/assets/terminal/vendor"
 printf '<manifest/>\n' > "$WORK/app/src/main/AndroidManifest.xml"
 printf 'object SafeLayer\n' > "$WORK/app/src/main/kotlin/SafeLayer.kt"
 printf '/* safe native bridge */\n' > "$WORK/app/src/main/c/safe.c"
 printf '/* safe bridge */\n' > "$WORK/app/src/main/assets/terminal/bridge/safe.js"
-printf '/* safe customization */\n' > "$WORK/app/src/main/assets/terminal/customization/safe.js"
 printf 'upstream bytes may contain FUSE as an unrelated token\n' > "$WORK/app/src/main/assets/terminal/vendor/xterm.js"
 
 "$ROOT/tools/verify-no-saf-virtual-mount.sh" "$WORK" >/dev/null

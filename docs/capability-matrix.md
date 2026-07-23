@@ -1,53 +1,55 @@
 # Upstream capability matrix
 
-This matrix is the authority for deciding whether Android Terminal has preserved an upstream
-capability, supplied the Android connection it requires, or intentionally left product policy to
-Layer 3. A capability is not considered complete merely because xterm.js exposes an API.
+This matrix is the authority for Layer 2 completion. A capability is complete only when the pinned upstream public surface works in System WebView and every required Android native connection is present. Layer 3 is reserved and does not block or disable Layer 2 capabilities.
 
 ## Status definitions
 
 | Status | Meaning |
 |---|---|
-| Native already | The pinned upstream runtime works in the Android System WebView without an Android adapter. |
+| Native already | Upstream works in Android System WebView without an additional Android adapter. |
 | Connected | Layer 2 supplies the required Android/PTY connection through a public upstream API. |
-| Policy pending | Layer 2 can support the capability, but Layer 3 has not selected its user experience or default. |
-| Upstream pending | The required official xterm.js addon is not yet vendored. |
-| Intentionally excluded | The capability conflicts with the thin host boundary or needs a separate project. |
+| Connected with bounds | The connection is complete but intentionally bounded for lifecycle or resource safety. |
+| Upstream pending | An official upstream addon or selected upstream public surface is not yet vendored/connected. |
+| Device gate pending | Repository evidence exists; real Android behavior still needs bounded device evidence. |
+| Intentionally excluded | The feature belongs outside the thin Layer 2 host. |
 
 ## Current capability coverage
 
-| Capability | Upstream authority | Layer 2 Android connection | Layer 3 policy | Status |
-|---|---|---|---|---|
-| VT/xterm parsing and screen state | `@xterm/xterm` core | PTY output is delivered as bytes to `Terminal.write()` | Appearance only | Connected |
-| Keyboard and IME text input | `@xterm/xterm` core | `onData()` and `onBinary()` are transported to the PTY | No custom IME | Connected |
-| Geometry to rows/columns | `@xterm/addon-fit` | Android root layout, insets, configuration, focus, WebView `ResizeObserver`, and `visualViewport` changes converge on deduplicated `TIOCSWINSZ` updates; transient zero geometry is ignored | No separate product policy | Connected |
-| Output flow control | xterm `write(data, callback)` | One in-flight batch plus bounded ACK queue | Queue limits are fixed host policy | Connected |
-| Activity-independent shell session | Android native shell and PTY | Started/bound platform `Service` owns the PTY | Session stops when the app task is removed | Connected |
-| Frontend reconnection | xterm public `write()` | Protocol v4 retains attachment identity and reconnects replacement Activity/WebView frontends to the service session | No persistent background session | Connected |
-| WebView renderer recovery | Android System WebView | `onRenderProcessGone` destroys only the failed frontend, detaches its stale connection generation, and installs a new WebView against the same service-owned PTY session | Automatic while the Activity and service binding remain alive | Connected; device gate pending |
-| Frontend replay | `@xterm/addon-serialize` plus raw upstream PTY bytes | Opaque serialized xterm state is stored with an output-sequence watermark; a rolling 1 MiB raw tail bridges bytes produced after the snapshot without parsing terminal semantics | Explicit failure notice if the bounded snapshot and tail cannot bridge a gap | Connected with bounds |
-| Current xterm screen and configured scrollback restoration after arbitrary session output | `@xterm/addon-serialize` | Protocol v6 restores a bounded 8 MiB opaque snapshot before replaying the contiguous raw tail | Existing xterm scrollback limit remains Layer 3 policy | Connected with bounds |
-| Clipboard | xterm `hasSelection()`, `getSelection()`, and `paste()` | Bounded text-only `ClipboardManager` request/result adapter; reads require application focus and occur only after an explicit platform request | Visible copy/paste controls remain a Layer 3 choice | Connected |
-| Search | `@xterm/addon-search` | Not vendored | Search UI undecided | Upstream pending |
-| OSC 8 links | xterm core `linkHandler` | Exact HTTP/HTTPS validation followed by Android `ACTION_VIEW`; unsafe, credential-bearing, file, content, intent, data, and JavaScript URIs are rejected | HTTP/HTTPS only | Connected |
-| Plain-text web links | `@xterm/addon-web-links` | Not vendored | Activation UI and hover behavior undecided | Upstream pending |
-| Bell | xterm `onBell` | Android `performHapticFeedback` adapter | Haptic effect is explicitly disabled by default | Connected, policy-disabled |
-| System theme | xterm `options.theme` | Android configuration state is sent on attach, resume, focus, and configuration changes | Follow system light/dark with explicit palettes | Connected |
-| Hardware keyboard | WebView DOM keyboard events and xterm input APIs | WebView remains the input authority; Android reports physical-keyboard presence without intercepting or duplicating key events | Modifier bar and overrides remain unselected | Native already + state connected |
-| Accessibility | xterm `screenReaderMode` | Android accessibility and touch-exploration state listeners feed the platform state contract | Active touch exploration maps to xterm screen-reader mode | Connected |
-| Images | official xterm image addon | Not vendored | GPU/memory policy undecided | Upstream pending |
-| WebGL renderer | `@xterm/addon-webgl` | Layer 2 can load the official addon and disposes it on `onContextLoss`, permanently returning that frontend to xterm core's DOM renderer without changing PTY/session/snapshot state | Disabled by default; renderer selection remains explicit Layer 3 policy | Connected, policy-disabled; device gate pending |
-| SAF import/export | Android Storage Access Framework | `ACTION_OPEN_DOCUMENT` streams one selected document into a bounded real file under private `HOME/imports`; `ACTION_CREATE_DOCUMENT` streams one validated HOME-relative regular file out without exposing a virtual mount | User-facing controls remain undecided | Connected; UI policy pending |
-| Bundled shell/userland/package manager | none | Deliberately absent | Deliberately absent | Intentionally excluded |
-| Custom VT parser or screen renderer | none | Forbidden | Forbidden | Intentionally excluded |
-| SAF/FUSE virtual mount | none | Forbidden by current thin boundary | Separate project if ever required | Intentionally excluded |
+| Capability | Upstream authority | Layer 2 Android connection | Status |
+|---|---|---|---|
+| VT/xterm parsing and screen state | `@xterm/xterm` core | Raw PTY output is delivered to `Terminal.write()` | Connected |
+| Keyboard and IME input | `@xterm/xterm` core | `onData()` and `onBinary()` are transported to the PTY; WebView remains input authority | Connected |
+| Geometry | `@xterm/addon-fit` | Android layout/insets/configuration/focus and WebView viewport signals converge on positive deduplicated `TIOCSWINSZ` updates | Connected |
+| Output flow control | xterm `write(data, callback)` | One in-flight batch and bounded ACK queue | Connected with bounds |
+| Activity-independent shell session | Android native shell and PTY | Started/bound Service owns the PTY independently of Activity/WebView | Connected |
+| Frontend reconnection | xterm public `write()` | Attachment identity reconnects replacement frontends to the same service session | Connected |
+| WebView renderer recovery | Android System WebView | `onRenderProcessGone` replaces only the frontend and preserves the PTY session | Connected; device gate pending |
+| Screen/scrollback restoration | `@xterm/addon-serialize` plus raw PTY bytes | Bounded opaque snapshot with output watermark plus contiguous raw tail | Connected with bounds; device gate pending |
+| Clipboard | xterm selection and `paste()` APIs | Focus-gated bounded text bridge to Android `ClipboardManager` | Connected |
+| Search | `@xterm/addon-search` | Not yet vendored or connected | Upstream pending |
+| OSC 8 links | xterm core `linkHandler` | Validated HTTP/HTTPS activation through Android `ACTION_VIEW` | Connected |
+| Plain-text web links | `@xterm/addon-web-links` | Not yet vendored or connected | Upstream pending |
+| Bell | xterm `onBell` | Rate-limited Android haptic feedback | Connected; device gate pending |
+| System theme | xterm `options.theme` | Android light/dark configuration maps to Layer 2 host palettes | Connected |
+| Hardware keyboard | WebView DOM and xterm input APIs | No key duplication; Android physical-keyboard presence is reported | Native already + state connected |
+| Accessibility | xterm `screenReaderMode` | Android accessibility and touch-exploration listeners control screen-reader mode | Connected; device gate pending |
+| Font scale | WebView/xterm public options | Android font-scale state is transported; final scaling behavior remains pending | Upstream pending |
+| Images | official xterm image addon | Not yet vendored or connected | Upstream pending |
+| WebGL renderer | `@xterm/addon-webgl` | Automatically attempted; public context-loss event causes permanent per-frontend DOM fallback without session loss | Connected; device gate pending |
+| SAF import/export | Android Storage Access Framework | Selected document bytes stream to/from bounded private-HOME regular files | Connected; device gate pending |
+| Direct shared-storage paths | Android storage permission model | API 29 runtime permissions, API 30+ all-files settings, `EXTERNAL_STORAGE`, and non-destructive `HOME/storage` link | Connected; device gate pending |
+| WebView download/upload/file chooser APIs | Android System WebView | No remote page or generic browser surface exists in the current secure local host | Intentionally excluded from current page model |
+| Bundled shell/userland/package manager | none | Deliberately absent from Layer 2 | Intentionally excluded; Layer 3 only |
+| Custom VT parser or screen renderer | none | Forbidden | Intentionally excluded |
+| SAF/FUSE virtual mount | none | Not required once direct shared-storage permission and explicit SAF transactions are available | Intentionally excluded |
 
 ## Completion rule
 
-A future feature must preserve this order:
+For every future row:
 
-1. use the xterm.js core public API when it owns the capability;
-2. use an official xterm.js addon when the capability is provided there;
-3. add only the Android connection required to expose that capability;
-4. place activation, appearance, confirmation, and user-interface choices in Layer 3;
-5. document an explicit exclusion instead of silently reimplementing upstream behavior.
+1. preserve unmodified upstream bytes in Layer 1;
+2. use core or an official addon public API;
+3. add the thinnest Android native connection needed for full operation;
+4. provide success, expected-negative, and incomplete/missing verification for the changed authority;
+5. require device evidence for Android runtime claims;
+6. keep unrelated product features and userland out of Layer 2.

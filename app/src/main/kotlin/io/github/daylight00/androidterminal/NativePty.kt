@@ -13,6 +13,7 @@ internal object NativePty {
         cwd: String,
         home: String,
         temporaryDirectory: String,
+        sharedStorageDirectory: String,
         rows: Int,
         columns: Int,
     ): Long

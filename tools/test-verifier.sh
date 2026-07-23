@@ -62,3 +62,34 @@ if python3 "$ROOT/tools/verify-layer-boundaries.py" "$BOUNDARY" >/dev/null 2>&1;
   exit 1
 fi
 printf 'PASS verifier-layer-boundary-negative\n'
+
+STORAGE_NEGATIVE=$TMP/storage-negative
+copy_fixture "$STORAGE_NEGATIVE"
+python3 - "$STORAGE_NEGATIVE/app/src/main/AndroidManifest.xml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(
+    text.replace(
+        '    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n',
+        '',
+        1,
+    ),
+    encoding="utf-8",
+)
+PY
+if python3 "$ROOT/tools/verify_policy.py" "$STORAGE_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-storage-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-storage-negative\n'
+
+STORAGE_INCOMPLETE=$TMP/storage-incomplete
+copy_fixture "$STORAGE_INCOMPLETE"
+rm -f -- "$STORAGE_INCOMPLETE/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSharedStorage.kt"
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$STORAGE_INCOMPLETE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-storage-incomplete unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-storage-incomplete\n'

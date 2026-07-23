@@ -8,6 +8,7 @@ internal object TerminalPlatformPolicy {
     const val MAX_CLIPBOARD_CHARACTERS = 64 * 1024
     const val MAX_EXTERNAL_URI_CHARACTERS = 4096
     const val MIN_BELL_INTERVAL_MILLIS = 100L
+    val ALLOWED_EXTERNAL_URI_SCHEMES: Set<String> = setOf("http", "https")
 
     fun boundedClipboardText(value: CharSequence?, allowEmpty: Boolean = false): String? {
         val text = value?.toString() ?: return null

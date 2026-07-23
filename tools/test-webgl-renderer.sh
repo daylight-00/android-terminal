@@ -22,7 +22,7 @@ vm.runInContext(source, context, {filename: process.argv[2]});
 const renderer = context.AndroidTerminalRenderer;
 if (!renderer || typeof renderer.create !== 'function') throw new Error('renderer export missing');
 
-function fakeEnvironment({preferWebgl = true, throwOnLoad = false} = {}) {
+function fakeEnvironment({throwOnLoad = false} = {}) {
   const loaded = [];
   const states = [];
   let lossCallback = null;
@@ -47,7 +47,6 @@ function fakeEnvironment({preferWebgl = true, throwOnLoad = false} = {}) {
   const controller = renderer.create({
     terminal,
     WebglAddon: {WebglAddon},
-    policy: {preferWebgl},
     onStateChange(state) { states.push({...state}); }
   });
   return {
@@ -60,15 +59,8 @@ function fakeEnvironment({preferWebgl = true, throwOnLoad = false} = {}) {
 }
 
 {
-  const env = fakeEnvironment({preferWebgl: false});
-  const state = env.controller.activatePreferred();
-  if (state.mode !== 'dom' || state.reason !== 'policy-disabled') throw new Error('policy-disabled state mismatch');
-  if (env.loaded.length !== 0) throw new Error('policy-disabled renderer loaded WebGL');
-}
-
-{
   const env = fakeEnvironment();
-  const state = env.controller.activatePreferred();
+  const state = env.controller.activate();
   if (state.mode !== 'webgl' || state.reason !== 'active') throw new Error('WebGL activation state mismatch');
   if (env.loaded.length !== 1) throw new Error('WebGL addon was not loaded exactly once');
   env.loseContext();
@@ -76,7 +68,7 @@ function fakeEnvironment({preferWebgl = true, throwOnLoad = false} = {}) {
   if (fallback.mode !== 'dom' || fallback.reason !== 'context-loss') throw new Error('context-loss fallback mismatch');
   const counts = env.counts();
   if (counts.subscriptionDisposed !== 1 || counts.addonDisposed !== 1) throw new Error('context-loss cleanup mismatch');
-  env.controller.activatePreferred();
+  env.controller.activate();
   if (env.loaded.length !== 1) throw new Error('context-loss frontend retried WebGL');
   env.loseContext();
   const repeated = env.counts();
@@ -85,19 +77,19 @@ function fakeEnvironment({preferWebgl = true, throwOnLoad = false} = {}) {
 
 {
   const env = fakeEnvironment({throwOnLoad: true});
-  const state = env.controller.activatePreferred();
+  const state = env.controller.activate();
   if (state.mode !== 'dom' || state.reason !== 'activation-failed') throw new Error('activation failure fallback mismatch');
   const counts = env.counts();
   if (counts.subscriptionDisposed !== 1 || counts.addonDisposed !== 1) throw new Error('activation failure cleanup mismatch');
-  env.controller.activatePreferred();
+  env.controller.activate();
   if (env.loaded.length !== 1) throw new Error('activation failure retried WebGL');
 }
 
 {
   const terminal = {loadAddon() { throw new Error('must not load'); }};
   const states = [];
-  const controller = renderer.create({terminal, WebglAddon: {}, policy: {preferWebgl: true}, onStateChange(s) { states.push(s); }});
-  const state = controller.activatePreferred();
+  const controller = renderer.create({terminal, WebglAddon: {}, onStateChange(s) { states.push(s); }});
+  const state = controller.activate();
   if (state.mode !== 'dom' || state.reason !== 'webgl-unavailable') throw new Error('unavailable fallback mismatch');
 }
 
@@ -112,10 +104,9 @@ function fakeEnvironment({preferWebgl = true, throwOnLoad = false} = {}) {
   const terminal = {loadAddon() { lossCallback(); }};
   const controller = renderer.create({
     terminal,
-    WebglAddon: {WebglAddon: SynchronousLossAddon},
-    policy: {preferWebgl: true}
+    WebglAddon: {WebglAddon: SynchronousLossAddon}
   });
-  const state = controller.activatePreferred();
+  const state = controller.activate();
   if (state.mode !== 'dom' || state.reason !== 'context-loss') throw new Error('synchronous context loss resurrected WebGL');
   if (disposed !== 1) throw new Error('synchronous context loss cleanup mismatch');
 }

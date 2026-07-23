@@ -98,10 +98,6 @@ internal class LocalAssetWebViewClient(
                 "terminal/bridge/bridge.css",
                 "text/css",
             ),
-            "/terminal/customization/customization.css" to Asset(
-                "terminal/customization/customization.css",
-                "text/css",
-            ),
             "/terminal/bridge/terminal-contract.js" to Asset(
                 "terminal/bridge/terminal-contract.js",
                 "application/javascript",
@@ -114,8 +110,8 @@ internal class LocalAssetWebViewClient(
                 "terminal/bridge/terminal-codec.js",
                 "application/javascript",
             ),
-            "/terminal/customization/customization.js" to Asset(
-                "terminal/customization/customization.js",
+            "/terminal/bridge/terminal-platform.js" to Asset(
+                "terminal/bridge/terminal-platform.js",
                 "application/javascript",
             ),
             "/terminal/bridge/terminal-bridge.js" to Asset(

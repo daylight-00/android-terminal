@@ -116,11 +116,14 @@ internal class TerminalSession(
         var exitCode: Int? = null
         try {
             val initial = pendingSize
+            val sharedStorageDirectory = TerminalSharedStorage.directory()
+            TerminalSharedStorage.prepareHomeLink(homeDirectory)
             nativeHandle = NativePty.spawn(
                 SHELL_PATH,
                 homeDirectory.absolutePath,
                 homeDirectory.absolutePath,
                 temporaryDirectory.absolutePath,
+                sharedStorageDirectory.absolutePath,
                 initial.rows,
                 initial.columns,
             )

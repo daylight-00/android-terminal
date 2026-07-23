@@ -6,4 +6,6 @@ internal data class TerminalPlatformState(
     val touchExplorationEnabled: Boolean,
     val hardwareKeyboardPresent: Boolean,
     val fontScale: Double,
+    val sharedStorageAccessGranted: Boolean,
+    val sharedStoragePath: String,
 )

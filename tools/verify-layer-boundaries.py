@@ -27,16 +27,20 @@ def verify(root: Path) -> list[str]:
     renderer_js = read(root, str(base / "bridge/terminal-renderer.js"), failures)
     codec_js = read(root, str(base / "bridge/terminal-codec.js"), failures)
     bridge_css = read(root, str(base / "bridge/bridge.css"), failures)
-    custom_js = read(root, str(base / "customization/customization.js"), failures)
-    custom_css = read(root, str(base / "customization/customization.css"), failures)
+    platform_js = read(root, str(base / "bridge/terminal-platform.js"), failures)
     contract_kt = read(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt",
         failures,
     )
-    native_customization = read(
+    host_appearance = read(
         root,
-        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt",
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalHostAppearance.kt",
+        failures,
+    )
+    shared_storage = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSharedStorage.kt",
         failures,
     )
     controller = read(
@@ -99,14 +103,20 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalFrontendRecoveryState.kt",
         failures,
     )
+    session = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt",
+        failures,
+    )
     native = read(root, "app/src/main/c/shell_bridge.c", failures)
+    manifest = read(root, "app/src/main/AndroidManifest.xml", failures)
     architecture = read(root, "docs/architecture.md", failures)
 
     for heading in (
-        "Layer 1: upstream runtime",
-        "Layer 2: required Android integration",
-        "Layer 3: explicit customization",
-        "Upgrade boundary",
+        "Layer 1: unmodified upstream",
+        "Layer 2: complete Android adaptation",
+        "Layer 3: reserved and inactive",
+        "Upgrade and change boundary",
     ):
         if heading not in architecture:
             fail(f"architecture document lacks heading: {heading}", failures)
@@ -119,16 +129,20 @@ def verify(root: Path) -> list[str]:
         "/terminal/bridge/terminal-contract.js",
         "/terminal/bridge/terminal-renderer.js",
         "/terminal/bridge/terminal-codec.js",
-        "/terminal/customization/customization.js",
+        "/terminal/bridge/terminal-platform.js",
         "/terminal/bridge/terminal-bridge.js",
     )
     positions = [html.find(value) for value in expected_order]
     if any(position < 0 for position in positions):
-        fail("HTML does not load every declared layer script", failures)
+        fail("HTML does not load every declared Layer 1/2 script", failures)
     elif positions != sorted(positions):
-        fail("HTML layer script order is not upstream -> contract -> customization -> bridge", failures)
-    if 'id="custom-ui-root"' not in html:
-        fail("custom UI root is missing", failures)
+        fail("HTML script order is not Layer 1 upstream then Layer 2 integration", failures)
+    if "/terminal/customization/" in html or 'id="custom-ui-root"' in html:
+        fail("active Layer 3 runtime assets are forbidden", failures)
+    if (root / base / "customization").exists():
+        fail("active Layer 3 customization directory must remain absent", failures)
+    if (root / "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt").exists():
+        fail("native Layer 3 customization authority must remain absent", failures)
 
     if "protocolVersion: 6" not in contract_js or "PROTOCOL_VERSION = 6" not in contract_kt:
         fail("JavaScript and Kotlin protocol version 6 must match", failures)
@@ -157,7 +171,7 @@ def verify(root: Path) -> list[str]:
             fail(f"Kotlin contract lacks message type: {wire}", failures)
 
     for token in (
-        "new window.Terminal(customization.terminalOptions)",
+        "new window.Terminal()",
         "new window.FitAddon.FitAddon()",
         "terminal.onData(",
         "terminal.onBinary(",
@@ -181,6 +195,7 @@ def verify(root: Path) -> list[str]:
         "exportDocument(path, options = {})",
         "contract.platformOperations.documentImport",
         "contract.platformOperations.documentExport",
+        "platformIntegration.applyPlatformState",
     ):
         if token not in bridge_js:
             fail(f"Layer 2 bridge lacks required public integration token: {token}", failures)
@@ -193,26 +208,19 @@ def verify(root: Path) -> list[str]:
         "letterSpacing",
         "lineHeight",
         "scrollback",
-        "cursorAccent",
-        "#000000",
-        "#e6e6e6",
     ):
-        if token in bridge_js or token in bridge_css:
-            fail(f"Layer 3 policy leaked into Layer 2 bridge: {token}", failures)
+        if token in bridge_js or token in bridge_css or token in platform_js:
+            fail(f"unnecessary product option leaked into Layer 2: {token}", failures)
 
     for token in (
-        "cursorBlink",
-        "fontSize",
-        "scrollback",
-        "theme",
-        "contractVersion: 2",
-        "platformPolicy",
+        "contractVersion: 1",
         "isExternalUriAllowed",
         "applyPlatformState",
-        "function mount(context)",
+        "terminal.options.theme",
+        "terminal.options.screenReaderMode",
     ):
-        if token not in custom_js:
-            fail(f"Layer 3 customization lacks explicit policy token: {token}", failures)
+        if token not in platform_js:
+            fail(f"Layer 2 platform mapping lacks token: {token}", failures)
 
     for token in (
         "nativePort",
@@ -225,14 +233,14 @@ def verify(root: Path) -> list[str]:
         "execve",
         "TIOCSWINSZ",
     ):
-        if token in custom_js or token in custom_css or token in native_customization:
-            fail(f"Layer 3 accesses Layer 2 internals: {token}", failures)
+        if token in platform_js:
+            fail(f"public Layer 2 platform mapping bypasses bridge internals: {token}", failures)
 
     for private_api in ("._core", "._renderService", "._inputHandler", "._bufferService"):
-        if private_api in bridge_js or private_api in renderer_js or private_api in custom_js:
+        if private_api in bridge_js or private_api in renderer_js or private_api in platform_js:
             fail(f"xterm.js private API is forbidden: {private_api}", failures)
 
-    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'"):
+    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'", "ImageAddon"):
         if unselected_upstream in bridge_js or unselected_upstream in contract_js:
             fail(f"unselected upstream addon leaked into Layer 2: {unselected_upstream}", failures)
 
@@ -266,8 +274,8 @@ def verify(root: Path) -> list[str]:
 
     if "createWebMessageChannel()" not in controller or "TerminalContract" not in controller:
         fail("Kotlin platform bridge must use WebMessagePort through TerminalContract", failures)
-    if "TerminalCustomization.backgroundColor" not in controller:
-        fail("native appearance policy must come from TerminalCustomization", failures)
+    if "TerminalHostAppearance.backgroundColor" not in controller or "Color.BLACK" not in host_appearance:
+        fail("Android host appearance mapping must remain in Layer 2", failures)
     if "NativeShellCodec" not in codec_js:
         fail("byte codec must remain in Layer 2", failures)
 
@@ -296,8 +304,10 @@ def verify(root: Path) -> list[str]:
         fail("WebGL context loss must permanently fall back for the current frontend", failures)
     if "webgl-renderer-fallback-v1" not in contract_js or "webgl-renderer-fallback-v1" not in contract_kt:
         fail("WebGL fallback page capability is not mirrored", failures)
-    if "preferWebgl: false" not in custom_js:
-        fail("WebGL activation must remain explicit Layer 3 policy", failures)
+    if "function activate()" not in renderer_js or "rendererController.activate()" not in bridge_js:
+        fail("Layer 2 must automatically attempt the official WebGL renderer", failures)
+    if "policy-disabled" in renderer_js or "preferWebgl" in renderer_js or "preferWebgl" in bridge_js:
+        fail("WebGL must not depend on a Layer 3 policy gate", failures)
     if "class TerminalGeometryState" not in geometry or "if (!candidate.isUsable()) return null" not in geometry:
         fail("terminal geometry must reject transient zero layouts", failures)
     if "if (sanitized == current) return null" not in geometry:
@@ -344,6 +354,7 @@ def verify(root: Path) -> list[str]:
         "android-accessibility-state",
         "android-hardware-keyboard-state",
         "android-document-transport",
+        "android-shared-storage-direct-path",
     ):
         if capability not in contract_kt:
             fail(f"native platform capability is missing: {capability}", failures)
@@ -370,10 +381,38 @@ def verify(root: Path) -> list[str]:
     ):
         if token not in platform_policy:
             fail(f"platform policy lacks bounded validation token: {token}", failures)
-    if "data class TerminalPlatformState" not in platform_state:
-        fail("Android platform state contract is missing", failures)
-    if "allowedExternalUriSchemes" not in native_customization or "hapticBellEnabled" not in native_customization:
-        fail("native Layer 3 platform policy is incomplete", failures)
+    if "data class TerminalPlatformState" not in platform_state or "sharedStorageAccessGranted" not in platform_state or "sharedStoragePath" not in platform_state:
+        fail("Android platform state contract is incomplete", failures)
+    if "TerminalPlatformPolicy.ALLOWED_EXTERNAL_URI_SCHEMES" not in platform_adapter:
+        fail("external URI allowlist must remain in Layer 2 policy", failures)
+    if "hapticBellEnabled" in platform_adapter:
+        fail("bell must not depend on an inactive Layer 3 gate", failures)
+
+    for token in (
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        'android:requestLegacyExternalStorage="true"',
+    ):
+        if token not in manifest:
+            fail(f"manifest lacks Layer 2 shared-storage adaptation: {token}", failures)
+    for token in (
+        "Environment.isExternalStorageManager()",
+        "Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
+        "Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION",
+        "Os.symlink",
+        "prepareHomeLink",
+    ):
+        if token not in shared_storage:
+            fail(f"shared-storage adapter lacks token: {token}", failures)
+    if "TerminalSharedStorage.requestAccess(this)" not in activity:
+        fail("Activity must initiate required storage access", failures)
+    if "TerminalSharedStorage.prepareHomeLink(homeDirectory)" not in session:
+        fail("session must prepare non-destructive HOME/storage path", failures)
+    if "EXTERNAL_STORAGE=%s" not in native or "ANDROID_STORAGE=/storage" not in native:
+        fail("native shell environment must expose Android storage coordinates", failures)
+    if "layer2-only-runtime-v1" not in contract_js or "layer2-only-runtime-v1" not in contract_kt:
+        fail("Layer 2-only runtime capability must match", failures)
 
     semantic_parser_pattern = re.compile(r"\b(?:CSI|OSC|DCS|SGR)\b|escape sequence|terminal cell", re.IGNORECASE)
     for name, text in (("Kotlin controller", controller), ("native PTY bridge", native)):

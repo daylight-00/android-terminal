@@ -48,6 +48,7 @@ internal object TerminalContract {
         "document-transport-v1",
         "serialize-state-v1",
         "webgl-renderer-fallback-v1",
+        "layer2-only-runtime-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(
@@ -65,6 +66,7 @@ internal object TerminalContract {
         "android-accessibility-state",
         "android-hardware-keyboard-state",
         "android-document-transport",
+        "android-shared-storage-direct-path",
         "xterm-serialized-state",
     )
 }

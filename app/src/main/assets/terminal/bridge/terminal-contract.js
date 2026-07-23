@@ -42,6 +42,7 @@
       'android-accessibility-state',
       'android-hardware-keyboard-state',
       'android-document-transport',
+      'android-shared-storage-direct-path',
       'xterm-serialized-state'
     ]),
     pageCapabilities: Object.freeze([
@@ -54,7 +55,8 @@
       'platform-bridge-v2',
       'document-transport-v1',
       'serialize-state-v1',
-      'webgl-renderer-fallback-v1'
+      'webgl-renderer-fallback-v1',
+      'layer2-only-runtime-v1'
     ])
   });
 })();

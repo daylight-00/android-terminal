@@ -9,7 +9,7 @@ that existing environment interactive inside an app UID.
 
 ## Three-layer ownership
 
-The runtime is divided into upstream, required Android integration, and explicit customization. The canonical file ownership and upgrade rules are defined in `docs/architecture.md`; this document describes the lower-level runtime and security mechanics inside those boundaries.
+The runtime is divided into unmodified upstream, required Android integration, and a reserved inactive customization layer. The canonical file ownership and upgrade rules are defined in `docs/architecture.md`; this document describes the lower-level runtime and security mechanics inside those boundaries.
 
 ## Standard platform boundary
 
@@ -26,7 +26,7 @@ The runtime is divided into upstream, required Android integration, and explicit
 ### Web terminal frontend
 
 Pinned xterm.js production files provide the terminal parser, screen model, Unicode and
-IME behavior, scrollback, selection, cursor, and core DOM renderer. The official WebGL addon is an optional Layer 1 renderer selected only through Layer 3 policy; Layer 2 disposes it on its public context-loss event and falls back to the core renderer without touching terminal state. `addon-fit` computes rows and columns from the WebView geometry. Protocol v3 treats Android root
+IME behavior, scrollback, selection, cursor, and core DOM renderer. The official WebGL addon is a Layer 1 renderer automatically attempted by Layer 2; Layer 2 disposes it on its public context-loss event and falls back to the core renderer without touching terminal state. `addon-fit` computes rows and columns from the WebView geometry. Protocol v3 treats Android root
 layout, window-inset, configuration, focus, `ResizeObserver`, and `visualViewport` changes as
 geometry invalidations. Only positive, changed row/column and pixel dimensions are forwarded to the
 service and then to `TIOCSWINSZ`; transient zero layouts and duplicates are discarded without
@@ -54,7 +54,7 @@ The WebView:
 - requests no `INTERNET` permission;
 - disables file and content access;
 - rejects all navigation except the single local document;
-- serves only thirteen exact asset paths;
+- serves only twelve exact Layer 1/2 asset paths;
 - uses a restrictive Content Security Policy;
 - enables no JavaScript object bridge;
 - uses an HTML message channel transferred only to the local page.
@@ -74,6 +74,8 @@ TERM=xterm-256color
 LANG=C.UTF-8
 ANDROID_ROOT=/system
 ANDROID_DATA=/data
+ANDROID_STORAGE=/storage
+EXTERNAL_STORAGE=<Android shared-storage root>
 ```
 
 No `LD_LIBRARY_PATH`, Termux prefix, copied shell, or package manager is introduced.
@@ -90,9 +92,10 @@ size metadata in a local receipt. Acquisition retains exact package metadata for
 
 - Platform WebMessagePort on API 29 is string-based, so PTY data uses Base64.
 - WebView implementation behavior varies with the installed Android System WebView.
-- WebGL is policy-disabled by default; activation, context loss, and DOM fallback still require real-device evidence.
+- WebGL is automatically attempted by Layer 2; activation, context loss, and DOM fallback still require real-device evidence.
 - The PTY survives Activity/WebView replacement within the app process, but the current policy stops the service when the app task is removed.
 - Frontend reconstruction uses an official serialized xterm snapshot bounded to 8 MiB plus a rolling 1 MiB raw-output tail; it restores only state retained by the configured xterm scrollback.
+- Direct shared-storage access depends on user-granted Android storage access; settings routing, path readability/writability, and protected `/Android` subtrees require owner-device evidence.
 - Device-runtime success and OEM `/system/bin` policy require owner-device evidence.
 
 The initial native-to-page channel transfer is target-origin restricted on Android. Page JavaScript validates the channel marker and transferred port rather than assuming `MessageEvent.origin` identifies the native sender.

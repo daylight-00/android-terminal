@@ -34,16 +34,15 @@ AndroidX, Rust, custom terminal parser, or custom terminal renderer.
 ## Architecture
 
 ```text
-Layer 3  explicit product customization
+Layer 3  reserved product customization; absent from the active runtime
    ↓
-Layer 2  Android lifecycle, secure WebView, stable protocol, PTY/JNI bridge
+Layer 2  complete Android adaptation, native integration, stable protocol, PTY/JNI bridge
    ↓
 Layer 1  unmodified xterm.js/addon-fit/addon-serialize/addon-webgl + Android-provided WebView/Bionic/native shell
 ```
 
 The repository is a platform host. Layer 1 owns terminal and shell semantics, Layer 2
-connects those upstream capabilities to Android, and Layer 3 contains only explicit
-product policy. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
+connects upstream capabilities completely to Android, and Layer 3 is reserved and inactive. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
 upgrade boundary and [`docs/capability-matrix.md`](docs/capability-matrix.md) for the
 connection status of upstream features.
 
@@ -60,12 +59,11 @@ connection status of upstream features.
   events, system theme, accessibility state, hardware-keyboard presence, and SAF document
   import/export without adding a terminal parser or replacing WebView/xterm input semantics.
 - The official serialize addon produces opaque xterm framebuffer snapshots; Layer 2 stores them with an output-sequence watermark and bridges later bytes through a bounded raw tail journal without interpreting terminal state.
-- The official WebGL addon is wired behind explicit Layer 3 policy. A WebGL context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched.
-- SAF imports become real files under the app-private `HOME/imports`; exports accept only validated
-  HOME-relative regular files. No `content://` URI is presented as a POSIX path or virtual mount.
+- The official WebGL addon is attempted by Layer 2. Activation failure or context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched.
+- Android shared-storage permissions expose ordinary POSIX paths through `EXTERNAL_STORAGE` and a non-destructive `HOME/storage` symlink. SAF imports remain real files under app-private `HOME/imports`, and exports accept only validated HOME-relative regular files; no `content://` URI is presented as a POSIX path or virtual mount.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
-  origin and rejects every other resource or navigation.
+  origin and rejects every other resource or navigation. No Layer 3 script is loaded.
 
 ## Upstream asset provisioning
 
@@ -132,11 +130,12 @@ After installation:
 
 ```sh
 id
-printf '%s\n' "$SHELL" "$PATH" "$HOME" "$TERM"
+printf '%s\n' "$SHELL" "$PATH" "$HOME" "$TERM" "$ANDROID_STORAGE" "$EXTERNAL_STORAGE"
+ls -ld "$HOME/storage"
 command -v sh
 command -v toybox
 getprop ro.build.version.sdk
 ```
 
 Expected policy properties are app-UID execution, `/system/bin/sh`, `PATH=/system/bin`,
-`TERM=xterm-256color`, and an app-private `HOME`. Exact output remains device evidence.
+`TERM=xterm-256color`, an app-private `HOME`, `ANDROID_STORAGE=/storage`, and—after the user grants the required Android access—an `EXTERNAL_STORAGE` path reachable through the non-destructive `HOME/storage` link. Exact output and read/write behavior remain device evidence.

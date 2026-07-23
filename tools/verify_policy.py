@@ -95,15 +95,20 @@ def verify(root: Path) -> list[str]:
     javascript = read_required(root, "app/src/main/assets/terminal/bridge/terminal-bridge.js", failures)
     renderer = read_required(root, "app/src/main/assets/terminal/bridge/terminal-renderer.js", failures)
     codec = read_required(root, "app/src/main/assets/terminal/bridge/terminal-codec.js", failures)
-    customization = read_required(root, "app/src/main/assets/terminal/customization/customization.js", failures)
+    platform_js = read_required(root, "app/src/main/assets/terminal/bridge/terminal-platform.js", failures)
     terminal_contract = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt",
         failures,
     )
-    native_customization = read_required(
+    host_appearance = read_required(
         root,
-        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt",
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalHostAppearance.kt",
+        failures,
+    )
+    shared_storage = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSharedStorage.kt",
         failures,
     )
     acquisition = read_required(root, "tools/acquire-web-terminal-assets.sh", failures)
@@ -160,6 +165,8 @@ def verify(root: Path) -> list[str]:
     require("TIOCSWINSZ" in native, "native bridge must propagate PTY size", failures)
     require("PATH=/system/bin" in native, "PATH must remain /system/bin", failures)
     require("TERM=xterm-256color" in native, "TERM must match xterm.js capabilities", failures)
+    require("EXTERNAL_STORAGE=%s" in native, "shared-storage root must be exposed to the child", failures)
+    require("ANDROID_STORAGE=/storage" in native, "Android storage coordinate must be exposed to the child", failures)
 
     require("WebView(activity)" in controller, "frontend must use platform WebView", failures)
     require("createWebMessageChannel()" in controller, "bridge must use WebMessagePort", failures)
@@ -189,6 +196,7 @@ def verify(root: Path) -> list[str]:
         "android-accessibility-state",
         "android-hardware-keyboard-state",
         "android-document-transport",
+        "android-shared-storage-direct-path",
         "xterm-serialized-state",
     ):
         require(capability in terminal_contract, f"native platform capability is required: {capability}", failures)
@@ -219,17 +227,18 @@ def verify(root: Path) -> list[str]:
         require(token in document_policy, f"document policy token is required: {token}", failures)
     for forbidden in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission", "DocumentsContract", "FUSE"):
         require(forbidden not in document_transport and forbidden not in document_policy and forbidden not in activity, f"SAF virtual mount behavior is forbidden: {forbidden}", failures)
-    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'"):
+    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'", "ImageAddon"):
         require(
             unselected_upstream not in javascript and unselected_upstream not in contract_js,
             f"unselected upstream addon must not be claimed: {unselected_upstream}",
             failures,
         )
-    require("applyPlatformState" in customization, "Layer 3 must explicitly map Android platform state", failures)
-    require("isExternalUriAllowed" in customization, "Layer 3 must explicitly define URI activation policy", failures)
-    require("customization.terminalOptions" in javascript, "Layer 2 must consume explicit Layer 3 terminal options", failures)
-    require("cursorBlink" in customization, "terminal appearance policy must stay in Layer 3", failures)
-    require("TerminalCustomization.backgroundColor" in controller, "native appearance policy must stay in Layer 3", failures)
+    require("applyPlatformState" in platform_js, "Layer 2 must map Android platform state", failures)
+    require("isExternalUriAllowed" in platform_js, "Layer 2 must define bounded URI activation mapping", failures)
+    require("new window.Terminal()" in javascript, "Layer 2 must preserve upstream terminal defaults", failures)
+    for option in ("cursorBlink", "cursorStyle", "fontFamily", "fontSize", "letterSpacing", "lineHeight", "scrollback"):
+        require(option not in javascript and option not in platform_js, f"product option must not leak into Layer 2: {option}", failures)
+    require("TerminalHostAppearance.backgroundColor" in controller, "native host appearance mapping must stay in Layer 2", failures)
     require("TerminalPlatformAdapter(activity, view)" in controller, "controller must delegate Android capabilities to the platform adapter", failures)
     require("TerminalContract.MessageType.PLATFORM_REQUEST" in controller, "controller must accept bounded platform requests", failures)
     require("ClipboardManager" in platform_adapter and "ClipData.newPlainText" in platform_adapter, "platform adapter must use Android text clipboard APIs", failures)
@@ -241,8 +250,10 @@ def verify(root: Path) -> list[str]:
     require("MAX_CLIPBOARD_CHARACTERS" in platform_policy, "clipboard text must be bounded", failures)
     require("scheme !in allowedSchemes" in platform_policy, "external URI schemes must be allowlisted", failures)
     require("parsed.userInfo != null" in platform_policy, "credential-bearing external URIs must be rejected", failures)
-    require("allowedExternalUriSchemes" in native_customization, "native URI scheme policy must stay in Layer 3", failures)
-    require("hapticBellEnabled" in native_customization, "native bell activation policy must stay in Layer 3", failures)
+    require("ALLOWED_EXTERNAL_URI_SCHEMES" in platform_policy, "native URI scheme policy must stay in Layer 2", failures)
+    require("TerminalPlatformPolicy.ALLOWED_EXTERNAL_URI_SCHEMES" in platform_adapter, "platform adapter must consume the Layer 2 URI allowlist", failures)
+    require("hapticBellEnabled" not in platform_adapter, "bell must not depend on inactive Layer 3 policy", failures)
+    require("sharedStorageAccessGranted" in platform_state and "sharedStoragePath" in platform_state, "platform state must report shared-storage status", failures)
     require("TerminalSessionService.LocalBinder" in controller, "WebView transport must attach to the service session host", failures)
     require("TerminalSession(" not in controller, "WebView transport must not own the PTY session", failures)
     require("class TerminalSessionService : Service()" in session_service, "platform Service must own the shell session", failures)
@@ -259,8 +270,9 @@ def verify(root: Path) -> list[str]:
     require("new WebglAddon.WebglAddon(false)" in renderer, "official xterm WebGL addon must own accelerated rendering", failures)
     require("candidate.onContextLoss" in renderer and "fallback('context-loss')" in renderer, "WebGL context loss must fall back through the public addon event", failures)
     require("permanentlyFellBack" in renderer, "a failed WebGL frontend must not retry in a loop", failures)
-    require("preferWebgl: false" in customization, "Layer 3 must explicitly keep WebGL disabled by default", failures)
-    require("Color.BLACK" in native_customization, "native customization must define the host color", failures)
+    require("function activate()" in renderer and "rendererController.activate()" in javascript, "Layer 2 must automatically attempt WebGL", failures)
+    require("policy-disabled" not in renderer and "preferWebgl" not in renderer and "preferWebgl" not in javascript, "WebGL must not depend on Layer 3 policy", failures)
+    require("Color.BLACK" in host_appearance and "WEB_TEXT_ZOOM" in host_appearance, "Layer 2 host appearance mapping must be explicit", failures)
     require("terminal.write" in javascript, "PTY output must be passed to xterm.js", failures)
     require("terminal.onData" in javascript, "xterm.js input callback is required", failures)
     require("NativeShellCodec" in codec, "byte-preserving web codec is required", failures)
@@ -270,8 +282,10 @@ def verify(root: Path) -> list[str]:
     require("/terminal/vendor/addon-webgl.js" in html, "pinned addon-webgl asset must be local", failures)
     require("/terminal/bridge/terminal-contract.js" in html, "stable web contract must load locally", failures)
     require("/terminal/bridge/terminal-renderer.js" in html, "Layer 2 renderer controller must load locally", failures)
-    require("/terminal/customization/customization.js" in html, "Layer 3 customization must load locally", failures)
-    require('id="custom-ui-root"' in html, "custom UI root must remain separate from xterm.js", failures)
+    require("/terminal/bridge/terminal-platform.js" in html, "Layer 2 platform mapping must load locally", failures)
+    require("/terminal/customization/" not in html and 'id="custom-ui-root"' not in html, "active Layer 3 runtime must remain absent", failures)
+    require(not (root / "app/src/main/assets/terminal/customization").exists(), "active Layer 3 assets must remain absent", failures)
+    require(not (root / "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalCustomization.kt").exists(), "active native Layer 3 authority must remain absent", failures)
 
     require("@xterm/xterm/-/xterm-6.0.0.tgz" in acquisition, "xterm.js URL must be pinned", failures)
     require("@xterm/addon-fit/-/addon-fit-0.11.0.tgz" in acquisition, "addon-fit URL must be pinned", failures)
@@ -288,6 +302,25 @@ def verify(root: Path) -> list[str]:
     require('"package/package.json": "PACKAGE.addon-webgl.json"' in provisioner, "addon-webgl package metadata must be retained", failures)
     require('"package/LICENSE": "LICENSE.addon-webgl.txt"' not in provisioner, "provisioner must not synthesize an addon-webgl license member", failures)
 
+    for token in (
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        'android:requestLegacyExternalStorage="true"',
+    ):
+        require(token in manifest, f"storage manifest adaptation is required: {token}", failures)
+    for token in (
+        "Environment.isExternalStorageManager()",
+        "Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
+        "Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION",
+        "Os.symlink",
+        "prepareHomeLink",
+    ):
+        require(token in shared_storage, f"shared-storage adapter token is required: {token}", failures)
+    require("TerminalSharedStorage.requestAccess(this)" in activity, "Activity storage access flow is required", failures)
+    require("TerminalSharedStorage.prepareHomeLink(homeDirectory)" in session, "HOME/storage preparation is required", failures)
+    require("layer2-only-runtime-v1" in terminal_contract and "layer2-only-runtime-v1" in contract_js, "Layer 2-only runtime capability must match", failures)
+
     require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)
     require('android:name=".TerminalSessionService"' in manifest, "session service must be declared", failures)
@@ -303,6 +336,8 @@ def verify(root: Path) -> list[str]:
     require("shutdown(rendererProcessGone = true)" in controller, "controller must destroy only the failed frontend after renderer loss", failures)
     require("sessionHost.detach" in controller, "renderer loss must invalidate the stale service attachment", failures)
     require("Upstream capability matrix" in capability_matrix, "capability matrix must be documented", failures)
+    require("Layer 2 completion" in capability_matrix, "capability matrix must remain the Layer 2 completion authority", failures)
+    require("Direct shared-storage paths" in capability_matrix, "capability matrix must track direct shared storage", failures)
     require("Frontend reconnection" in capability_matrix, "capability matrix must track frontend reconnection", failures)
     require("WebView renderer recovery" in capability_matrix, "capability matrix must track renderer recovery", failures)
     require("| Clipboard |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)

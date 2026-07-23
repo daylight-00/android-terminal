@@ -15,7 +15,7 @@ import org.json.JSONObject
 
 /**
  * Layer 2 adapter for bounded Android platform capabilities exposed to the terminal page.
- * Product defaults and allowlists remain in TerminalCustomization.
+ * Security bounds and Android mappings remain in Layer 2.
  */
 internal class TerminalPlatformAdapter(
     private val activity: Activity,
@@ -64,6 +64,8 @@ internal class TerminalPlatformAdapter(
             hardwareKeyboardPresent = configuration.keyboard != Configuration.KEYBOARD_NOKEYS &&
                 configuration.keyboard != Configuration.KEYBOARD_UNDEFINED,
             fontScale = configuration.fontScale.toDouble().coerceIn(0.5, 3.0),
+            sharedStorageAccessGranted = TerminalSharedStorage.isAccessGranted(activity),
+            sharedStoragePath = TerminalSharedStorage.directory().absolutePath,
         )
     }
 
@@ -221,7 +223,7 @@ internal class TerminalPlatformAdapter(
     private fun openExternalUri(value: String): TerminalPlatformResult {
         val validated = TerminalPlatformPolicy.validatedExternalUri(
             value,
-            TerminalCustomization.allowedExternalUriSchemes,
+            TerminalPlatformPolicy.ALLOWED_EXTERNAL_URI_SCHEMES,
         ) ?: return TerminalPlatformResult.failure("external URI is not allowed")
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(validated))
         return try {
@@ -235,9 +237,6 @@ internal class TerminalPlatformAdapter(
     }
 
     private fun performBell(): TerminalPlatformResult {
-        if (!TerminalCustomization.hapticBellEnabled) {
-            return TerminalPlatformResult.success(JSONObject().put("performed", false))
-        }
         val now = SystemClock.elapsedRealtime()
         if (lastBellMillis != Long.MIN_VALUE &&
             now - lastBellMillis < TerminalPlatformPolicy.MIN_BELL_INTERVAL_MILLIS

@@ -19,6 +19,7 @@ class MainActivity : Activity() {
     private var controller: TerminalController? = null
     private var sessionHost: TerminalSessionService.LocalBinder? = null
     private var serviceBound = false
+    private var sharedStorageRequestStarted = false
     private val frontendRecovery = TerminalFrontendRecoveryState()
 
     private val serviceConnection = object : ServiceConnection {
@@ -63,10 +64,14 @@ class MainActivity : Activity() {
         val serviceIntent = Intent(this, TerminalSessionService::class.java)
         startService(serviceIntent)
         serviceBound = bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+        sharedStorageRequestStarted = TerminalSharedStorage.requestAccess(this)
     }
 
     override fun onResume() {
         super.onResume()
+        if (sharedStorageRequestStarted && TerminalSharedStorage.isAccessGranted(this)) {
+            sharedStorageRequestStarted = false
+        }
         root.post {
             controller?.requestGeometrySync()
             controller?.requestPlatformStateSync()
@@ -89,6 +94,18 @@ class MainActivity : Activity() {
         root.requestApplyInsets()
         root.post {
             controller?.requestGeometrySync()
+            controller?.requestPlatformStateSync()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == TerminalSharedStorage.RUNTIME_PERMISSION_REQUEST_CODE) {
+            sharedStorageRequestStarted = false
             controller?.requestPlatformStateSync()
         }
     }
@@ -158,7 +175,7 @@ class MainActivity : Activity() {
     }
 
     private fun applyAppearance(configuration: Configuration) {
-        val background = TerminalCustomization.backgroundColor(configuration)
+        val background = TerminalHostAppearance.backgroundColor(configuration)
         window.statusBarColor = background
         window.navigationBarColor = background
         root.setBackgroundColor(background)
@@ -170,7 +187,7 @@ class MainActivity : Activity() {
         val lightMask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
             View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         @Suppress("DEPRECATION")
-        flags = if (TerminalCustomization.usesLightSystemBars(configuration)) {
+        flags = if (TerminalHostAppearance.usesLightSystemBars(configuration)) {
             flags or lightMask
         } else {
             flags and lightMask.inv()

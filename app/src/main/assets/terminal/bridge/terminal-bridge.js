@@ -3,12 +3,21 @@
 
   const container = document.getElementById('terminal');
   const status = document.getElementById('status');
-  const customRoot = document.getElementById('custom-ui-root');
   const contract = window.AndroidTerminalContract;
-  const customization = window.TerminalCustomization;
+  const platformIntegration = window.AndroidTerminalPlatformIntegration;
   const codec = window.NativeShellCodec;
   const renderer = window.AndroidTerminalRenderer;
-  const messages = customization && customization.messages ? customization.messages : {};
+  const messages = Object.freeze({
+    loading: 'Loading terminal…',
+    missingUpstream: 'Pinned xterm.js assets are not provisioned.\nRun tools/acquire-web-terminal-assets.sh before building.',
+    missingCodec: 'Terminal codec is unavailable.',
+    missingContract: 'Terminal bridge contract is unavailable.',
+    channelTimeout: 'Native terminal channel did not connect.',
+    invalidNativeMessage: 'Invalid native terminal message.',
+    incompatibleNativeMessage: 'Native terminal protocol version is incompatible.',
+    invalidAttachment: 'Native terminal attachment is invalid.',
+    replayUnavailable: '[earlier terminal output is unavailable after frontend reconnection]'
+  });
 
   function message(name, fallback) {
     return typeof messages[name] === 'string' ? messages[name] : fallback;
@@ -33,8 +42,8 @@
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
-  if (!customization || customization.contractVersion !== 2) {
-    fail('Terminal customization contract is unavailable.');
+  if (!platformIntegration || platformIntegration.contractVersion !== 1) {
+    fail('Android terminal platform integration is unavailable.');
     return;
   }
   if (!codec) {
@@ -53,7 +62,7 @@
     return;
   }
 
-  const terminal = new window.Terminal(customization.terminalOptions);
+  const terminal = new window.Terminal();
   const fitAddon = new window.FitAddon.FitAddon();
   const serializeAddon = new window.SerializeAddon.SerializeAddon();
   terminal.loadAddon(fitAddon);
@@ -63,14 +72,13 @@
   const rendererController = renderer.create({
     terminal,
     WebglAddon: window.WebglAddon,
-    policy: customization.rendererPolicy,
     onStateChange(state) {
       if (state.reason === 'context-loss' || state.reason === 'activation-failed') {
         scheduleGeometry();
       }
     }
   });
-  rendererController.activatePreferred();
+  rendererController.activate();
 
   let nativePort = null;
   let geometryFrame = 0;
@@ -186,7 +194,7 @@
       });
     },
     openExternalUri(uri) {
-      if (!customization.isExternalUriAllowed(uri)) {
+      if (!platformIntegration.isExternalUriAllowed(uri)) {
         return Promise.reject(new Error('External URI is blocked by terminal policy.'));
       }
       return requestPlatform(contract.platformOperations.openExternalUri, {uri: String(uri)});
@@ -234,8 +242,6 @@
   terminal.onBell(() => {
     platform.bell().catch(() => {});
   });
-
-  customization.mount({root: customRoot, terminal, fitAddon, platform});
 
   function measureGeometry(type) {
     const pixelWidth = Math.floor(container.clientWidth);
@@ -337,9 +343,12 @@
       accessibilityEnabled: Boolean(nativeMessage.accessibilityEnabled),
       touchExplorationEnabled: Boolean(nativeMessage.touchExplorationEnabled),
       hardwareKeyboardPresent: Boolean(nativeMessage.hardwareKeyboardPresent),
-      fontScale: Number(nativeMessage.fontScale) || 1
+      fontScale: Number(nativeMessage.fontScale) || 1,
+      sharedStorageAccessGranted: Boolean(nativeMessage.sharedStorageAccessGranted),
+      sharedStoragePath: typeof nativeMessage.sharedStoragePath === 'string'
+        ? nativeMessage.sharedStoragePath : ''
     });
-    customization.applyPlatformState({terminal, state: lastPlatformState, platform});
+    platformIntegration.applyPlatformState(terminal, lastPlatformState);
     scheduleGeometry();
   }
 
