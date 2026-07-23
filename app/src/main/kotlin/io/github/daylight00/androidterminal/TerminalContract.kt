@@ -47,6 +47,7 @@ internal object TerminalContract {
         "platform-bridge-v2",
         "document-transport-v1",
         "serialize-state-v1",
+        "webgl-renderer-fallback-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(

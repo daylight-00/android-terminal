@@ -32,6 +32,10 @@
     theme: darkTheme
   });
 
+  const rendererPolicy = Object.freeze({
+    preferWebgl: false
+  });
+
   const platformPolicy = Object.freeze({
     followSystemTheme: true,
     followAccessibilityState: true,
@@ -84,6 +88,7 @@
   window.TerminalCustomization = Object.freeze({
     contractVersion: 2,
     terminalOptions,
+    rendererPolicy,
     platformPolicy,
     messages,
     isExternalUriAllowed,

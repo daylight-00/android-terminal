@@ -24,6 +24,7 @@ def verify(root: Path) -> list[str]:
     html = read(root, str(base / "bridge/index.html"), failures)
     contract_js = read(root, str(base / "bridge/terminal-contract.js"), failures)
     bridge_js = read(root, str(base / "bridge/terminal-bridge.js"), failures)
+    renderer_js = read(root, str(base / "bridge/terminal-renderer.js"), failures)
     codec_js = read(root, str(base / "bridge/terminal-codec.js"), failures)
     bridge_css = read(root, str(base / "bridge/bridge.css"), failures)
     custom_js = read(root, str(base / "customization/customization.js"), failures)
@@ -114,7 +115,9 @@ def verify(root: Path) -> list[str]:
         "/terminal/vendor/xterm.js",
         "/terminal/vendor/addon-fit.js",
         "/terminal/vendor/addon-serialize.js",
+        "/terminal/vendor/addon-webgl.js",
         "/terminal/bridge/terminal-contract.js",
+        "/terminal/bridge/terminal-renderer.js",
         "/terminal/bridge/terminal-codec.js",
         "/terminal/customization/customization.js",
         "/terminal/bridge/terminal-bridge.js",
@@ -226,7 +229,7 @@ def verify(root: Path) -> list[str]:
             fail(f"Layer 3 accesses Layer 2 internals: {token}", failures)
 
     for private_api in ("._core", "._renderService", "._inputHandler", "._bufferService"):
-        if private_api in bridge_js or private_api in custom_js:
+        if private_api in bridge_js or private_api in renderer_js or private_api in custom_js:
             fail(f"xterm.js private API is forbidden: {private_api}", failures)
 
     for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'"):
@@ -287,6 +290,14 @@ def verify(root: Path) -> list[str]:
         fail("Layer 2 must use the official xterm serialize addon", failures)
     if "serialize-state-v1" not in contract_js or "xterm-serialized-state" not in contract_kt:
         fail("serialized state capabilities must match", failures)
+    if "new WebglAddon.WebglAddon(false)" not in renderer_js or "candidate.onContextLoss" not in renderer_js:
+        fail("Layer 2 must use the official WebGL addon and public context-loss event", failures)
+    if "fallback('context-loss')" not in renderer_js or "permanentlyFellBack" not in renderer_js:
+        fail("WebGL context loss must permanently fall back for the current frontend", failures)
+    if "webgl-renderer-fallback-v1" not in contract_js or "webgl-renderer-fallback-v1" not in contract_kt:
+        fail("WebGL fallback page capability is not mirrored", failures)
+    if "preferWebgl: false" not in custom_js:
+        fail("WebGL activation must remain explicit Layer 3 policy", failures)
     if "class TerminalGeometryState" not in geometry or "if (!candidate.isUsable()) return null" not in geometry:
         fail("terminal geometry must reject transient zero layouts", failures)
     if "if (sanitized == current) return null" not in geometry:
@@ -380,9 +391,11 @@ def verify(root: Path) -> list[str]:
             "xterm.css",
             "addon-fit.js",
             "addon-serialize.js",
+            "addon-webgl.js",
             "LICENSE.xterm.txt",
             "LICENSE.addon-fit.txt",
             "PACKAGE.addon-serialize.json",
+            "PACKAGE.addon-webgl.json",
         }
         for path in vendor.iterdir():
             if not path.is_file() or path.name not in allowed:

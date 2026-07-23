@@ -36,7 +36,7 @@ Layer 3. A capability is not considered complete merely because xterm.js exposes
 | Hardware keyboard | WebView DOM keyboard events and xterm input APIs | WebView remains the input authority; Android reports physical-keyboard presence without intercepting or duplicating key events | Modifier bar and overrides remain unselected | Native already + state connected |
 | Accessibility | xterm `screenReaderMode` | Android accessibility and touch-exploration state listeners feed the platform state contract | Active touch exploration maps to xterm screen-reader mode | Connected |
 | Images | official xterm image addon | Not vendored | GPU/memory policy undecided | Upstream pending |
-| WebGL renderer | official xterm WebGL addon | Renderer-loss fallback absent | Default renderer undecided | Upstream pending |
+| WebGL renderer | `@xterm/addon-webgl` | Layer 2 can load the official addon and disposes it on `onContextLoss`, permanently returning that frontend to xterm core's DOM renderer without changing PTY/session/snapshot state | Disabled by default; renderer selection remains explicit Layer 3 policy | Connected, policy-disabled; device gate pending |
 | SAF import/export | Android Storage Access Framework | `ACTION_OPEN_DOCUMENT` streams one selected document into a bounded real file under private `HOME/imports`; `ACTION_CREATE_DOCUMENT` streams one validated HOME-relative regular file out without exposing a virtual mount | User-facing controls remain undecided | Connected; UI policy pending |
 | Bundled shell/userland/package manager | none | Deliberately absent | Deliberately absent | Intentionally excluded |
 | Custom VT parser or screen renderer | none | Forbidden | Forbidden | Intentionally excluded |

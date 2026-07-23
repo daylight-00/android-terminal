@@ -7,6 +7,7 @@
   const contract = window.AndroidTerminalContract;
   const customization = window.TerminalCustomization;
   const codec = window.NativeShellCodec;
+  const renderer = window.AndroidTerminalRenderer;
   const messages = customization && customization.messages ? customization.messages : {};
 
   function message(name, fallback) {
@@ -40,9 +41,14 @@
     fail(message('missingCodec', 'Terminal codec is unavailable.'));
     return;
   }
+  if (!renderer || typeof renderer.create !== 'function') {
+    fail('Terminal renderer controller is unavailable.');
+    return;
+  }
   if (typeof window.Terminal !== 'function' ||
       !window.FitAddon || typeof window.FitAddon.FitAddon !== 'function' ||
-      !window.SerializeAddon || typeof window.SerializeAddon.SerializeAddon !== 'function') {
+      !window.SerializeAddon || typeof window.SerializeAddon.SerializeAddon !== 'function' ||
+      !window.WebglAddon || typeof window.WebglAddon.WebglAddon !== 'function') {
     fail(message('missingUpstream', 'Pinned xterm.js assets are not provisioned.'));
     return;
   }
@@ -53,6 +59,18 @@
   terminal.loadAddon(fitAddon);
   terminal.loadAddon(serializeAddon);
   terminal.open(container);
+
+  const rendererController = renderer.create({
+    terminal,
+    WebglAddon: window.WebglAddon,
+    policy: customization.rendererPolicy,
+    onStateChange(state) {
+      if (state.reason === 'context-loss' || state.reason === 'activation-failed') {
+        scheduleGeometry();
+      }
+    }
+  });
+  rendererController.activatePreferred();
 
   let nativePort = null;
   let geometryFrame = 0;
@@ -123,7 +141,10 @@
     }, SNAPSHOT_DELAY_MILLIS);
   }
 
-  window.AndroidTerminalBridge = Object.freeze({flushSnapshot});
+  window.AndroidTerminalBridge = Object.freeze({
+    flushSnapshot,
+    getRendererState() { return rendererController.getState(); }
+  });
 
   function requestPlatform(operation, payload = {}, timeoutMillis = 5000) {
     if (!isAttached()) return Promise.reject(new Error('Native terminal platform is not attached.'));

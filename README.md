@@ -22,6 +22,7 @@ filesystem, or a Linux distribution.
 | Terminal frontend | system WebView + `@xterm/xterm` 6.0.0 |
 | Fit logic | `@xterm/addon-fit` 0.11.0 |
 | Frontend state serialization | `@xterm/addon-serialize` 0.13.0 |
+| Optional accelerated renderer | `@xterm/addon-webgl` 0.19.0 |
 | Native bridge | C11/JNI, `forkpty`, `execve`, `read`, `write`, `ioctl` |
 | Shell | device `/system/bin/sh` |
 | PATH | `/system/bin` |
@@ -37,7 +38,7 @@ Layer 3  explicit product customization
    ↓
 Layer 2  Android lifecycle, secure WebView, stable protocol, PTY/JNI bridge
    ↓
-Layer 1  unmodified xterm.js/addon-fit/addon-serialize + Android-provided WebView/Bionic/native shell
+Layer 1  unmodified xterm.js/addon-fit/addon-serialize/addon-webgl + Android-provided WebView/Bionic/native shell
 ```
 
 The repository is a platform host. Layer 1 owns terminal and shell semantics, Layer 2
@@ -59,6 +60,7 @@ connection status of upstream features.
   events, system theme, accessibility state, hardware-keyboard presence, and SAF document
   import/export without adding a terminal parser or replacing WebView/xterm input semantics.
 - The official serialize addon produces opaque xterm framebuffer snapshots; Layer 2 stores them with an output-sequence watermark and bridges later bytes through a bounded raw tail journal without interpreting terminal state.
+- The official WebGL addon is wired behind explicit Layer 3 policy. A WebGL context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched.
 - SAF imports become real files under the app-private `HOME/imports`; exports accept only validated
   HOME-relative regular files. No `content://` URI is presented as a POSIX path or virtual mount.
 - Runtime network access is absent; no `INTERNET` permission is declared.
@@ -76,7 +78,7 @@ run the bounded owner-side acquisition script:
 
 It downloads only the pinned official npm tarballs, checks their fixed npm SHA-512
 integrity values, validates archive members, installs only the required production
-files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`. The serialize package has no standalone `LICENSE` member, so its exact package metadata is retained and its `MIT` declaration is validated against the project-wide xterm.js license.
+files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`. Exact package metadata for serialize and WebGL is retained and its `MIT` declaration is validated against the project-wide xterm.js license; no addon-specific license file is synthesized.
 The app never loads a CDN or remote page at runtime.
 
 ## Local verification

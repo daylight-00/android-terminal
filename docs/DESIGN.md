@@ -26,7 +26,7 @@ The runtime is divided into upstream, required Android integration, and explicit
 ### Web terminal frontend
 
 Pinned xterm.js production files provide the terminal parser, screen model, Unicode and
-IME behavior, scrollback, selection, cursor, and renderer. `addon-fit` computes rows and columns from the WebView geometry. Protocol v3 treats Android root
+IME behavior, scrollback, selection, cursor, and core DOM renderer. The official WebGL addon is an optional Layer 1 renderer selected only through Layer 3 policy; Layer 2 disposes it on its public context-loss event and falls back to the core renderer without touching terminal state. `addon-fit` computes rows and columns from the WebView geometry. Protocol v3 treats Android root
 layout, window-inset, configuration, focus, `ResizeObserver`, and `visualViewport` changes as
 geometry invalidations. Only positive, changed row/column and pixel dimensions are forwarded to the
 service and then to `TIOCSWINSZ`; transient zero layouts and duplicates are discarded without
@@ -54,7 +54,7 @@ The WebView:
 - requests no `INTERNET` permission;
 - disables file and content access;
 - rejects all navigation except the single local document;
-- serves only ten exact asset paths;
+- serves only thirteen exact asset paths;
 - uses a restrictive Content Security Policy;
 - enables no JavaScript object bridge;
 - uses an HTML message channel transferred only to the local page.
@@ -80,18 +80,17 @@ No `LD_LIBRARY_PATH`, Termux prefix, copied shell, or package manager is introdu
 
 ## External-input boundary
 
-Repository source pins `@xterm/xterm` 6.0.0, `@xterm/addon-fit` 0.11.0, and `@xterm/addon-serialize` 0.13.0, but does not
+Repository source pins `@xterm/xterm` 6.0.0, `@xterm/addon-fit` 0.11.0, and `@xterm/addon-serialize` 0.13.0 and `@xterm/addon-webgl` 0.19.0, but does not
 pretend to contain bytes the assistant could not acquire through the project authority
 path. The owner-side acquisition script fetches official npm tarballs, validates fixed
 npm SHA-512 integrity values and safe members, then freezes extracted file SHA-256 and
-size metadata in a local receipt. Because `@xterm/addon-serialize@0.13.0` contains no standalone
-`LICENSE` member, acquisition retains its exact `package.json` and validates the package-level
-`MIT` declaration instead of inventing an archive path.
+size metadata in a local receipt. Acquisition retains exact package metadata for the serialize and WebGL addons and validates their package-level `MIT` declarations instead of inventing addon-specific license paths.
 
 ## Known first-version limitations
 
 - Platform WebMessagePort on API 29 is string-based, so PTY data uses Base64.
 - WebView implementation behavior varies with the installed Android System WebView.
+- WebGL is policy-disabled by default; activation, context loss, and DOM fallback still require real-device evidence.
 - The PTY survives Activity/WebView replacement within the app process, but the current policy stops the service when the app task is removed.
 - Frontend reconstruction uses an official serialized xterm snapshot bounded to 8 MiB plus a rolling 1 MiB raw-output tail; it restores only state retained by the configured xterm scrollback.
 - Device-runtime success and OEM `/system/bin` policy require owner-device evidence.

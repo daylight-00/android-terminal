@@ -106,6 +106,10 @@ internal class LocalAssetWebViewClient(
                 "terminal/bridge/terminal-contract.js",
                 "application/javascript",
             ),
+            "/terminal/bridge/terminal-renderer.js" to Asset(
+                "terminal/bridge/terminal-renderer.js",
+                "application/javascript",
+            ),
             "/terminal/bridge/terminal-codec.js" to Asset(
                 "terminal/bridge/terminal-codec.js",
                 "application/javascript",
@@ -126,6 +130,10 @@ internal class LocalAssetWebViewClient(
             ),
             "/terminal/vendor/addon-serialize.js" to Asset(
                 "terminal/vendor/addon-serialize.js",
+                "application/javascript",
+            ),
+            "/terminal/vendor/addon-webgl.js" to Asset(
+                "terminal/vendor/addon-webgl.js",
                 "application/javascript",
             ),
         )

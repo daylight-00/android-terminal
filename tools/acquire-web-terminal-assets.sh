@@ -13,6 +13,8 @@ FIT_URL='https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz'
 FIT_INTEGRITY='sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=='
 SERIALIZE_URL='https://registry.npmjs.org/@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz'
 SERIALIZE_INTEGRITY='sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ=='
+WEBGL_URL='https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz'
+WEBGL_INTEGRITY='sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A=='
 MAX_ARCHIVE_BYTES=$((16 * 1024 * 1024))
 
 mkdir -p -- "$CACHE"
@@ -50,9 +52,11 @@ fetch() {
 XTERM_ARCHIVE=$CACHE/xterm-6.0.0.tgz
 FIT_ARCHIVE=$CACHE/addon-fit-0.11.0.tgz
 SERIALIZE_ARCHIVE=$CACHE/addon-serialize-0.13.0.tgz
+WEBGL_ARCHIVE=$CACHE/addon-webgl-0.19.0.tgz
 fetch "$XTERM_URL" "$XTERM_ARCHIVE"
 fetch "$FIT_URL" "$FIT_ARCHIVE"
 fetch "$SERIALIZE_URL" "$SERIALIZE_ARCHIVE"
+fetch "$WEBGL_URL" "$WEBGL_ARCHIVE"
 
 python3 "$ROOT/tools/provision-web-terminal-assets.py" \
   --xterm-archive "$XTERM_ARCHIVE" \
@@ -64,6 +68,9 @@ python3 "$ROOT/tools/provision-web-terminal-assets.py" \
   --serialize-archive "$SERIALIZE_ARCHIVE" \
   --serialize-url "$SERIALIZE_URL" \
   --serialize-integrity "$SERIALIZE_INTEGRITY" \
+  --webgl-archive "$WEBGL_ARCHIVE" \
+  --webgl-url "$WEBGL_URL" \
+  --webgl-integrity "$WEBGL_INTEGRITY" \
   --destination "$TMP/vendor"
 
 BACKUP=$TMP/vendor.previous

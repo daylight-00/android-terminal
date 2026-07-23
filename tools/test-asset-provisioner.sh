@@ -28,28 +28,37 @@ def make(path: pathlib.Path, files: dict[str, bytes], extra=None):
 def integrity(path: pathlib.Path) -> str:
     return "sha512-" + base64.b64encode(hashlib.sha512(path.read_bytes()).digest()).decode()
 
-xterm = root / "xterm.tgz"
-fit = root / "fit.tgz"
-serialize = root / "serialize.tgz"
-make(xterm, {
-    "package/lib/xterm.js": b"xterm-js",
-    "package/css/xterm.css": b"xterm-css",
-    "package/LICENSE": b"MIT xterm",
-})
-make(fit, {
-    "package/lib/addon-fit.js": b"fit-js",
-    "package/LICENSE": b"MIT fit",
-})
-make(serialize, {
-    "package/lib/addon-serialize.js": b"serialize-js",
-    "package/package.json": (
-        b'{"name":"@xterm/addon-serialize","version":"0.13.0",'
-        b'"main":"lib/addon-serialize.js","license":"MIT"}'
-    ),
-})
-(root / "integrities").write_text(
-    integrity(xterm) + "\n" + integrity(fit) + "\n" + integrity(serialize) + "\n"
-)
+archives = {
+    "xterm": {
+        "package/lib/xterm.js": b"xterm-js",
+        "package/css/xterm.css": b"xterm-css",
+        "package/LICENSE": b"MIT xterm",
+    },
+    "fit": {
+        "package/lib/addon-fit.js": b"fit-js",
+        "package/LICENSE": b"MIT fit",
+    },
+    "serialize": {
+        "package/lib/addon-serialize.js": b"serialize-js",
+        "package/package.json": (
+            b'{"name":"@xterm/addon-serialize","version":"0.13.0",'
+            b'"main":"lib/addon-serialize.js","license":"MIT"}'
+        ),
+    },
+    "webgl": {
+        "package/lib/addon-webgl.js": b"webgl-js",
+        "package/package.json": (
+            b'{"name":"@xterm/addon-webgl","version":"0.19.0",'
+            b'"main":"lib/addon-webgl.js","license":"MIT"}'
+        ),
+    },
+}
+values = []
+for name, files in archives.items():
+    path = root / f"{name}.tgz"
+    make(path, files)
+    values.append(integrity(path))
+(root / "integrities").write_text("\n".join(values) + "\n")
 
 unsafe = root / "unsafe.tgz"
 link = tarfile.TarInfo("package/lib/xterm.js")
@@ -63,30 +72,45 @@ make(unsafe, {
 PY
 
 mapfile -t INTEGRITIES < "$TMP/integrities"
-python3 "$ROOT/tools/provision-web-terminal-assets.py" \
-  --xterm-archive "$TMP/xterm.tgz" \
-  --xterm-url 'https://example.invalid/xterm.tgz' \
-  --xterm-integrity "${INTEGRITIES[0]}" \
-  --fit-archive "$TMP/fit.tgz" \
-  --fit-url 'https://example.invalid/fit.tgz' \
-  --fit-integrity "${INTEGRITIES[1]}" \
-  --serialize-archive "$TMP/serialize.tgz" \
-  --serialize-url 'https://example.invalid/serialize.tgz' \
-  --serialize-integrity "${INTEGRITIES[2]}" \
-  --destination "$TMP/output"
+provision() {
+  local xterm_archive=$1
+  local xterm_integrity=$2
+  local destination=$3
+  python3 "$ROOT/tools/provision-web-terminal-assets.py" \
+    --xterm-archive "$xterm_archive" \
+    --xterm-url 'https://example.invalid/xterm.tgz' \
+    --xterm-integrity "$xterm_integrity" \
+    --fit-archive "$TMP/fit.tgz" \
+    --fit-url 'https://example.invalid/fit.tgz' \
+    --fit-integrity "${INTEGRITIES[1]}" \
+    --serialize-archive "$TMP/serialize.tgz" \
+    --serialize-url 'https://example.invalid/serialize.tgz' \
+    --serialize-integrity "${INTEGRITIES[2]}" \
+    --webgl-archive "$TMP/webgl.tgz" \
+    --webgl-url 'https://example.invalid/webgl.tgz' \
+    --webgl-integrity "${INTEGRITIES[3]}" \
+    --destination "$destination"
+}
 
-test -s "$TMP/output/xterm.js"
-test -s "$TMP/output/xterm.css"
-test -s "$TMP/output/addon-fit.js"
-test -s "$TMP/output/addon-serialize.js"
-test -s "$TMP/output/PACKAGE.addon-serialize.json"
+provision "$TMP/xterm.tgz" "${INTEGRITIES[0]}" "$TMP/output"
+for file in \
+  xterm.js xterm.css addon-fit.js addon-serialize.js addon-webgl.js \
+  LICENSE.xterm.txt LICENSE.addon-fit.txt \
+  PACKAGE.addon-serialize.json PACKAGE.addon-webgl.json ASSET_RECEIPT.json; do
+  test -s "$TMP/output/$file"
+done
 test ! -e "$TMP/output/LICENSE.addon-serialize.txt"
-test -s "$TMP/output/ASSET_RECEIPT.json"
+test ! -e "$TMP/output/LICENSE.addon-webgl.txt"
 printf 'PASS asset-provisioner-success\n'
 
-cp -a "$TMP/output" "$TMP/legacy-output"
-rm -f "$TMP/legacy-output/addon-serialize.js" "$TMP/legacy-output/PACKAGE.addon-serialize.json"
-python3 - "$TMP/legacy-output/ASSET_RECEIPT.json" <<'PYLEGACY'
+# Convert a current receipt into the immediate previous generation (serialize but no WebGL).
+PREVIOUS_ROOT="$TMP/previous-root"
+mkdir -p "$PREVIOUS_ROOT/app/src/main/assets/terminal"
+cp -a "$TMP/output" "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor"
+rm -f \
+  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/addon-webgl.js" \
+  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/PACKAGE.addon-webgl.json"
+python3 - "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/ASSET_RECEIPT.json" <<'PY'
 import json
 import pathlib
 import sys
@@ -101,35 +125,22 @@ expected = {
         "https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz",
         "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==",
     ),
+    "@xterm/addon-serialize": (
+        "https://registry.npmjs.org/@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz",
+        "sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ==",
+    ),
 }
 receipt["packages"] = [entry for entry in receipt["packages"] if entry["name"] in expected]
 for entry in receipt["packages"]:
     entry["url"], entry["npm_integrity"] = expected[entry["name"]]
-receipt["files"] = [entry for entry in receipt["files"] if entry["package"] != "@xterm/addon-serialize@0.13.0"]
+receipt["files"] = [entry for entry in receipt["files"] if entry["package"] != "@xterm/addon-webgl@0.19.0"]
 path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
-PYLEGACY
-python3 "$ROOT/tools/verify-web-assets.py" "$(dirname -- "$TMP/legacy-output")" >/dev/null 2>&1 && {
-  printf 'FAIL asset-generation fixture used wrong root\n' >&2
-  exit 1
-} || true
-LEGACY_ROOT="$TMP/legacy-root"
-mkdir -p "$LEGACY_ROOT/app/src/main/assets/terminal"
-mv "$TMP/legacy-output" "$LEGACY_ROOT/app/src/main/assets/terminal/vendor"
-python3 "$ROOT/tools/verify-web-assets.py" "$LEGACY_ROOT" | grep -Fq 'state=stale-provisioned'
-printf 'PASS asset-provisioner-legacy-generation\n'
+PY
+python3 "$ROOT/tools/verify-web-assets.py" "$PREVIOUS_ROOT" | grep -Fq 'state=stale-provisioned'
+printf 'PASS asset-provisioner-previous-generation\n'
 
 UNSAFE_INTEGRITY=$(cat "$TMP/unsafe-integrity")
-if python3 "$ROOT/tools/provision-web-terminal-assets.py" \
-  --xterm-archive "$TMP/unsafe.tgz" \
-  --xterm-url 'https://example.invalid/unsafe.tgz' \
-  --xterm-integrity "$UNSAFE_INTEGRITY" \
-  --fit-archive "$TMP/fit.tgz" \
-  --fit-url 'https://example.invalid/fit.tgz' \
-  --fit-integrity "${INTEGRITIES[1]}" \
-  --serialize-archive "$TMP/serialize.tgz" \
-  --serialize-url 'https://example.invalid/serialize.tgz' \
-  --serialize-integrity "${INTEGRITIES[2]}" \
-  --destination "$TMP/unsafe-output" >/dev/null 2>&1; then
+if provision "$TMP/unsafe.tgz" "$UNSAFE_INTEGRITY" "$TMP/unsafe-output" >/dev/null 2>&1; then
   printf 'FAIL asset-provisioner-unsafe unexpectedly passed\n' >&2
   exit 1
 fi

@@ -7,6 +7,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 - exact local Git content and identity;
 - native source shape and NDK r27d compilation when that NDK exists;
 - JavaScript codec/protocol behavior independent of xterm.js bytes;
+- pure JavaScript WebGL activation, context-loss cleanup, one-way fallback, and no-retry behavior;
 - WebView policy and absence of a bundled userland;
 - no installation, device-runtime, OEM-policy, or sustained-performance claim.
 
@@ -88,8 +89,12 @@ for compiling the real Android framework integration.
 ADB runtime validation is deferred when no authorized device transport is available. The missing
 device gate must remain a non-claim: Activity recreation, WebView replacement, stale-generation rejection, task-removal cleanup,
 serialized-state restore, bounded snapshot/tail gap handling, IME show/hide, rotation, split-screen, clipboard privacy behavior, external-link
-routing, haptic bell behavior, accessibility services, physical-keyboard state, SAF provider import/export, cancellation and large-file behavior, and OEM WebView
+routing, haptic bell behavior, accessibility services, physical-keyboard state, WebGL activation/context loss/DOM fallback, SAF provider import/export, cancellation and large-file behavior, and OEM WebView
 viewport behavior still require a later real-device test.
+
+## WebGL renderer fallback
+
+Repository verification executes the pure Layer 2 renderer controller with a fake official addon surface. It verifies policy-disabled startup, successful addon activation, public `onContextLoss` handling, disposal of the addon and event subscription, permanent fallback to xterm core DOM rendering for the current frontend, activation-failure fallback, and no retry loop. The production policy remains disabled until Layer 3 selects WebGL. Real System WebView GPU support and context-loss behavior remain device gates.
 
 ## WebView renderer recovery
 

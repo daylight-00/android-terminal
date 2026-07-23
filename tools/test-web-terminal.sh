@@ -5,10 +5,11 @@ CONTRACT="$ROOT/app/src/main/assets/terminal/bridge/terminal-contract.js"
 CODEC="$ROOT/app/src/main/assets/terminal/bridge/terminal-codec.js"
 CUSTOMIZATION="$ROOT/app/src/main/assets/terminal/customization/customization.js"
 BRIDGE="$ROOT/app/src/main/assets/terminal/bridge/terminal-bridge.js"
+RENDERER="$ROOT/app/src/main/assets/terminal/bridge/terminal-renderer.js"
 NODE_COMMAND=${NODE_COMMAND:-node}
 
 if command -v "$NODE_COMMAND" >/dev/null 2>&1; then
-  for script in "$CONTRACT" "$CODEC" "$CUSTOMIZATION" "$BRIDGE"; do
+  for script in "$CONTRACT" "$CODEC" "$RENDERER" "$CUSTOMIZATION" "$BRIDGE"; do
     "$NODE_COMMAND" --check "$script"
   done
 
@@ -47,7 +48,7 @@ equalBytes(codec.base64ToBytes(codec.stringToUtf8Base64('ASCII 한글 😀 \\u00
 console.log('PASS web-terminal-codec runtime=node');
 JS
 
-  "$NODE_COMMAND" - "$CONTRACT" "$CODEC" "$CUSTOMIZATION" "$BRIDGE" <<'JS'
+  "$NODE_COMMAND" - "$CONTRACT" "$CODEC" "$RENDERER" "$CUSTOMIZATION" "$BRIDGE" <<'JS'
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
@@ -102,6 +103,11 @@ const paths = process.argv.slice(2);
 
   class SerializeAddon {
     serialize() { return 'serialized-state'; }
+  }
+
+  class WebglAddon {
+    onContextLoss() { return {dispose() {}}; }
+    dispose() {}
   }
 
   class FitAddon {
@@ -164,6 +170,7 @@ const paths = process.argv.slice(2);
     Terminal,
     FitAddon: {FitAddon},
     SerializeAddon: {SerializeAddon},
+    WebglAddon: {WebglAddon},
     ResizeObserver: class {
       constructor(callback) { resizeObserverCallback = callback; }
       observe() {}
@@ -201,6 +208,13 @@ const paths = process.argv.slice(2);
   if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
   if (!context.TerminalCustomization) throw new Error('customization export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
+  if (!context.AndroidTerminalBridge || typeof context.AndroidTerminalBridge.getRendererState !== 'function') {
+    throw new Error('renderer state facade missing');
+  }
+  const rendererState = context.AndroidTerminalBridge.getRendererState();
+  if (rendererState.mode !== 'dom' || rendererState.reason !== 'policy-disabled') {
+    throw new Error('default renderer policy state mismatch');
+  }
   if (!customRoot.cleared) throw new Error('custom UI root was not initialized');
   if (context.ClipboardAddon || context.WebLinksAddon) throw new Error('unselected addons leaked into Layer 2');
 
@@ -220,7 +234,7 @@ const paths = process.argv.slice(2);
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'document-transport-v1', 'serialize-state-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard', 'web-links']) {

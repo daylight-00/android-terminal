@@ -152,9 +152,10 @@ def provision(packages: list[Package], destination: pathlib.Path) -> None:
 These files were acquired by `tools/acquire-web-terminal-assets.sh` from the pinned
 official npm package URLs. `ASSET_RECEIPT.json` records the package coordinates,
 fixed npm SHA-512 integrity, acquired tarball SHA-256/size, and every installed file
-SHA-256/size. `@xterm/addon-serialize@0.13.0` does not publish a standalone
-LICENSE member, so its exact `package.json` is retained to record the MIT declaration;
-`LICENSE.xterm.txt` contains the upstream xterm.js project license. The application loads
+SHA-256/size. Exact package metadata is retained for official addons that do not
+need a separately installed license member; `LICENSE.xterm.txt` contains the upstream
+xterm.js project license and each retained package metadata file records its MIT declaration.
+The application loads
 production JavaScript only from its APK assets.
 """
     (destination / "README.md").write_text(readme, encoding="utf-8")
@@ -183,6 +184,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--serialize-archive", required=True, type=pathlib.Path)
     parser.add_argument("--serialize-url", required=True)
     parser.add_argument("--serialize-integrity", required=True)
+    parser.add_argument("--webgl-archive", required=True, type=pathlib.Path)
+    parser.add_argument("--webgl-url", required=True)
+    parser.add_argument("--webgl-integrity", required=True)
     parser.add_argument("--destination", required=True, type=pathlib.Path)
     return parser.parse_args()
 
@@ -228,6 +232,24 @@ def main() -> int:
                 "name": "@xterm/addon-serialize",
                 "version": "0.13.0",
                 "main": "lib/addon-serialize.js",
+                "license": "MIT",
+            },
+        ),
+        Package(
+            name="@xterm/addon-webgl",
+            version="0.19.0",
+            archive=arguments.webgl_archive,
+            url=arguments.webgl_url,
+            integrity=arguments.webgl_integrity,
+            members={
+                "package/lib/addon-webgl.js": "addon-webgl.js",
+                "package/package.json": "PACKAGE.addon-webgl.json",
+            },
+            metadata_member="package/package.json",
+            expected_metadata={
+                "name": "@xterm/addon-webgl",
+                "version": "0.19.0",
+                "main": "lib/addon-webgl.js",
                 "license": "MIT",
             },
         ),

@@ -18,6 +18,7 @@ check() {
 
 check git-diff-check git diff --check
 check web-terminal "$ROOT/tools/test-web-terminal.sh"
+check webgl-renderer "$ROOT/tools/test-webgl-renderer.sh"
 check session-replay "$ROOT/tools/test-session-replay.sh"
 check terminal-geometry "$ROOT/tools/test-terminal-geometry.sh"
 check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
@@ -38,6 +39,7 @@ check shell-syntax bash -n \
   "$ROOT/tools/prepare-android-sdk.sh" \
   "$ROOT/tools/test-asset-provisioner.sh" \
   "$ROOT/tools/test-web-terminal.sh" \
+  "$ROOT/tools/test-webgl-renderer.sh" \
   "$ROOT/tools/test-session-replay.sh" \
   "$ROOT/tools/test-terminal-geometry.sh" \
   "$ROOT/tools/test-platform-policy.sh" \
@@ -82,6 +84,8 @@ check session-service grep -Fq 'class TerminalSessionService : Service()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check serialized-snapshot-store grep -Fq 'TerminalSerializedSnapshotStore(TerminalContract.MAX_SERIALIZED_SNAPSHOT_BYTES)' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check serialize-addon grep -Fq 'new window.SerializeAddon.SerializeAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check webgl-addon grep -Fq 'new WebglAddon.WebglAddon(false)' app/src/main/assets/terminal/bridge/terminal-renderer.js
+check webgl-fallback grep -Fq "fallback('context-loss')" app/src/main/assets/terminal/bridge/terminal-renderer.js
 check service-owns-session grep -Fq 'TerminalSession(' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check controller-does-not-own-session sh -c '! grep -Fq "TerminalSession(" app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt'

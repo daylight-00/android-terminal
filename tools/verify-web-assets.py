@@ -7,41 +7,52 @@ import json
 import sys
 from pathlib import Path
 
-EXPECTED_PACKAGES = {
+PACKAGE_DEFINITIONS = {
     "@xterm/xterm": {
         "version": "6.0.0",
         "url": "https://registry.npmjs.org/@xterm/xterm/-/xterm-6.0.0.tgz",
         "npm_integrity": "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==",
+        "files": {"xterm.js", "xterm.css", "LICENSE.xterm.txt"},
     },
     "@xterm/addon-fit": {
         "version": "0.11.0",
         "url": "https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz",
         "npm_integrity": "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==",
+        "files": {"addon-fit.js", "LICENSE.addon-fit.txt"},
     },
     "@xterm/addon-serialize": {
         "version": "0.13.0",
         "url": "https://registry.npmjs.org/@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz",
         "npm_integrity": "sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ==",
+        "files": {"addon-serialize.js", "PACKAGE.addon-serialize.json"},
+        "metadata": {
+            "path": "PACKAGE.addon-serialize.json",
+            "name": "@xterm/addon-serialize",
+            "version": "0.13.0",
+            "main": "lib/addon-serialize.js",
+            "license": "MIT",
+        },
+    },
+    "@xterm/addon-webgl": {
+        "version": "0.19.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz",
+        "npm_integrity": "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==",
+        "files": {"addon-webgl.js", "PACKAGE.addon-webgl.json"},
+        "metadata": {
+            "path": "PACKAGE.addon-webgl.json",
+            "name": "@xterm/addon-webgl",
+            "version": "0.19.0",
+            "main": "lib/addon-webgl.js",
+            "license": "MIT",
+        },
     },
 }
-EXPECTED_FILES = {
-    "xterm.js",
-    "xterm.css",
-    "addon-fit.js",
-    "addon-serialize.js",
-    "LICENSE.xterm.txt",
-    "LICENSE.addon-fit.txt",
-    "PACKAGE.addon-serialize.json",
-}
-ALLOWED_FILES = EXPECTED_FILES | {"README.md", "ASSET_RECEIPT.json"}
-LEGACY_PACKAGES = {name: value for name, value in EXPECTED_PACKAGES.items() if name != "@xterm/addon-serialize"}
-LEGACY_FILES = {
-    "xterm.js",
-    "xterm.css",
-    "addon-fit.js",
-    "LICENSE.xterm.txt",
-    "LICENSE.addon-fit.txt",
-}
+
+RECOGNIZED_GENERATIONS = (
+    ("provisioned", frozenset(PACKAGE_DEFINITIONS)),
+    ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-serialize"})),
+    ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit"})),
+)
 
 
 def sha256(path: Path) -> str:
@@ -50,6 +61,40 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def expected_files(package_names: frozenset[str]) -> set[str]:
+    files: set[str] = set()
+    for name in package_names:
+        files.update(PACKAGE_DEFINITIONS[name]["files"])
+    return files
+
+
+def generation_for(package_names: set[str]) -> tuple[str, frozenset[str]] | None:
+    frozen = frozenset(package_names)
+    for state, recognized in RECOGNIZED_GENERATIONS:
+        if frozen == recognized:
+            return state, recognized
+    return None
+
+
+def verify_metadata(vendor: Path, package_names: frozenset[str], failures: list[str]) -> None:
+    for package_name in package_names:
+        metadata_definition = PACKAGE_DEFINITIONS[package_name].get("metadata")
+        if not isinstance(metadata_definition, dict):
+            continue
+        metadata_path = vendor / str(metadata_definition["path"])
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            failures.append(f"invalid {package_name} package metadata: {error}")
+            continue
+        if not isinstance(metadata, dict):
+            failures.append(f"{package_name} package metadata must be an object")
+            continue
+        for field in ("name", "version", "main", "license"):
+            if metadata.get(field) != metadata_definition[field]:
+                failures.append(f"{package_name} package metadata mismatch: {field}")
 
 
 def verify(root: Path) -> tuple[str, list[str]]:
@@ -74,27 +119,24 @@ def verify(root: Path) -> tuple[str, list[str]]:
     package_entries = receipt.get("packages")
     if not isinstance(package_entries, list):
         return "invalid", ["asset receipt packages must be a list"]
-    actual_packages = {}
+    actual_packages: dict[str, dict[str, object]] = {}
     for entry in package_entries:
         if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
             failures.append("invalid package receipt entry")
             continue
-        actual_packages[entry["name"]] = entry
+        name = str(entry["name"])
+        if name in actual_packages:
+            failures.append(f"duplicate package receipt entry: {name}")
+            continue
+        actual_packages[name] = entry
 
-    package_names = set(actual_packages)
-    if package_names == set(EXPECTED_PACKAGES):
-        expected_packages = EXPECTED_PACKAGES
-        expected_files = EXPECTED_FILES
-        state = "provisioned"
-    elif package_names == set(LEGACY_PACKAGES):
-        expected_packages = LEGACY_PACKAGES
-        expected_files = LEGACY_FILES
-        state = "stale-provisioned"
-    else:
+    generation = generation_for(set(actual_packages))
+    if generation is None:
         return "invalid", ["asset receipt package set does not match a recognized pinned package generation"]
-
-    allowed_files = expected_files | {"README.md", "ASSET_RECEIPT.json"}
-    missing = (expected_files | {"ASSET_RECEIPT.json"}) - present
+    state, package_names = generation
+    files = expected_files(package_names)
+    allowed_files = files | {"README.md", "ASSET_RECEIPT.json"}
+    missing = (files | {"ASSET_RECEIPT.json"}) - present
     unexpected = present - allowed_files
     if missing:
         failures.append(f"partially provisioned vendor assets; missing: {sorted(missing)}")
@@ -103,30 +145,37 @@ def verify(root: Path) -> tuple[str, list[str]]:
     if receipt.get("schema_version") != 1:
         failures.append("asset receipt schema_version must be 1")
 
-    for name, expected in expected_packages.items():
+    for name in package_names:
+        expected = PACKAGE_DEFINITIONS[name]
         actual = actual_packages.get(name, {})
-        for field, value in expected.items():
-            if actual.get(field) != value:
+        for field in ("version", "url", "npm_integrity"):
+            if actual.get(field) != expected[field]:
                 failures.append(f"asset receipt mismatch for {name} {field}")
-        if not isinstance(actual.get("archive_sha256"), str) or len(actual.get("archive_sha256", "")) != 64:
+        if not isinstance(actual.get("archive_sha256"), str) or len(str(actual.get("archive_sha256", ""))) != 64:
             failures.append(f"asset receipt lacks archive SHA-256 for {name}")
-        if not isinstance(actual.get("archive_size"), int) or actual.get("archive_size", 0) <= 0:
+        if not isinstance(actual.get("archive_size"), int) or int(actual.get("archive_size", 0)) <= 0:
             failures.append(f"asset receipt lacks archive size for {name}")
 
     file_entries = receipt.get("files")
     if not isinstance(file_entries, list):
         failures.append("asset receipt files must be a list")
         file_entries = []
-    actual_files = {}
+    actual_files: dict[str, dict[str, object]] = {}
     for entry in file_entries:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             failures.append("invalid file receipt entry")
             continue
-        actual_files[entry["path"]] = entry
-    if set(actual_files) != expected_files:
+        path_name = str(entry["path"])
+        if path_name in actual_files:
+            failures.append(f"duplicate file receipt entry: {path_name}")
+            continue
+        actual_files[path_name] = entry
+    if set(actual_files) != files:
         failures.append("asset receipt file set does not match installed production files")
-    valid_source_packages = {f"{name}@{data['version']}" for name, data in expected_packages.items()}
-    for name in expected_files:
+    valid_source_packages = {
+        f"{name}@{PACKAGE_DEFINITIONS[name]['version']}" for name in package_names
+    }
+    for name in files:
         path = vendor / name
         entry = actual_files.get(name, {})
         if not path.is_file():
@@ -141,27 +190,7 @@ def verify(root: Path) -> tuple[str, list[str]]:
         if not isinstance(source_member, str) or not source_member.startswith("package/"):
             failures.append(f"invalid source member in receipt: {name}")
 
-
-    if state == "provisioned":
-        metadata_path = vendor / "PACKAGE.addon-serialize.json"
-        try:
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
-            failures.append(f"invalid addon-serialize package metadata: {error}")
-        else:
-            expected_metadata = {
-                "name": "@xterm/addon-serialize",
-                "version": "0.13.0",
-                "main": "lib/addon-serialize.js",
-                "license": "MIT",
-            }
-            if not isinstance(metadata, dict):
-                failures.append("addon-serialize package metadata must be an object")
-            else:
-                for field, value in expected_metadata.items():
-                    if metadata.get(field) != value:
-                        failures.append(f"addon-serialize package metadata mismatch: {field}")
-
+    verify_metadata(vendor, package_names, failures)
     return (state if not failures else "invalid"), failures
 
 
