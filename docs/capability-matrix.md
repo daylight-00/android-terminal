@@ -37,7 +37,8 @@ This matrix is the authority for Layer 2 completion. A capability is complete on
 | Images | official xterm image addon | Not yet vendored or connected | Upstream pending |
 | WebGL renderer | `@xterm/addon-webgl` | Automatically attempted; public context-loss event causes permanent per-frontend DOM fallback without session loss | Connected; device gate pending |
 | SAF import/export | Android Storage Access Framework | Selected document bytes stream to/from bounded private-HOME regular files | Connected; device gate pending |
-| Direct shared-storage paths | Android storage permission model | API 29 runtime permissions, API 30+ all-files settings, `EXTERNAL_STORAGE`, and non-destructive `HOME/storage` link | Connected; device gate pending |
+| Direct shared-storage paths | Android storage permission model | API 28 compatibility target, API 29 runtime permissions, API 30+ all-files settings, `EXTERNAL_STORAGE`, and non-destructive `HOME/storage` link | Connected; device gate pending |
+| Writable app-private executable launch | Android app compatibility behavior and native `execve()` | API 28 compatibility target; no custom linker, loader shim, relocation service, or bundled userland | Connected; device gate pending |
 | WebView download/upload/file chooser APIs | Android System WebView | No remote page or generic browser surface exists in the current secure local host | Intentionally excluded from current page model |
 | Bundled shell/userland/package manager | none | Deliberately absent from Layer 2 | Intentionally excluded; Layer 3 only |
 | Custom VT parser or screen renderer | none | Forbidden | Intentionally excluded |

@@ -19,7 +19,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 
 `tools/verify-repository.sh` checks:
 
-- API 29, NDK r27d, and arm64-only declarations;
+- minimum/native API 29, compatibility target API 28, NDK r27d, and arm64-only declarations;
 - Kotlin/WebView/WebMessagePort frontend and absence of the removed custom parser;
 - direct `/system/bin/sh` execution and `TERM=xterm-256color`;
 - no AndroidX, Compose, Rust, network permission, or bundled shell/userland;
@@ -55,6 +55,10 @@ closed unless platform 35, build-tools 35.0.0, and NDK 27.3.13750724 already exi
 not download another SDK or install Termux packages. On Android/Termux it selects an already
 installed host-native `aapt2` instead of allowing AGP to launch Google's x86_64 Linux binary.
 APK assembly passes that exact path through `android.aapt2FromMavenOverride`.
+
+## Writable app-home execution boundary
+
+Static verification requires `targetSdk 28` while preserving `minSdk 29` and the native API 29 build floor. This binds the intended Android compatibility behavior without introducing a custom linker, loader wrapper, or executable relocation mechanism. Repository and APK evidence can prove the declared target; launching an owner-provided ELF from app-private HOME remains a real-device gate.
 
 ## Device gate
 
@@ -98,7 +102,7 @@ Repository verification executes the pure Layer 2 renderer controller with a fak
 
 ## Direct shared-storage adaptation
 
-Repository verification compiles and executes the API 29 runtime-permission and API 30+ all-files settings branches against Android API-shape stubs. It verifies app-specific settings first, generic settings fallback, grant-state reporting, and non-destructive creation of `HOME/storage`. Static policy verification binds the manifest declarations, `requestLegacyExternalStorage`, `EXTERNAL_STORAGE`, and the native capability contract. Real permission dialogs, OEM settings routing, direct read/write behavior, and protected `/Android` subtrees remain device gates.
+Repository verification compiles and executes the API 29 runtime-permission and API 30+ all-files settings branches against Android API-shape stubs while binding the manifest compatibility target to API 28. It verifies app-specific settings first, generic settings fallback, grant-state reporting, and non-destructive creation of `HOME/storage`. Static policy verification binds the manifest declarations, `requestLegacyExternalStorage`, `EXTERNAL_STORAGE`, and the native capability contract. Real permission dialogs, OEM settings routing, direct read/write behavior, and protected `/Android` subtrees remain device gates.
 
 ## WebView renderer recovery
 

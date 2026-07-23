@@ -35,6 +35,21 @@ if python3 "$ROOT/tools/verify_policy.py" "$NEGATIVE" >/dev/null 2>&1; then
 fi
 printf 'PASS verifier-negative-fixture\n'
 
+TARGET_NEGATIVE=$TMP/target-negative
+copy_fixture "$TARGET_NEGATIVE"
+python3 - "$TARGET_NEGATIVE/app/build.gradle" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace("targetSdk 28", "targetSdk 29", 1), encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify_policy.py" "$TARGET_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-target-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-target-negative\n'
+
 INCOMPLETE=$TMP/incomplete
 copy_fixture "$INCOMPLETE"
 rm -f -- "$INCOMPLETE/app/src/main/c/shell_bridge.c"

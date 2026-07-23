@@ -57,14 +57,19 @@ Current Layer 2 responsibilities include:
 - official WebGL renderer activation with one-way fallback to xterm core DOM rendering after activation failure or public `onContextLoss` notification;
 - official serialize-addon snapshots plus a bounded raw PTY tail for replacement frontends;
 - SAF import/export for explicit document transactions;
-- direct shared-storage adaptation: Android 10 runtime storage permissions, Android 11+ all-files special access, legacy opt-out while target API 29 remains authoritative, `EXTERNAL_STORAGE`, and a non-destructive `HOME/storage` symlink;
+- direct shared-storage adaptation: Android 10 runtime storage permissions, Android 11+ all-files special access, API 28 compatibility targeting, `EXTERNAL_STORAGE`, and a non-destructive `HOME/storage` symlink;
+- API 28 compatibility targeting so owner-provided executables under writable app-private HOME remain launchable without a custom linker or loader shim;
 - PTY creation, `/system/bin/sh` execution, signals, reads, writes, resize, wait, and cleanup through the minimum JNI/C syscall bridge.
 
 Layer 2 may contain fixed safety limits and neutral host mappings required to make a feature operational. It must not contain a custom VT parser, screen model, renderer, shell-command semantics, bundled userland, package manager, or distribution filesystem.
 
+### Executable HOME compatibility boundary
+
+The app keeps `minSdk 29` and the native bridge API floor at 29, but declares `targetSdk 28`. This is a Layer 2 compatibility decision: Android 10 applies the writable-app-home `execve()` prohibition to apps targeting API 29 or later. The project does not absorb that platform transition through a custom dynamic linker, executable relocation service, copied loader, or bundled userland. Owner-provided Android executables remain ordinary files launched by `/system/bin/sh`; actual device execution is still a target gate.
+
 ### Shared storage boundary
 
-Direct POSIX shared-storage access is Layer 2 because Android's permission model otherwise prevents the native shell from using ordinary paths such as `/storage/emulated/0/Download`. The app declares `MANAGE_EXTERNAL_STORAGE`, retains API 29 legacy storage compatibility, requests API 29 read/write runtime permissions, and directs API 30+ users to the app-specific all-files settings screen. Grant status remains a device/user decision.
+Direct POSIX shared-storage access is Layer 2 because Android's permission model otherwise prevents the native shell from using ordinary paths such as `/storage/emulated/0/Download`. The app declares `MANAGE_EXTERNAL_STORAGE`, uses the API 28 compatibility target with API 29 read/write runtime permissions, and directs API 30+ users to the app-specific all-files settings screen. Grant status remains a device/user decision.
 
 Layer 2 creates `HOME/storage` only when that path is absent and never replaces an existing owner-created entry. The symlink does not bypass Android permissions. SAF remains available for explicit document import/export and does not become a virtual mount.
 

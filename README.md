@@ -13,7 +13,8 @@ filesystem, or a Linux distribution.
 | Repository | `android-terminal` |
 | Application ID | `io.github.daylight00.androidterminal` |
 | Android compile SDK | API 35 |
-| Minimum/target API | API 29 |
+| Minimum API | API 29 |
+| Compatibility target API | API 28 |
 | Native API floor | API 29 |
 | NDK | r27d (`27.3.13750724`) |
 | Android SDK build input | platform 35 + build-tools 35.0.0 |
@@ -28,7 +29,7 @@ filesystem, or a Linux distribution.
 | PATH | `/system/bin` |
 | TERM | `xterm-256color` |
 
-`compileSdk` is separate from the API 29 runtime/native floor. The app uses no Compose,
+`compileSdk`, the API 28 compatibility target, and the API 29 runtime/native floor are separate. The app uses no Compose,
 AndroidX, Rust, custom terminal parser, or custom terminal renderer.
 
 ## Architecture
@@ -61,6 +62,7 @@ connection status of upstream features.
 - The official serialize addon produces opaque xterm framebuffer snapshots; Layer 2 stores them with an output-sequence watermark and bridges later bytes through a bounded raw tail journal without interpreting terminal state.
 - The official WebGL addon is attempted by Layer 2. Activation failure or context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched.
 - Android shared-storage permissions expose ordinary POSIX paths through `EXTERNAL_STORAGE` and a non-destructive `HOME/storage` symlink. SAF imports remain real files under app-private `HOME/imports`, and exports accept only validated HOME-relative regular files; no `content://` URI is presented as a POSIX path or virtual mount.
+- The manifest targets API 28 as a narrow Android compatibility boundary so the native shell can execute owner-provided binaries from the writable app-private HOME without adding a custom linker or loader path. The minimum runtime and native ABI floor remain API 29.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
   origin and rejects every other resource or navigation. No Layer 3 script is loaded.

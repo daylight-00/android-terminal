@@ -128,7 +128,7 @@ def verify(root: Path) -> list[str]:
     require('android:label="Terminal"' in manifest, "installed app label must be Terminal", failures)
     require(readme.startswith("# Android Terminal\n\nA thin terminal frontend for Android’s native shell, powered by xterm.js."), "README title/description must match product identity", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
-    require("targetSdk 29" in build, "targetSdk must be 29", failures)
+    require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
