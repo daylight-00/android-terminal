@@ -1,0 +1,102 @@
+{
+  "files": [
+    {
+      "package": "@xterm/addon-fit@0.11.0",
+      "path": "LICENSE.addon-fit.txt",
+      "sha256": "e256f01188af527e4d06d21d06fbf785ae9c50d4b328bf03cbe0ba7f0aa4228f",
+      "size": 1103,
+      "source_member": "package/LICENSE"
+    },
+    {
+      "package": "@xterm/xterm@6.0.0",
+      "path": "LICENSE.xterm.txt",
+      "sha256": "b569f629d00f2626a8100df2a1798210535621e42164dfd426a6fe5aac7b0ccd",
+      "size": 1261,
+      "source_member": "package/LICENSE"
+    },
+    {
+      "package": "@xterm/addon-serialize@0.13.0",
+      "path": "PACKAGE.addon-serialize.json",
+      "sha256": "3051e774858e3bfc9d51c375f474dbdd9d3001144fe75afb8a44bd6ffd3a042d",
+      "size": 1172,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-webgl@0.19.0",
+      "path": "PACKAGE.addon-webgl.json",
+      "sha256": "91c7a41c9aa89889030c407112a613230040c3be26adbc223aa1d5001b9b1dcf",
+      "size": 724,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-fit@0.11.0",
+      "path": "addon-fit.js",
+      "sha256": "ba3ea256ce0620a0992a197d6c9baea64823fc93d8da07a9e366ca9943c18527",
+      "size": 1521,
+      "source_member": "package/lib/addon-fit.js"
+    },
+    {
+      "package": "@xterm/addon-serialize@0.13.0",
+      "path": "addon-serialize.js",
+      "sha256": "fc432359a02f7482bdccd7b8ac46dc917c2d05ea540737900ded8d9cd150b633",
+      "size": 25210,
+      "source_member": "package/lib/addon-serialize.js"
+    },
+    {
+      "package": "@xterm/addon-webgl@0.19.0",
+      "path": "addon-webgl.js",
+      "sha256": "b85f8d4b3e9756bebb757e3fe47134d70f03ea3d6b187624426d2e2b65dec06c",
+      "size": 247535,
+      "source_member": "package/lib/addon-webgl.js"
+    },
+    {
+      "package": "@xterm/xterm@6.0.0",
+      "path": "xterm.css",
+      "sha256": "854a7c0fb70e8b1a083c16797ab827299fb18744f5ad34f227b48337e33293c6",
+      "size": 7112,
+      "source_member": "package/css/xterm.css"
+    },
+    {
+      "package": "@xterm/xterm@6.0.0",
+      "path": "xterm.js",
+      "sha256": "14903579ff54664cd72f8e8699e6961a6272c21863ec1c3b118cdc8af5d4a972",
+      "size": 488663,
+      "source_member": "package/lib/xterm.js"
+    }
+  ],
+  "packages": [
+    {
+      "archive_sha256": "908e66e04af6c8dc6b00dd3b54de088e2e81e5ed866284fd6c2fb3c2d1c7a3f6",
+      "archive_size": 1418562,
+      "name": "@xterm/xterm",
+      "npm_integrity": "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==",
+      "url": "https://registry.npmjs.org/@xterm/xterm/-/xterm-6.0.0.tgz",
+      "version": "6.0.0"
+    },
+    {
+      "archive_sha256": "26003b4517a132b64e4ff228fd88a5fda3fff5e606c76093f6dcff772e9ecec0",
+      "archive_size": 5488,
+      "name": "@xterm/addon-fit",
+      "npm_integrity": "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==",
+      "url": "https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz",
+      "version": "0.11.0"
+    },
+    {
+      "archive_sha256": "ac7fa7cd7eb0f3e582bd62b336e5b291e46c13406321afd094b000e3ae58e694",
+      "archive_size": 43392,
+      "name": "@xterm/addon-serialize",
+      "npm_integrity": "sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ==",
+      "url": "https://registry.npmjs.org/@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz",
+      "version": "0.13.0"
+    },
+    {
+      "archive_sha256": "b51c9ca08dfd1b35e1f1b833334497a9a8412110569b26e03cb6e1ab7341fb61",
+      "archive_size": 582339,
+      "name": "@xterm/addon-webgl",
+      "npm_integrity": "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==",
+      "url": "https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz",
+      "version": "0.19.0"
+    }
+  ],
+  "schema_version": 1
+}

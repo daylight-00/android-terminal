@@ -1,15 +1,10 @@
 # Provisioned upstream assets
 
-This directory is intentionally incomplete in repository-only source.
-
-`tools/acquire-web-terminal-assets.sh` installs the pinned production files:
-
-- `xterm.js` and `xterm.css` from `@xterm/xterm@6.0.0`
-- `addon-fit.js` from `@xterm/addon-fit@0.11.0`
-- `addon-serialize.js` and its exact `package.json` from `@xterm/addon-serialize@0.13.0`
-- upstream MIT license texts and an acquisition receipt
-
-The serialize package publishes no standalone `LICENSE` member. Its retained package metadata
-declares `MIT`; `LICENSE.xterm.txt` is the project-wide xterm.js license.
-
-The Android app never loads these files from a network at runtime.
+These files were acquired by `tools/acquire-web-terminal-assets.sh` from the pinned
+official npm package URLs. `ASSET_RECEIPT.json` records the package coordinates,
+fixed npm SHA-512 integrity, acquired tarball SHA-256/size, and every installed file
+SHA-256/size. Exact package metadata is retained for official addons that do not
+need a separately installed license member; `LICENSE.xterm.txt` contains the upstream
+xterm.js project license and each retained package metadata file records its MIT declaration.
+The application loads
+production JavaScript only from its APK assets.
