@@ -55,6 +55,7 @@
       'geometry-dedup-v1',
       'platform-bridge-v2',
       'android-font-scale-v1',
+      'web-links-v1',
       'document-transport-v1',
       'serialize-state-v1',
       'webgl-renderer-fallback-v1',

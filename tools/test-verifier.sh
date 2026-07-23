@@ -139,3 +139,47 @@ if python3 "$ROOT/tools/verify_policy.py" "$FONT_SCALE_INCOMPLETE" >/dev/null 2>
   exit 1
 fi
 printf 'PASS verifier-font-scale-incomplete\n'
+
+WEB_LINKS_NEGATIVE=$TMP/web-links-negative
+copy_fixture "$WEB_LINKS_NEGATIVE"
+python3 - "$WEB_LINKS_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-bridge.js" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(
+    text.replace(
+        "platform.openExternalUri(uri).catch(() => {});",
+        "window.open(uri);",
+        1,
+    ),
+    encoding="utf-8",
+)
+PY
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$WEB_LINKS_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-web-links-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-web-links-negative\n'
+
+WEB_LINKS_INCOMPLETE=$TMP/web-links-incomplete
+copy_fixture "$WEB_LINKS_INCOMPLETE"
+python3 - "$WEB_LINKS_INCOMPLETE/app/src/main/assets/terminal/bridge/index.html" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(
+    text.replace(
+        '  <script src="/terminal/vendor/addon-web-links.js"></script>\n',
+        '',
+        1,
+    ),
+    encoding="utf-8",
+)
+PY
+if python3 "$ROOT/tools/verify_policy.py" "$WEB_LINKS_INCOMPLETE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-web-links-incomplete unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-web-links-incomplete\n'

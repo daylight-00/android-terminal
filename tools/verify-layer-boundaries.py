@@ -125,6 +125,7 @@ def verify(root: Path) -> list[str]:
         "/terminal/vendor/xterm.js",
         "/terminal/vendor/addon-fit.js",
         "/terminal/vendor/addon-serialize.js",
+        "/terminal/vendor/addon-web-links.js",
         "/terminal/vendor/addon-webgl.js",
         "/terminal/bridge/terminal-contract.js",
         "/terminal/bridge/terminal-renderer.js",
@@ -187,6 +188,8 @@ def verify(root: Path) -> list[str]:
         "terminal.getSelection()",
         "terminal.paste(text)",
         "terminal.options.linkHandler",
+        "new window.WebLinksAddon.WebLinksAddon(",
+        "platform.openExternalUri(uri)",
         "terminal.onBell(",
         "contract.messages.platformRequest",
         "contract.messages.platformState",
@@ -245,7 +248,7 @@ def verify(root: Path) -> list[str]:
         if private_api in bridge_js or private_api in renderer_js or private_api in platform_js:
             fail(f"xterm.js private API is forbidden: {private_api}", failures)
 
-    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'", "ImageAddon"):
+    for unselected_upstream in ("ClipboardAddon", "osc52-clipboard", "ImageAddon"):
         if unselected_upstream in bridge_js or unselected_upstream in contract_js:
             fail(f"unselected upstream addon leaked into Layer 2: {unselected_upstream}", failures)
 
@@ -355,6 +358,12 @@ def verify(root: Path) -> list[str]:
         fail("font-scale page capability is not mirrored", failures)
     if "android-font-scale-state" not in contract_js or "android-font-scale-state" not in contract_kt:
         fail("native font-scale capability is not mirrored", failures)
+    if "web-links-v1" not in contract_js or "web-links-v1" not in contract_kt:
+        fail("official Web Links page capability is not mirrored", failures)
+    if "new window.WebLinksAddon.WebLinksAddon(" not in bridge_js or "platform.openExternalUri(uri)" not in bridge_js:
+        fail("official Web Links addon must route through the bounded Android URI operation", failures)
+    if "window.open(" in bridge_js:
+        fail("terminal link activation must not navigate directly from the WebView", failures)
     if 'android:configChanges="fontScale|' not in manifest:
         fail("Activity does not own font-scale configuration changes", failures)
     if "configuration.fontScale.toDouble().coerceIn(0.5, 3.0)" not in platform_adapter:
@@ -443,10 +452,12 @@ def verify(root: Path) -> list[str]:
             "xterm.css",
             "addon-fit.js",
             "addon-serialize.js",
+            "addon-web-links.js",
             "addon-webgl.js",
             "LICENSE.xterm.txt",
             "LICENSE.addon-fit.txt",
             "PACKAGE.addon-serialize.json",
+            "PACKAGE.addon-web-links.json",
             "PACKAGE.addon-webgl.json",
         }
         for path in vendor.iterdir():

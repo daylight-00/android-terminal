@@ -57,6 +57,7 @@
   if (typeof window.Terminal !== 'function' ||
       !window.FitAddon || typeof window.FitAddon.FitAddon !== 'function' ||
       !window.SerializeAddon || typeof window.SerializeAddon.SerializeAddon !== 'function' ||
+      !window.WebLinksAddon || typeof window.WebLinksAddon.WebLinksAddon !== 'function' ||
       !window.WebglAddon || typeof window.WebglAddon.WebglAddon !== 'function') {
     fail(message('missingUpstream', 'Pinned xterm.js assets are not provisioned.'));
     return;
@@ -232,6 +233,11 @@
     }
   });
   window.AndroidTerminalPlatform = platform;
+
+  const webLinksAddon = new window.WebLinksAddon.WebLinksAddon((_event, uri) => {
+    platform.openExternalUri(uri).catch(() => {});
+  });
+  terminal.loadAddon(webLinksAddon);
 
   terminal.options.linkHandler = {
     allowNonHttpProtocols: false,

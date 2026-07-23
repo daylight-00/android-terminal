@@ -130,8 +130,8 @@ def verify(root: Path) -> list[str]:
     require(readme.startswith("# Android Terminal\n\nA thin terminal frontend for Android’s native shell, powered by xterm.js."), "README title/description must match product identity", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 13" in build, "versionCode must identify the font-scale integration release", failures)
-    require("versionName '0.15.0'" in build, "versionName must identify the font-scale integration release", failures)
+    require("versionCode 14" in build, "versionCode must identify the Web Links integration release", failures)
+    require("versionName '0.16.0'" in build, "versionName must identify the Web Links integration release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -230,7 +230,7 @@ def verify(root: Path) -> list[str]:
         require(token in document_policy, f"document policy token is required: {token}", failures)
     for forbidden in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission", "DocumentsContract", "FUSE"):
         require(forbidden not in document_transport and forbidden not in document_policy and forbidden not in activity, f"SAF virtual mount behavior is forbidden: {forbidden}", failures)
-    for unselected_upstream in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'", "ImageAddon"):
+    for unselected_upstream in ("ClipboardAddon", "osc52-clipboard", "ImageAddon"):
         require(
             unselected_upstream not in javascript and unselected_upstream not in contract_js,
             f"unselected upstream addon must not be claimed: {unselected_upstream}",
@@ -273,6 +273,10 @@ def verify(root: Path) -> list[str]:
     require("webgl-renderer-fallback-v1" in terminal_contract and "webgl-renderer-fallback-v1" in contract_js, "WebGL fallback page capability must match", failures)
     require("android-font-scale-v1" in terminal_contract and "android-font-scale-v1" in contract_js, "font-scale page capability must match", failures)
     require("android-font-scale-state" in terminal_contract and "android-font-scale-state" in contract_js, "native font-scale capability must match", failures)
+    require("web-links-v1" in terminal_contract and "web-links-v1" in contract_js, "official Web Links page capability must match", failures)
+    require("new window.WebLinksAddon.WebLinksAddon(" in javascript, "official Web Links addon must be loaded through its public constructor", failures)
+    require("platform.openExternalUri(uri)" in javascript, "plain-text links must use the bounded Android URI operation", failures)
+    require("window.open(" not in javascript, "Web Links must not navigate the local WebView directly", failures)
     require("fontScale" in platform_state and "configuration.fontScale.toDouble().coerceIn(0.5, 3.0)" in platform_adapter, "Android font-scale state must be bounded and transported", failures)
     require("const upstreamFontSizes = new WeakMap()" in platform_js, "font-scale mapping must capture each upstream terminal default", failures)
     require("Number(terminal.options.fontSize)" in platform_js, "font-scale mapping must consume the upstream font size", failures)
@@ -293,6 +297,7 @@ def verify(root: Path) -> list[str]:
     require("/terminal/vendor/xterm.js" in html, "pinned xterm.js asset must be local", failures)
     require("/terminal/vendor/addon-fit.js" in html, "pinned addon-fit asset must be local", failures)
     require("/terminal/vendor/addon-serialize.js" in html, "pinned addon-serialize asset must be local", failures)
+    require("/terminal/vendor/addon-web-links.js" in html, "pinned addon-web-links asset must be local", failures)
     require("/terminal/vendor/addon-webgl.js" in html, "pinned addon-webgl asset must be local", failures)
     require("/terminal/bridge/terminal-contract.js" in html, "stable web contract must load locally", failures)
     require("/terminal/bridge/terminal-renderer.js" in html, "Layer 2 renderer controller must load locally", failures)
@@ -305,16 +310,20 @@ def verify(root: Path) -> list[str]:
     require("@xterm/addon-fit/-/addon-fit-0.11.0.tgz" in acquisition, "addon-fit URL must be pinned", failures)
     require("@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz" in acquisition, "addon-serialize URL must be pinned", failures)
     require("@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz" in acquisition, "addon-webgl URL must be pinned", failures)
+    require("@xterm/addon-web-links/-/addon-web-links-0.12.0.tgz" in acquisition, "addon-web-links URL must be pinned", failures)
     require("sha512-TQwDdQGt" in acquisition, "xterm.js npm integrity must be pinned", failures)
     require("sha512-jYcgT6xt" in acquisition, "addon-fit npm integrity must be pinned", failures)
     require("sha512-kGs8o6LW" in acquisition, "addon-serialize npm integrity must be pinned", failures)
     require("sha512-b3fMOsyL" in acquisition, "addon-webgl npm integrity must be pinned", failures)
+    require("sha512-4Smom3RP" in acquisition, "addon-web-links npm integrity must be pinned", failures)
     provisioner = read_required(root, "tools/provision-web-terminal-assets.py", failures)
     require('"package/package.json": "PACKAGE.addon-serialize.json"' in provisioner, "addon-serialize package metadata must be retained", failures)
     require('"license": "MIT"' in provisioner, "addon-serialize MIT package declaration must be validated", failures)
     require('"package/LICENSE": "LICENSE.addon-serialize.txt"' not in provisioner, "provisioner must not require a nonexistent addon-serialize LICENSE member", failures)
     require('"package/package.json": "PACKAGE.addon-webgl.json"' in provisioner, "addon-webgl package metadata must be retained", failures)
     require('"package/LICENSE": "LICENSE.addon-webgl.txt"' not in provisioner, "provisioner must not synthesize an addon-webgl license member", failures)
+    require('"package/package.json": "PACKAGE.addon-web-links.json"' in provisioner, "addon-web-links package metadata must be retained", failures)
+    require('"package/LICENSE": "LICENSE.addon-web-links.txt"' not in provisioner, "provisioner must not synthesize an addon-web-links license member", failures)
 
     for token in (
         "android.permission.MANAGE_EXTERNAL_STORAGE",
@@ -355,6 +364,7 @@ def verify(root: Path) -> list[str]:
     require("Frontend reconnection" in capability_matrix, "capability matrix must track frontend reconnection", failures)
     require("WebView renderer recovery" in capability_matrix, "capability matrix must track renderer recovery", failures)
     require("| Clipboard |" in capability_matrix and "| OSC 8 links |" in capability_matrix, "capability matrix must track connected Android platform capabilities", failures)
+    require("| Plain-text web links |" in capability_matrix and "Connected; device gate pending" in capability_matrix, "capability matrix must track official Web Links integration", failures)
     require("| Font scale |" in capability_matrix and "scales the captured upstream default" in capability_matrix, "capability matrix must track completed Android font scaling", failures)
     validation = read_required(root, "docs/VALIDATION.md", failures)
     require("ADB runtime validation is deferred" in validation, "ADB non-claim must be documented", failures)

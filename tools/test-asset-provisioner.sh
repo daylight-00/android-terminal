@@ -52,6 +52,13 @@ archives = {
             b'"main":"lib/addon-webgl.js","license":"MIT"}'
         ),
     },
+    "web-links": {
+        "package/lib/addon-web-links.js": b"web-links-js",
+        "package/package.json": (
+            b'{"name":"@xterm/addon-web-links","version":"0.12.0",'
+            b'"main":"lib/addon-web-links.js","license":"MIT"}'
+        ),
+    },
 }
 values = []
 for name, files in archives.items():
@@ -89,27 +96,30 @@ provision() {
     --webgl-archive "$TMP/webgl.tgz" \
     --webgl-url 'https://example.invalid/webgl.tgz' \
     --webgl-integrity "${INTEGRITIES[3]}" \
+    --web-links-archive "$TMP/web-links.tgz" \
+    --web-links-url 'https://example.invalid/web-links.tgz' \
+    --web-links-integrity "${INTEGRITIES[4]}" \
     --destination "$destination"
 }
 
 provision "$TMP/xterm.tgz" "${INTEGRITIES[0]}" "$TMP/output"
 for file in \
-  xterm.js xterm.css addon-fit.js addon-serialize.js addon-webgl.js \
+  xterm.js xterm.css addon-fit.js addon-serialize.js addon-webgl.js addon-web-links.js \
   LICENSE.xterm.txt LICENSE.addon-fit.txt \
-  PACKAGE.addon-serialize.json PACKAGE.addon-webgl.json ASSET_RECEIPT.json; do
+  PACKAGE.addon-serialize.json PACKAGE.addon-webgl.json PACKAGE.addon-web-links.json ASSET_RECEIPT.json; do
   test -s "$TMP/output/$file"
 done
 test ! -e "$TMP/output/LICENSE.addon-serialize.txt"
 test ! -e "$TMP/output/LICENSE.addon-webgl.txt"
 printf 'PASS asset-provisioner-success\n'
 
-# Convert a current receipt into the immediate previous generation (serialize but no WebGL).
+# Convert a current receipt into the immediate previous generation (all current assets except web-links).
 PREVIOUS_ROOT="$TMP/previous-root"
 mkdir -p "$PREVIOUS_ROOT/app/src/main/assets/terminal"
 cp -a "$TMP/output" "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor"
 rm -f \
-  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/addon-webgl.js" \
-  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/PACKAGE.addon-webgl.json"
+  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/addon-web-links.js" \
+  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/PACKAGE.addon-web-links.json"
 python3 - "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/ASSET_RECEIPT.json" <<'PY'
 import json
 import pathlib
@@ -129,11 +139,15 @@ expected = {
         "https://registry.npmjs.org/@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz",
         "sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ==",
     ),
+    "@xterm/addon-webgl": (
+        "https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz",
+        "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==",
+    ),
 }
 receipt["packages"] = [entry for entry in receipt["packages"] if entry["name"] in expected]
 for entry in receipt["packages"]:
     entry["url"], entry["npm_integrity"] = expected[entry["name"]]
-receipt["files"] = [entry for entry in receipt["files"] if entry["package"] != "@xterm/addon-webgl@0.19.0"]
+receipt["files"] = [entry for entry in receipt["files"] if entry["package"] != "@xterm/addon-web-links@0.12.0"]
 path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 PY
 python3 "$ROOT/tools/verify-web-assets.py" "$PREVIOUS_ROOT" | grep -Fq 'state=stale-provisioned'

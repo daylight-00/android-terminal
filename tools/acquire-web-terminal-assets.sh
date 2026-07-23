@@ -15,6 +15,8 @@ SERIALIZE_URL='https://registry.npmjs.org/@xterm/addon-serialize/-/addon-seriali
 SERIALIZE_INTEGRITY='sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ=='
 WEBGL_URL='https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz'
 WEBGL_INTEGRITY='sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A=='
+WEB_LINKS_URL='https://registry.npmjs.org/@xterm/addon-web-links/-/addon-web-links-0.12.0.tgz'
+WEB_LINKS_INTEGRITY='sha512-4Smom3RPyVp7ZMYOYDoC/9eGJJJqYhnPLGGqJ6wOBfB8VxPViJNSKdgRYb8NpaM6YSelEKbA2SStD7lGyqaobw=='
 MAX_ARCHIVE_BYTES=$((16 * 1024 * 1024))
 
 mkdir -p -- "$CACHE"
@@ -53,10 +55,12 @@ XTERM_ARCHIVE=$CACHE/xterm-6.0.0.tgz
 FIT_ARCHIVE=$CACHE/addon-fit-0.11.0.tgz
 SERIALIZE_ARCHIVE=$CACHE/addon-serialize-0.13.0.tgz
 WEBGL_ARCHIVE=$CACHE/addon-webgl-0.19.0.tgz
+WEB_LINKS_ARCHIVE=$CACHE/addon-web-links-0.12.0.tgz
 fetch "$XTERM_URL" "$XTERM_ARCHIVE"
 fetch "$FIT_URL" "$FIT_ARCHIVE"
 fetch "$SERIALIZE_URL" "$SERIALIZE_ARCHIVE"
 fetch "$WEBGL_URL" "$WEBGL_ARCHIVE"
+fetch "$WEB_LINKS_URL" "$WEB_LINKS_ARCHIVE"
 
 python3 "$ROOT/tools/provision-web-terminal-assets.py" \
   --xterm-archive "$XTERM_ARCHIVE" \
@@ -71,6 +75,9 @@ python3 "$ROOT/tools/provision-web-terminal-assets.py" \
   --webgl-archive "$WEBGL_ARCHIVE" \
   --webgl-url "$WEBGL_URL" \
   --webgl-integrity "$WEBGL_INTEGRITY" \
+  --web-links-archive "$WEB_LINKS_ARCHIVE" \
+  --web-links-url "$WEB_LINKS_URL" \
+  --web-links-integrity "$WEB_LINKS_INTEGRITY" \
   --destination "$TMP/vendor"
 
 BACKUP=$TMP/vendor.previous

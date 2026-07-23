@@ -187,6 +187,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--webgl-archive", required=True, type=pathlib.Path)
     parser.add_argument("--webgl-url", required=True)
     parser.add_argument("--webgl-integrity", required=True)
+    parser.add_argument("--web-links-archive", required=True, type=pathlib.Path)
+    parser.add_argument("--web-links-url", required=True)
+    parser.add_argument("--web-links-integrity", required=True)
     parser.add_argument("--destination", required=True, type=pathlib.Path)
     return parser.parse_args()
 
@@ -250,6 +253,24 @@ def main() -> int:
                 "name": "@xterm/addon-webgl",
                 "version": "0.19.0",
                 "main": "lib/addon-webgl.js",
+                "license": "MIT",
+            },
+        ),
+        Package(
+            name="@xterm/addon-web-links",
+            version="0.12.0",
+            archive=arguments.web_links_archive,
+            url=arguments.web_links_url,
+            integrity=arguments.web_links_integrity,
+            members={
+                "package/lib/addon-web-links.js": "addon-web-links.js",
+                "package/package.json": "PACKAGE.addon-web-links.json",
+            },
+            metadata_member="package/package.json",
+            expected_metadata={
+                "name": "@xterm/addon-web-links",
+                "version": "0.12.0",
+                "main": "lib/addon-web-links.js",
                 "license": "MIT",
             },
         ),

@@ -96,6 +96,15 @@ serialized-state restore, bounded snapshot/tail gap handling, IME show/hide, rot
 routing, haptic bell behavior, accessibility services, physical-keyboard state, WebGL activation/context loss/DOM fallback, SAF provider import/export, cancellation and large-file behavior, and OEM WebView
 viewport behavior still require a later real-device test.
 
+## Plain-text web-link adaptation
+
+Repository verification requires the pinned official Web Links addon, checks that the Layer 1 bytes
+are installed only through the bounded npm acquisition path, and executes the page bridge with a fake
+official addon callback. Both OSC 8 and detected plain-text links must use the same validated Android
+external-URI operation; a fixture that replaces this route with direct browser navigation must fail,
+and a fixture missing the addon script authority must fail. Touch activation and external intent
+resolution remain bounded device evidence.
+
 ## Android font-scale adaptation
 
 Repository verification executes the Layer 2 platform mapper with fake xterm.js instances whose

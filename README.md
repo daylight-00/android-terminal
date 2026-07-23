@@ -23,6 +23,7 @@ filesystem, or a Linux distribution.
 | Terminal frontend | system WebView + `@xterm/xterm` 6.0.0 |
 | Fit logic | `@xterm/addon-fit` 0.11.0 |
 | Frontend state serialization | `@xterm/addon-serialize` 0.13.0 |
+| Plain-text web links | `@xterm/addon-web-links` 0.12.0 |
 | Optional accelerated renderer | `@xterm/addon-webgl` 0.19.0 |
 | Native bridge | C11/JNI, `forkpty`, `execve`, `read`, `write`, `ioctl` |
 | Shell | device `/system/bin/sh` |
@@ -39,7 +40,7 @@ Layer 3  reserved product customization; absent from the active runtime
    ↓
 Layer 2  complete Android adaptation, native integration, stable protocol, PTY/JNI bridge
    ↓
-Layer 1  unmodified xterm.js/addon-fit/addon-serialize/addon-webgl + Android-provided WebView/Bionic/native shell
+Layer 1  unmodified xterm.js/addon-fit/addon-serialize/addon-web-links/addon-webgl + Android-provided WebView/Bionic/native shell
 ```
 
 The repository is a platform host. Layer 1 owns terminal and shell semantics, Layer 2
@@ -56,9 +57,10 @@ connection status of upstream features.
 - C only owns the PTY and process syscalls that Android's managed API does not expose.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
-- A bounded protocol v6 platform bridge connects explicit clipboard actions, OSC 8 links, bell
-  events, system theme, accessibility state, Android font scale, hardware-keyboard presence, and
-  SAF document import/export without adding a terminal parser or replacing WebView/xterm input semantics.
+- A bounded protocol v6 platform bridge connects explicit clipboard actions, OSC 8 links, official
+  plain-text web-link activation, bell events, system theme, accessibility state, Android font scale,
+  hardware-keyboard presence, and SAF document import/export without adding a terminal parser or
+  replacing WebView/xterm input semantics.
 - Android font scale multiplies the font size reported by each new upstream xterm.js instance. Layer 2
   captures that upstream default once, applies a bounded system scale through the public `fontSize`
   option, and refits geometry without defining a project-specific base font or preference.
@@ -81,7 +83,7 @@ run the bounded owner-side acquisition script:
 
 It downloads only the pinned official npm tarballs, checks their fixed npm SHA-512
 integrity values, validates archive members, installs only the required production
-files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`. Exact package metadata for serialize and WebGL is retained and its `MIT` declaration is validated against the project-wide xterm.js license; no addon-specific license file is synthesized.
+files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`. Exact package metadata for serialize, Web Links, and WebGL is retained and each `MIT` declaration is validated against the project-wide xterm.js license; no addon-specific license file is synthesized.
 The app never loads a CDN or remote page at runtime.
 
 ## Local verification

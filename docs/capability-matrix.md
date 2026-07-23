@@ -28,7 +28,7 @@ This matrix is the authority for Layer 2 completion. A capability is complete on
 | Clipboard | xterm selection and `paste()` APIs | Focus-gated bounded text bridge to Android `ClipboardManager` | Connected |
 | Search | `@xterm/addon-search` | Not yet vendored or connected | Upstream pending |
 | OSC 8 links | xterm core `linkHandler` | Validated HTTP/HTTPS activation through Android `ACTION_VIEW` | Connected |
-| Plain-text web links | `@xterm/addon-web-links` | Not yet vendored or connected | Upstream pending |
+| Plain-text web links | `@xterm/addon-web-links` | Official link detection routes validated HTTP/HTTPS activation through the existing Android `ACTION_VIEW` boundary | Connected; device gate pending |
 | Bell | xterm `onBell` | Rate-limited Android haptic feedback | Connected; device gate pending |
 | System theme | xterm `options.theme` | Android light/dark configuration maps to Layer 2 host palettes | Connected |
 | Hardware keyboard | WebView DOM and xterm input APIs | No key duplication; Android physical-keyboard presence is reported | Native already + state connected |

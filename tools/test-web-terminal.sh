@@ -72,6 +72,8 @@ const paths = process.argv.slice(2);
   let portStarted = false;
   let resizeObserverCallback = null;
   let terminalInstance = null;
+  let webLinksInstance = null;
+  const loadedAddons = [];
   const writes = [];
   const pastes = [];
   const port = {
@@ -88,7 +90,7 @@ const paths = process.argv.slice(2);
       this.selection = '';
       terminalInstance = this;
     }
-    loadAddon() {}
+    loadAddon(addon) { loadedAddons.push(addon); }
     open() {}
     onData(callback) { this.dataCallback = callback; return {dispose() {}}; }
     onBinary(callback) { this.binaryCallback = callback; return {dispose() {}}; }
@@ -107,6 +109,13 @@ const paths = process.argv.slice(2);
   class WebglAddon {
     onContextLoss() { return {dispose() {}}; }
     dispose() {}
+  }
+
+  class WebLinksAddon {
+    constructor(handler) {
+      this.handler = handler;
+      webLinksInstance = this;
+    }
   }
 
   class FitAddon {
@@ -168,6 +177,7 @@ const paths = process.argv.slice(2);
     Terminal,
     FitAddon: {FitAddon},
     SerializeAddon: {SerializeAddon},
+    WebLinksAddon: {WebLinksAddon},
     WebglAddon: {WebglAddon},
     ResizeObserver: class {
       constructor(callback) { resizeObserverCallback = callback; }
@@ -213,7 +223,10 @@ const paths = process.argv.slice(2);
   if (rendererState.mode !== 'webgl' || rendererState.reason !== 'active') {
     throw new Error('Layer 2 WebGL activation state mismatch');
   }
-  if (context.ClipboardAddon || context.WebLinksAddon) throw new Error('unselected addons leaked into Layer 2');
+  if (context.ClipboardAddon) throw new Error('unselected clipboard addon leaked into Layer 2');
+  if (!context.WebLinksAddon || !webLinksInstance || !loadedAddons.includes(webLinksInstance)) {
+    throw new Error('official Web Links addon was not loaded');
+  }
 
   const handler = listeners.get('message');
   if (typeof handler !== 'function') throw new Error('message handler missing');
@@ -231,10 +244,10 @@ const paths = process.argv.slice(2);
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
-  for (const forbidden of ['osc52-clipboard', 'web-links']) {
+  for (const forbidden of ['osc52-clipboard']) {
     if (posted[0].capabilities.includes(forbidden)) throw new Error(`unselected capability advertised: ${forbidden}`);
   }
 
@@ -349,6 +362,13 @@ const paths = process.argv.slice(2);
   completeRequest(directLinkRequest);
   await directLinkPromise;
 
+  const countBeforePlainLink = posted.length;
+  webLinksInstance.handler(null, 'https://example.com/plain');
+  if (posted.length !== countBeforePlainLink + 1) throw new Error('plain-text Web Links activation did not reach Android');
+  const plainLinkRequest = latestRequest('open-external-uri');
+  completeRequest(plainLinkRequest);
+  await Promise.resolve();
+
   const countBeforeOsc = posted.length;
   terminalInstance.options.linkHandler.activate(null, 'https://example.com/osc8', null);
   if (posted.length !== countBeforeOsc + 1) throw new Error('OSC 8 link handler did not reach Android');
@@ -439,7 +459,7 @@ const paths = process.argv.slice(2);
     throw new Error('serialized state was not restored through xterm write');
   }
 
-  console.log('PASS web-terminal-channel contract=6 serialize=official-addon platform=clipboard,theme,accessibility,font-scale,links,bell,documents geometry=deduplicated');
+  console.log('PASS web-terminal-channel contract=6 serialize=official-addon web-links=official-addon platform=clipboard,theme,accessibility,font-scale,links,bell,documents geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -461,6 +481,7 @@ required = {
         "session-attach-v2",
         "geometry-dedup-v1",
         "platform-bridge-v2",
+        "web-links-v1",
         "document-transport-v1",
         "serialize-state-v1",
         "platformRequest: 'platform-request'",
@@ -479,6 +500,8 @@ required = {
         "new window.Terminal()",
         "new window.SerializeAddon.SerializeAddon()",
         "serializeAddon.serialize()",
+        "new window.WebLinksAddon.WebLinksAddon(",
+        "platform.openExternalUri(uri)",
         "terminal.onData(",
         "terminal.onBinary(",
         "terminal.write(",
@@ -504,7 +527,7 @@ for path, tokens in required.items():
 
 bridge = bridge_path.read_text(encoding="utf-8")
 contract = contract_path.read_text(encoding="utf-8")
-for forbidden in ("ClipboardAddon", "WebLinksAddon", "osc52-clipboard", "'web-links'"):
+for forbidden in ("ClipboardAddon", "osc52-clipboard"):
     if forbidden in bridge or forbidden in contract:
         raise SystemExit(f"unselected upstream addon leaked into platform bridge: {forbidden}")
 
@@ -513,6 +536,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon platform=bounded-documents,font-scale geometry=deduplicated")
+print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon web-links=official-addon platform=bounded-documents,font-scale geometry=deduplicated")
 PY
 fi

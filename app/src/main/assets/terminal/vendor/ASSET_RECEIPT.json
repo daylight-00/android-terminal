@@ -22,6 +22,13 @@
       "source_member": "package/package.json"
     },
     {
+      "package": "@xterm/addon-web-links@0.12.0",
+      "path": "PACKAGE.addon-web-links.json",
+      "sha256": "7795b7d952457ad5c7ee2e529ada66eb084581646d7791e6bfaaf242dd474d1f",
+      "size": 731,
+      "source_member": "package/package.json"
+    },
+    {
       "package": "@xterm/addon-webgl@0.19.0",
       "path": "PACKAGE.addon-webgl.json",
       "sha256": "91c7a41c9aa89889030c407112a613230040c3be26adbc223aa1d5001b9b1dcf",
@@ -41,6 +48,13 @@
       "sha256": "fc432359a02f7482bdccd7b8ac46dc917c2d05ea540737900ded8d9cd150b633",
       "size": 25210,
       "source_member": "package/lib/addon-serialize.js"
+    },
+    {
+      "package": "@xterm/addon-web-links@0.12.0",
+      "path": "addon-web-links.js",
+      "sha256": "b74864125ef3889753b94e61eb4dabb99b2a27f920f0c9a7bd53cbe6d10f032a",
+      "size": 3100,
+      "source_member": "package/lib/addon-web-links.js"
     },
     {
       "package": "@xterm/addon-webgl@0.19.0",
@@ -96,6 +110,14 @@
       "npm_integrity": "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==",
       "url": "https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz",
       "version": "0.19.0"
+    },
+    {
+      "archive_sha256": "bf463cfff1af4bb1903509830c62ed06bcd0589039f15ea5fba71d7bae5a86da",
+      "archive_size": 12030,
+      "name": "@xterm/addon-web-links",
+      "npm_integrity": "sha512-4Smom3RPyVp7ZMYOYDoC/9eGJJJqYhnPLGGqJ6wOBfB8VxPViJNSKdgRYb8NpaM6YSelEKbA2SStD7lGyqaobw==",
+      "url": "https://registry.npmjs.org/@xterm/addon-web-links/-/addon-web-links-0.12.0.tgz",
+      "version": "0.12.0"
     }
   ],
   "schema_version": 1

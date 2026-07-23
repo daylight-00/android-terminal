@@ -71,8 +71,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 13' app/build.gradle
-check version-name grep -Fxq "        versionName '0.15.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 14' app/build.gradle
+check version-name grep -Fxq "        versionName '0.16.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -90,6 +90,9 @@ check session-service grep -Fq 'class TerminalSessionService : Service()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check serialized-snapshot-store grep -Fq 'TerminalSerializedSnapshotStore(TerminalContract.MAX_SERIALIZED_SNAPSHOT_BYTES)' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check serialize-addon grep -Fq 'new window.SerializeAddon.SerializeAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check web-links-addon grep -Fq 'new window.WebLinksAddon.WebLinksAddon(' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check web-links-native-route grep -Fq 'platform.openExternalUri(uri)' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check web-links-capability grep -Fq 'web-links-v1' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check webgl-addon grep -Fq 'new WebglAddon.WebglAddon(false)' app/src/main/assets/terminal/bridge/terminal-renderer.js
 check webgl-fallback grep -Fq "fallback('context-loss')" app/src/main/assets/terminal/bridge/terminal-renderer.js
 check service-owns-session grep -Fq 'TerminalSession(' \

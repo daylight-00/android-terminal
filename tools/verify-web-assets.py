@@ -46,10 +46,24 @@ PACKAGE_DEFINITIONS = {
             "license": "MIT",
         },
     },
+    "@xterm/addon-web-links": {
+        "version": "0.12.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-web-links/-/addon-web-links-0.12.0.tgz",
+        "npm_integrity": "sha512-4Smom3RPyVp7ZMYOYDoC/9eGJJJqYhnPLGGqJ6wOBfB8VxPViJNSKdgRYb8NpaM6YSelEKbA2SStD7lGyqaobw==",
+        "files": {"addon-web-links.js", "PACKAGE.addon-web-links.json"},
+        "metadata": {
+            "path": "PACKAGE.addon-web-links.json",
+            "name": "@xterm/addon-web-links",
+            "version": "0.12.0",
+            "main": "lib/addon-web-links.js",
+            "license": "MIT",
+        },
+    },
 }
 
 RECOGNIZED_GENERATIONS = (
     ("provisioned", frozenset(PACKAGE_DEFINITIONS)),
+    ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-serialize", "@xterm/addon-webgl"})),
     ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-serialize"})),
     ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit"})),
 )
