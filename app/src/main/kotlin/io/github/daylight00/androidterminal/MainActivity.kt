@@ -48,6 +48,7 @@ class MainActivity : Activity() {
         root = FrameLayout(this).apply {
             setOnApplyWindowInsetsListener { _, insets ->
                 controller?.requestGeometrySync()
+                controller?.requestPlatformStateSync()
                 insets
             }
             addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->

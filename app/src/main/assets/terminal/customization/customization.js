@@ -102,6 +102,9 @@
       ? currentFontSize / androidFontScale
       : 15;
     let userFontScale = 1;
+    let softInputVisible = Boolean(initialState && initialState.softInputVisible);
+    let ownedTouchFocusActive = false;
+    let ownedTouchStartedWithSoftInput = false;
     let pinchDistance = 0;
     let pinchConsumesGesture = false;
     let scrollTouchIdentifier = null;
@@ -127,6 +130,7 @@
 
     function applyAppearance(state) {
       layer2.terminal.options.theme = state.colorScheme === 'light' ? lightTheme : darkTheme;
+      softInputVisible = Boolean(state.softInputVisible);
       androidFontScale = boundedScale(
         state.fontScale,
         MIN_ANDROID_FONT_SCALE,
@@ -245,18 +249,29 @@
       scrollAnimationFrame = requestFrame(animate);
     }
 
-    function suspendTerminalInputFocus() {
-      // xterm can retain focus on its hidden textarea after the IME is dismissed.
-      // Android WebView may then reopen the keyboard for any later native touch,
-      // even when the DOM touch sequence is consumed as a scroll or pinch. Every
-      // Layer 3-owned touch therefore begins unfocused; only a completed tap is
-      // allowed to restore xterm focus and request the IME.
-      if (typeof layer2.terminal.blur === 'function') {
+    function beginOwnedTouchFocusPolicy() {
+      if (ownedTouchFocusActive) return;
+      ownedTouchFocusActive = true;
+      ownedTouchStartedWithSoftInput = softInputVisible;
+
+      // Android owns IME visibility. Preserve xterm focus when the IME is already
+      // visible so scroll, pinch, and future selection gestures do not collapse
+      // the keyboard. When the IME is hidden, blur the retained hidden textarea
+      // before WebView can reinterpret the owned touch as an editor activation.
+      if (!ownedTouchStartedWithSoftInput &&
+          typeof layer2.terminal.blur === 'function') {
         layer2.terminal.blur();
       }
     }
 
-    function replayTap(target, clientX, clientY) {
+    function finishOwnedTouchFocusPolicy() {
+      const startedWithSoftInput = ownedTouchStartedWithSoftInput;
+      ownedTouchFocusActive = false;
+      ownedTouchStartedWithSoftInput = false;
+      return startedWithSoftInput;
+    }
+
+    function replayTap(target, clientX, clientY, requestSoftInput) {
       if (target && typeof target.dispatchEvent === 'function' &&
           typeof window.MouseEvent === 'function') {
         const common = {
@@ -278,9 +293,11 @@
       if (typeof layer2.terminal.focus === 'function') {
         layer2.terminal.focus();
       }
-      const request = layer2.platform.showSoftInput();
-      if (request && typeof request.catch === 'function') {
-        request.catch((error) => console.warn('Android soft-input request failed.', error));
+      if (requestSoftInput) {
+        const request = layer2.platform.showSoftInput();
+        if (request && typeof request.catch === 'function') {
+          request.catch((error) => console.warn('Android soft-input request failed.', error));
+        }
       }
     }
 
@@ -306,7 +323,7 @@
     }
 
     function beginPinch(event) {
-      suspendTerminalInputFocus();
+      beginOwnedTouchFocusPolicy();
       cancelScrollInertia();
       resetScrollGesture(true);
       pinchConsumesGesture = true;
@@ -320,7 +337,7 @@
         return;
       }
       if (beginOneFingerScroll(event)) {
-        suspendTerminalInputFocus();
+        beginOwnedTouchFocusPolicy();
         // Own the gesture from its first touch. Waiting until touchmove is too
         // late on Android WebView because the initial touch can already arm
         // xterm's focus/IME activation for release.
@@ -376,6 +393,7 @@
         } else if (event.touches.length === 0) {
           pinchDistance = 0;
           pinchConsumesGesture = false;
+          finishOwnedTouchFocusPolicy();
         }
         return;
       }
@@ -386,10 +404,11 @@
       const tapTarget = scrollTapTarget;
       const tapX = scrollLastX;
       const tapY = scrollLastY;
+      const startedWithSoftInput = finishOwnedTouchFocusPolicy();
       if (consumed) startScrollInertia();
       resetScrollGesture(false);
       consumeTouch(event);
-      if (!consumed) replayTap(tapTarget, tapX, tapY);
+      if (!consumed) replayTap(tapTarget, tapX, tapY, !startedWithSoftInput);
     }
 
     function onTouchCancel(event) {
@@ -398,7 +417,10 @@
       pinchConsumesGesture = false;
       cancelScrollInertia();
       resetScrollGesture(true);
-      if (owned) consumeTouch(event);
+      if (owned) {
+        finishOwnedTouchFocusPolicy();
+        consumeTouch(event);
+      }
     }
 
     const touchOptions = Object.freeze({capture: true, passive: false});
@@ -432,7 +454,10 @@
           pinchConsumesGesture,
           scrollConsumesGesture,
           scrollAuthority: 'layer3-public-scroll-lines',
-          touchActivationAuthority: 'layer3-blur-then-deferred-tap-native-ime',
+          touchActivationAuthority: 'layer3-ime-visibility-aware-deferred-tap-native-ime',
+          gestureFocusPolicy: 'preserve-visible-ime-blur-hidden-ime',
+          softInputVisible,
+          ownedTouchFocusActive,
           touchSurfaceAvailable
         });
       }

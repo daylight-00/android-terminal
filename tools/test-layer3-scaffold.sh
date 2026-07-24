@@ -116,7 +116,7 @@ const layer2 = Object.freeze({
     showSoftInput() { softInputCalls += 1; return {catch() {}}; }
   }),
   completion: Object.freeze({manifest: Object.freeze({schemaVersion: 1})}),
-  getPlatformState() { return null; },
+  getPlatformState() { return {softInputVisible: false}; },
   onPlatformState(listener) {
     listeners.push(listener);
     return Object.freeze({dispose() { disposed = true; }});
@@ -159,7 +159,7 @@ if (!customization || customization.contractVersion !== 2) {
 if (listeners.length !== 1) throw new Error('Layer 3 did not use the public Layer 2 state capability');
 if (terminalElement.listenerCount() !== 4) throw new Error('Layer 3 touch listeners are incomplete');
 
-listeners[0]({colorScheme: 'light', fontScale: 1.2});
+listeners[0]({colorScheme: 'light', fontScale: 1.2, softInputVisible: false});
 if (terminal.options.theme.background !== '#fafafa') throw new Error('light palette was not applied');
 if (Math.abs(terminal.options.fontSize - 18) > 1e-9) throw new Error('Android font scale was not composed');
 if (geometryRequests !== 1) throw new Error('Layer 3 did not request geometry refresh');
@@ -226,12 +226,12 @@ terminalElement.dispatch('touchend', pinchEnd);
 if (focusCalls !== 1 || softInputCalls !== 1 || pinchTarget.events.length !== 0) {
   throw new Error('pinch replayed tap focus activation');
 }
-if (blurCalls < 4) throw new Error('pinch did not keep retained xterm input focus suspended');
+if (blurCalls !== 3) throw new Error('pinch focus policy was applied more than once');
 if (customization.getInteractionState().pinchConsumesGesture) throw new Error('pinch ownership did not reset');
 if (customization.getInteractionState().scrollAuthority !== 'layer3-public-scroll-lines') {
   throw new Error('scroll authority is not reported correctly');
 }
-if (customization.getInteractionState().touchActivationAuthority !== 'layer3-blur-then-deferred-tap-native-ime') {
+if (customization.getInteractionState().touchActivationAuthority !== 'layer3-ime-visibility-aware-deferred-tap-native-ime') {
   throw new Error('touch activation authority is not reported correctly');
 }
 
@@ -247,18 +247,68 @@ if (altStart.prevented || altMove.prevented || scrollCalls.length !== 2) {
 terminalElement.dispatch('touchend', touchEvent([], 140, altTarget));
 terminal.buffer.active.type = 'normal';
 
-listeners[0]({colorScheme: 'dark', fontScale: 2});
+listeners[0]({colorScheme: 'dark', fontScale: 2, softInputVisible: true});
 if (terminal.options.theme.background !== '#000000') throw new Error('dark palette was not applied');
 const expectedScaledSize = 15 * 2 * (19 / 18);
 if (Math.abs(terminal.options.fontSize - expectedScaledSize) > 1e-9) {
   throw new Error('user font scale was not preserved across Android font-scale updates');
 }
 if (geometryRequests !== 3) throw new Error('second platform update did not request geometry refresh');
+if (!customization.getInteractionState().softInputVisible) {
+  throw new Error('Layer 3 did not retain Android IME visibility state');
+}
+if (customization.getInteractionState().gestureFocusPolicy !== 'preserve-visible-ime-blur-hidden-ime') {
+  throw new Error('gesture focus policy is not reported correctly');
+}
+
+const visibleTapBlurBaseline = blurCalls;
+const visibleTapSoftInputBaseline = softInputCalls;
+const visibleTapFocusBaseline = focusCalls;
+const visibleTapTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(6, 20, 60)], 150, visibleTapTarget));
+terminalElement.dispatch('touchend', touchEvent([], 160, visibleTapTarget));
+if (blurCalls !== visibleTapBlurBaseline) {
+  throw new Error('visible-IME tap incorrectly blurred xterm input focus');
+}
+if (softInputCalls !== visibleTapSoftInputBaseline) {
+  throw new Error('visible-IME tap redundantly requested Android soft input');
+}
+if (focusCalls !== visibleTapFocusBaseline + 1) {
+  throw new Error('visible-IME tap did not preserve ordinary terminal focus activation');
+}
+
+const visibleDragBlurBaseline = blurCalls;
+const visibleDragFocusBaseline = focusCalls;
+const visibleDragSoftInputBaseline = softInputCalls;
+const visibleDragTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(7, 0, 100)], 170, visibleDragTarget));
+terminalElement.dispatch('touchmove', touchEvent([point(7, 0, 140)], 190, visibleDragTarget));
+terminalElement.dispatch('touchend', touchEvent([], 200, visibleDragTarget));
+if (blurCalls !== visibleDragBlurBaseline || focusCalls !== visibleDragFocusBaseline ||
+    softInputCalls !== visibleDragSoftInputBaseline) {
+  throw new Error('visible-IME scroll changed xterm focus or Android soft input');
+}
+
+const visiblePinchBlurBaseline = blurCalls;
+const visiblePinchFocusBaseline = focusCalls;
+const visiblePinchSoftInputBaseline = softInputCalls;
+const visiblePinchTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(8, 0, 0)], 210, visiblePinchTarget));
+terminalElement.dispatch('touchstart', touchEvent([point(8, 0, 0), point(9, 100, 0)], 220, visiblePinchTarget));
+terminalElement.dispatch('touchmove', touchEvent([point(8, 0, 0), point(9, 111, 0)], 230, visiblePinchTarget));
+terminalElement.dispatch('touchend', touchEvent([], 240, visiblePinchTarget));
+if (blurCalls !== visiblePinchBlurBaseline || focusCalls !== visiblePinchFocusBaseline ||
+    softInputCalls !== visiblePinchSoftInputBaseline) {
+  throw new Error('visible-IME pinch changed xterm focus or Android soft input');
+}
+if (customization.getInteractionState().ownedTouchFocusActive) {
+  throw new Error('owned touch focus policy did not reset');
+}
 
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=blur-then-deferred-tap-native-ime');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-visibility-aware selection-ready=generic-owned-touch-policy');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -274,10 +324,12 @@ for token in (
     "addEventListener('touchstart'",
     "addEventListener('touchmove'",
     'consumeTouch(event);',
-    'replayTap(tapTarget, tapX, tapY)',
+    'replayTap(tapTarget, tapX, tapY, !startedWithSoftInput)',
     'layer2.terminal.blur()',
     'layer2.platform.showSoftInput()',
-    "touchActivationAuthority: 'layer3-blur-then-deferred-tap-native-ime'",
+    "touchActivationAuthority: 'layer3-ime-visibility-aware-deferred-tap-native-ime'",
+    "gestureFocusPolicy: 'preserve-visible-ime-blur-hidden-ime'",
+    'softInputVisible = Boolean(state.softInputVisible)',
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',
     "scrollAuthority: 'layer3-public-scroll-lines'",

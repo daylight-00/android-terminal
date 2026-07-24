@@ -491,6 +491,7 @@ internal class TerminalController(
                 .put("promptLabel", state.promptLabel)
                 .put("tooMuchOutput", state.tooMuchOutput)
                 .put("hardwareKeyboardPresent", state.hardwareKeyboardPresent)
+                .put("softInputVisible", state.softInputVisible)
                 .put("fontScale", state.fontScale)
                 .put("sharedStorageAccessGranted", state.sharedStorageAccessGranted)
                 .put("sharedStoragePath", state.sharedStoragePath),

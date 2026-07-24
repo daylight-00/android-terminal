@@ -8,6 +8,7 @@ internal data class TerminalPlatformState(
     val promptLabel: String,
     val tooMuchOutput: String,
     val hardwareKeyboardPresent: Boolean,
+    val softInputVisible: Boolean,
     val fontScale: Double,
     val sharedStorageAccessGranted: Boolean,
     val sharedStoragePath: String,

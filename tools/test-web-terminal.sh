@@ -394,6 +394,7 @@ const paths = process.argv.slice(2);
     promptLabel: '터미널 입력',
     tooMuchOutput: '너무 많은 출력',
     hardwareKeyboardPresent: true,
+    softInputVisible: true,
     fontScale: 1.25,
     sharedStorageAccessGranted: true,
     sharedStoragePath: '/storage/emulated/0'
@@ -407,7 +408,8 @@ const paths = process.argv.slice(2);
     throw new Error('Android localized xterm strings were not applied');
   }
   const state = context.AndroidTerminalPlatform.getState();
-  if (!state || !state.hardwareKeyboardPresent || state.fontScale !== 1.25 ||
+  if (!state || !state.hardwareKeyboardPresent || !state.softInputVisible ||
+      state.fontScale !== 1.25 ||
       !state.sharedStorageAccessGranted || state.sharedStoragePath !== '/storage/emulated/0') {
     throw new Error('platform state facade is incomplete');
   }
@@ -695,6 +697,7 @@ required = {
         "serialize-state-v1",
         "platformRequest: 'platform-request'",
         "platformState: 'platform-state'",
+        "android-soft-input-visibility-state",
         "platformResult: 'platform-result'",
     ),
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),

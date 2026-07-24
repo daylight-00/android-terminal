@@ -505,6 +505,18 @@ def verify(root: Path) -> list[str]:
         fail("official Web Links addon must route through the bounded Android URI operation", failures)
     if "window.open(" in bridge_js:
         fail("terminal link activation must not navigate directly from the WebView", failures)
+    if "softInputVisible" not in platform_state:
+        fail("platform state does not expose Android soft-input visibility", failures)
+    if "WindowInsets.Type.ime()" not in platform_adapter or "systemWindowInsetBottom > insets.stableInsetBottom" not in platform_adapter:
+        fail("Layer 2 does not derive soft-input visibility from WindowInsets", failures)
+    if '.put("softInputVisible", state.softInputVisible)' not in controller:
+        fail("controller does not transport soft-input visibility", failures)
+    if "softInputVisible: Boolean(nativeMessage.softInputVisible)" not in bridge_js:
+        fail("Layer 2 JavaScript does not expose soft-input visibility", failures)
+    if "preserve-visible-ime-blur-hidden-ime" not in customization_js:
+        fail("Layer 3 does not preserve an already-visible IME during owned touch", failures)
+    if "controller?.requestPlatformStateSync()" not in activity:
+        fail("window-inset changes do not republish platform state", failures)
     if 'android:configChanges="fontScale|' not in manifest:
         fail("Activity does not own font-scale configuration changes", failures)
     if "configuration.fontScale.toDouble().coerceIn(0.5, 3.0)" not in platform_adapter:

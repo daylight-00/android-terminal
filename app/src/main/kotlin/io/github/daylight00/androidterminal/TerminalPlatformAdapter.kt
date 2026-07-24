@@ -7,8 +7,10 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
+import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.WebView
@@ -68,10 +70,21 @@ internal class TerminalPlatformAdapter(
             tooMuchOutput = activity.getString(R.string.xterm_too_much_output),
             hardwareKeyboardPresent = configuration.keyboard != Configuration.KEYBOARD_NOKEYS &&
                 configuration.keyboard != Configuration.KEYBOARD_UNDEFINED,
+            softInputVisible = isSoftInputVisible(),
             fontScale = configuration.fontScale.toDouble().coerceIn(0.5, 3.0),
             sharedStorageAccessGranted = TerminalSharedStorage.isAccessGranted(activity),
             sharedStoragePath = TerminalSharedStorage.directory().absolutePath,
         )
+    }
+
+    private fun isSoftInputVisible(): Boolean {
+        val insets = terminalView.rootWindowInsets ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            insets.isVisible(WindowInsets.Type.ime())
+        } else {
+            @Suppress("DEPRECATION")
+            insets.systemWindowInsetBottom > insets.stableInsetBottom
+        }
     }
 
     fun publishState() {

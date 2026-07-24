@@ -655,6 +655,7 @@
       promptLabel: typeof nativeMessage.promptLabel === 'string' ? nativeMessage.promptLabel : '',
       tooMuchOutput: typeof nativeMessage.tooMuchOutput === 'string' ? nativeMessage.tooMuchOutput : '',
       hardwareKeyboardPresent: Boolean(nativeMessage.hardwareKeyboardPresent),
+      softInputVisible: Boolean(nativeMessage.softInputVisible),
       fontScale: Number(nativeMessage.fontScale) || 1,
       sharedStorageAccessGranted: Boolean(nativeMessage.sharedStorageAccessGranted),
       sharedStoragePath: typeof nativeMessage.sharedStoragePath === 'string'

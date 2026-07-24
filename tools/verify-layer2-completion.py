@@ -213,7 +213,7 @@ def verify(root: Path) -> list[str]:
     if "BuildConfig.DEBUG" not in main_activity or "WebView.setWebContentsDebuggingEnabled(true)" not in main_activity:
         failures.append("debug-only WebView device evidence surface is missing")
 
-    for token in ("versionCode 24", "versionName '0.23.3'", "minSdk 29", "targetSdk 28"):
+    for token in ("versionCode 25", "versionName '0.23.4'", "minSdk 29", "targetSdk 28"):
         if token not in gradle:
             failures.append(f"closure version/policy mismatch: {token}")
     for token in (

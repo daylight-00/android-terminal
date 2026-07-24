@@ -88,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 24' app/build.gradle
-check version-name grep -Fxq "        versionName '0.23.3'" app/build.gradle
+check version-code grep -Fxq '        versionCode 25' app/build.gradle
+check version-name grep -Fxq "        versionName '0.23.4'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -160,6 +160,16 @@ check android-accessibility-capability grep -Fq 'android-accessibility-state' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-font-scale-capability grep -Fq 'android-font-scale-state' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check android-soft-input-visibility-capability grep -Fq 'android-soft-input-visibility-state' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check page-ime-aware-gesture-capability grep -Fq 'ime-aware-layer3-gesture-focus-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check platform-state-soft-input grep -Fq 'softInputVisible' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt
+check platform-insets-ime grep -Fq 'WindowInsets.Type.ime()' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
+check layer3-ime-preservation grep -Fq 'preserve-visible-ime-blur-hidden-ime' \
+  app/src/main/assets/terminal/customization/customization.js
 check page-font-scale-capability grep -Fq 'android-font-scale-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check page-title-capability grep -Fq 'session-title-state-v1' \

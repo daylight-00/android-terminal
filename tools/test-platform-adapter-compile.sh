@@ -20,6 +20,8 @@ for token in (
     "openOutputStream",
     "performHapticFeedback",
     "InputMethodManager",
+    "WindowInsets.Type.ime()",
+    "systemWindowInsetBottom > insets.stableInsetBottom",
     "showSoftInput",
     "restartInput",
     "AccessibilityStateChangeListener",
@@ -188,6 +190,14 @@ package android.os
 object SystemClock { fun elapsedRealtime(): Long = 0L }
 KT
 
+cat > "$WORK/android/os/Build.kt" <<'KT'
+package android.os
+object Build {
+    object VERSION { const val SDK_INT: Int = 35 }
+    object VERSION_CODES { const val R: Int = 30 }
+}
+KT
+
 cat > "$WORK/android/provider/OpenableColumns.kt" <<'KT'
 package android.provider
 object OpenableColumns {
@@ -199,6 +209,16 @@ KT
 cat > "$WORK/android/view/HapticFeedbackConstants.kt" <<'KT'
 package android.view
 object HapticFeedbackConstants { const val CLOCK_TICK: Int = 4 }
+KT
+
+cat > "$WORK/android/view/WindowInsets.kt" <<'KT'
+package android.view
+open class WindowInsets {
+    val systemWindowInsetBottom: Int = 0
+    val stableInsetBottom: Int = 0
+    fun isVisible(typeMask: Int): Boolean = false
+    object Type { fun ime(): Int = 1 }
+}
 KT
 
 cat > "$WORK/android/view/accessibility/AccessibilityManager.kt" <<'KT'
@@ -235,7 +255,11 @@ KT
 
 cat > "$WORK/android/webkit/WebView.kt" <<'KT'
 package android.webkit
+
+import android.view.WindowInsets
+
 open class WebView {
+    val rootWindowInsets: WindowInsets? = WindowInsets()
     val isAttachedToWindow: Boolean = true
     fun hasWindowFocus(): Boolean = true
     fun performHapticFeedback(feedbackConstant: Int): Boolean = true
@@ -280,8 +304,10 @@ kotlinc -nowarn \
   "$WORK/android/graphics/Color.kt" \
   "$WORK/android/net/Uri.kt" \
   "$WORK/android/os/SystemClock.kt" \
+  "$WORK/android/os/Build.kt" \
   "$WORK/android/provider/OpenableColumns.kt" \
   "$WORK/android/view/HapticFeedbackConstants.kt" \
+  "$WORK/android/view/WindowInsets.kt" \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \
   "$WORK/android/view/inputmethod/InputMethodManager.kt" \
   "$WORK/android/webkit/WebView.kt" \
@@ -296,4 +322,4 @@ kotlinc -nowarn \
   "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" \
   -d "$WORK/platform-adapter.jar"
 
-echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path soft-input=explicit"
+echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path soft-input=explicit visibility=window-insets"
