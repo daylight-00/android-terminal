@@ -18,8 +18,14 @@ The manifest status is `repository-complete-device-validation-pending`. The imag
 Run these inside the app terminal:
 
 ```sh
-printf 'argv0=<%s>\nSHELL=<%s>\nPATH=<%s>\nHOME=<%s>\nTERM=<%s>\n' \
-  "$0" "$SHELL" "$PATH" "$HOME" "$TERM"
+printf 'argv0=<%s>\nSHELL=<%s>\nPATH=<%s>\nHOME=<%s>\nTMPDIR=<%s>\nTERM=<%s>\n' \
+  "$0" "${SHELL-<unset>}" "${PATH-<unset>}" "$HOME" "$TMPDIR" "$TERM"
+printf 'ANDROID_ROOT=<%s>\nANDROID_DATA=<%s>\nANDROID_STORAGE=<%s>\nEXTERNAL_STORAGE=<%s>\n' \
+  "${ANDROID_ROOT-<unset>}" "${ANDROID_DATA-<unset>}" \
+  "${ANDROID_STORAGE-<unset>}" "${EXTERNAL_STORAGE-<unset>}"
+find "$HOME" -mindepth 1 -maxdepth 1 -print
+ls -ld "$TMPDIR"
+ls -ld /storage/emulated/0 2>&1 || true
 
 printf '\033]0;android-terminal-layer2-probe\007'
 printf '\033]9;4;1;42\007'
@@ -34,6 +40,9 @@ printf '\033]9;4;0;0\007'
 Expected evidence:
 
 - `$0` begins with `-`, while the executable remains `/system/bin/sh`.
+- `HOME` is the app files directory, `TMPDIR` is the app cache `tmp` child, and a fresh HOME has no session-created entry.
+- Parent Android variables are inherited as the device supplied them; the app does not force `PATH`, `SHELL`, `LANG`, `ANDROID_*`, `EXTERNAL_STORAGE`, or XDG values.
+- Shared-storage access uses `/storage/emulated/0` directly after the Android system grant and no `HOME/storage` link appears.
 - The title and progress values appear in `completion.snapshot()`.
 - OSC 52 writes the decoded text to the Android clipboard, subject to Android clipboard behavior.
 - OSC 8 and plain-text links route through Android `ACTION_VIEW` rather than WebView navigation.

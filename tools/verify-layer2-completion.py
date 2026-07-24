@@ -87,6 +87,30 @@ def verify(root: Path) -> list[str]:
     }:
         failures.append("runtime contract authority mismatch")
 
+    account = completion.get("account_session") if isinstance(completion.get("account_session"), dict) else {}
+    if account.get("status") != "repository-complete-device-validation-pending":
+        failures.append("native account/session completion gate is invalid")
+    if account.get("shell") != "/system/bin/sh" or account.get("argv0") != "-sh":
+        failures.append("native login-shell contract mismatch")
+    if account.get("working_directory") != "HOME":
+        failures.append("native account working directory must be HOME")
+    if account.get("home") != "Context.getFilesDir()" or account.get("tmpdir") != "Context.getCacheDir()/tmp":
+        failures.append("native account directory mapping mismatch")
+    environment = account.get("environment") if isinstance(account.get("environment"), dict) else {}
+    if environment.get("inherited") != "Android application process environment":
+        failures.append("native account environment authority mismatch")
+    if environment.get("overrides") != ["HOME", "TMPDIR", "TERM"] or environment.get("synthesized") != []:
+        failures.append("native account environment override set mismatch")
+    if account.get("home_initialization") != "none":
+        failures.append("native account HOME must remain unpopulated")
+    storage = account.get("shared_storage") if isinstance(account.get("shared_storage"), dict) else {}
+    if storage.get("permission_request") != "startup Android system flow":
+        failures.append("shared-storage startup permission policy mismatch")
+    if storage.get("home_link") != "none" or storage.get("child_environment_synthesis") != "none":
+        failures.append("shared storage must not alter HOME or child environment")
+    if account.get("saf") != "explicit Android document import/export; no virtual mount":
+        failures.append("SAF policy mismatch")
+
     upstream = completion.get("upstream") if isinstance(completion.get("upstream"), dict) else {}
     if upstream.get("core") != "@xterm/xterm@6.0.0":
         failures.append("completion authority core pin mismatch")
@@ -161,6 +185,10 @@ def verify(root: Path) -> list[str]:
 
     if "'layer2-completion-v1'" not in contract_js or '"layer2-completion-v1"' not in contract_kt:
         failures.append("Layer 2 completion page capability must match JavaScript and Kotlin")
+    if "'native-account-session-v1'" not in contract_js or '"native-account-session-v1"' not in contract_kt:
+        failures.append("native account/session page capability must match JavaScript and Kotlin")
+    if "'android-native-account-session'" not in contract_js or '"android-native-account-session"' not in contract_kt:
+        failures.append("native account/session host capability must match JavaScript and Kotlin")
     if "layer2.contractVersion !== 4" not in customization_js:
         failures.append("Layer 3 does not bind Layer 2 extension contract 4")
     if "layer2.completion.manifest.schemaVersion !== 1" not in customization_js:
@@ -178,7 +206,7 @@ def verify(root: Path) -> list[str]:
     if "BuildConfig.DEBUG" not in main_activity or "WebView.setWebContentsDebuggingEnabled(true)" not in main_activity:
         failures.append("debug-only WebView device evidence surface is missing")
 
-    for token in ("versionCode 18", "versionName '0.20.0'", "minSdk 29", "targetSdk 28"):
+    for token in ("versionCode 19", "versionName '0.21.0'", "minSdk 29", "targetSdk 28"):
         if token not in gradle:
             failures.append(f"closure version/policy mismatch: {token}")
     for token in (

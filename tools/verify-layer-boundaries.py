@@ -124,6 +124,12 @@ def verify(root: Path) -> list[str]:
         failures,
     )
     native = read(root, "app/src/main/c/shell_bridge.c", failures)
+    session_environment = read(root, "app/src/main/c/session_environment.c", failures)
+    session_directories = read(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionDirectories.kt",
+        failures,
+    )
     manifest = read(root, "app/src/main/AndroidManifest.xml", failures)
     architecture = read(root, "docs/architecture.md", failures)
 
@@ -512,6 +518,7 @@ def verify(root: Path) -> list[str]:
         "android-hardware-keyboard-state",
         "android-document-transport",
         "android-shared-storage-direct-path",
+        "android-native-account-session",
     ):
         if capability not in contract_kt:
             fail(f"native platform capability is missing: {capability}", failures)
@@ -557,21 +564,34 @@ def verify(root: Path) -> list[str]:
         "Environment.isExternalStorageManager()",
         "Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
         "Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION",
-        "Os.symlink",
-        "prepareHomeLink",
+        "Environment.getExternalStorageDirectory()",
     ):
         if token not in shared_storage:
             fail(f"shared-storage adapter lacks token: {token}", failures)
     if "TerminalSharedStorage.requestAccess(this)" not in activity:
-        fail("Activity must initiate required storage access", failures)
-    if "TerminalSharedStorage.prepareHomeLink(homeDirectory)" not in session:
-        fail("session must prepare non-destructive HOME/storage path", failures)
-    if "EXTERNAL_STORAGE=%s" not in native or "ANDROID_STORAGE=/storage" not in native:
-        fail("native shell environment must expose Android storage coordinates", failures)
+        fail("Activity must initiate the Android system storage grant flow at startup", failures)
+    if "prepareHomeLink" in shared_storage + session or "Os.symlink" in shared_storage + session:
+        fail("shared-storage adaptation must not populate HOME", failures)
+    if "sharedStorageDirectory" in session or "shared_storage_directory" in native:
+        fail("shared storage must not enter the PTY spawn contract", failures)
+    if "session_environment_merge(" not in native:
+        fail("native shell must merge the inherited Android environment", failures)
+    for forbidden in ("PATH=/system/bin", "SHELL=/system/bin/sh", "LANG=C.UTF-8", "ANDROID_STORAGE=/storage", "EXTERNAL_STORAGE="):
+        if forbidden in native or forbidden in session_environment:
+            fail(f"native shell must not synthesize {forbidden}", failures)
+    for override in ('"HOME"', '"TMPDIR"', '"TERM"'):
+        if override not in session_environment:
+            fail(f"native session override missing: {override}", failures)
+    if "TerminalSessionDirectories.prepareTemporaryDirectory(temporaryDirectory)" not in session:
+        fail("session must prepare its distinct TMPDIR", failures)
+    if "directory.mkdirs()" not in session_directories or "directory.canWrite()" not in session_directories:
+        fail("TMPDIR lifecycle validation is incomplete", failures)
     if 'char *const arguments[] = {"-sh", NULL};' not in native:
         fail("native shell must use leading-hyphen argv[0] login semantics", failures)
     if '"-l"' in native or "system(" in native or "popen(" in native:
         fail("login shell must remain a direct execve adaptation", failures)
+    if "native-account-session-v1" not in contract_js or "native-account-session-v1" not in contract_kt:
+        fail("native account/session page capability must match", failures)
     if "layer3-scaffold-v1" not in contract_js or "layer3-scaffold-v1" not in contract_kt:
         fail("Layer 3 scaffold capability must match", failures)
 

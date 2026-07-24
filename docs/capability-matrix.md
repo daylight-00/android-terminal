@@ -56,7 +56,8 @@ These host capabilities are not xterm.js addons, but they remain prerequisite La
 
 | Host capability | Status | Boundary |
 |---|---|---|
-| Direct shared-storage paths | Connected; device gate passed | Android storage permission and non-destructive `HOME/storage` mapping expose ordinary POSIX paths without pretending SAF URIs are files. |
+| Native account/session baseline | Connected with bounds | Inherit the Android process environment, replace only `HOME`, `TMPDIR`, and `TERM`, start `/system/bin/sh` as `-sh` in an unpopulated app-private HOME, and map TMPDIR to `cacheDir/tmp`. |
+| Direct shared-storage paths | Connected; device gate pending | Startup enters the Android system grant flow; the shell uses the actual Android path and app-UID permission with no HOME link or child environment synthesis. |
 | SAF document transport | Connected with bounds | Explicit import/export copies between a selected document and private POSIX files. |
 | Frontend reconnection | Connected with bounds | A service-owned PTY survives Activity and WebView replacement. |
 | WebView renderer recovery | Connected with bounds | Replacement frontend restores an opaque upstream snapshot plus bounded post-watermark output. |

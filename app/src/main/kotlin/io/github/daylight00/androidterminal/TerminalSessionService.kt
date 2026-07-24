@@ -273,7 +273,7 @@ class TerminalSessionService : Service() {
 
         return TerminalSession(
             homeDirectory = filesDir,
-            temporaryDirectory = cacheDir,
+            temporaryDirectory = java.io.File(cacheDir, "tmp"),
             listener = object : TerminalSession.Listener {
                 override fun onStarted() = handleStarted(epoch)
                 override fun onOutput(bytes: ByteArray) = handleOutput(epoch, bytes)

@@ -37,3 +37,20 @@ if python3 "$ROOT/tools/verify-layer2-completion.py" "$PIN_NEGATIVE" >/dev/null 
   exit 1
 fi
 echo 'PASS layer2-completion-pin-negative'
+
+
+ACCOUNT_NEGATIVE=$TMP/account-negative
+copy_fixture "$ACCOUNT_NEGATIVE"
+python3 - "$ACCOUNT_NEGATIVE/docs/layer2-completion.json" <<'PYNEG'
+from pathlib import Path
+import json, sys
+p=Path(sys.argv[1])
+d=json.loads(p.read_text())
+d['account_session']['shared_storage']['home_link']='HOME/storage'
+p.write_text(json.dumps(d, indent=2)+'\n')
+PYNEG
+if python3 "$ROOT/tools/verify-layer2-completion.py" "$ACCOUNT_NEGATIVE" >/dev/null 2>&1; then
+  echo 'FAIL layer2-completion-account-negative unexpectedly passed' >&2
+  exit 1
+fi
+echo 'PASS layer2-completion-account-negative'

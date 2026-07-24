@@ -9,12 +9,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
-import android.system.ErrnoException
-import android.system.Os
-import android.system.OsConstants
 import java.io.File
 
-/** Layer 2 adaptation for direct POSIX access to Android shared storage. */
+/**
+ * Direct POSIX shared-storage capability.
+ *
+ * The app requests the Android system grant at startup but does not alter HOME, synthesize
+ * child-process environment variables, or remap the platform path.
+ */
 internal object TerminalSharedStorage {
     const val RUNTIME_PERMISSION_REQUEST_CODE = 0x5403
 
@@ -46,27 +48,6 @@ internal object TerminalSharedStorage {
 
     @Suppress("DEPRECATION")
     fun directory(): File = Environment.getExternalStorageDirectory()
-
-    /**
-     * Provides the conventional HOME/storage path without replacing any owner-created entry.
-     * Access through the link remains governed entirely by Android's storage permission model.
-     */
-    fun prepareHomeLink(homeDirectory: File): File? {
-        val target = directory()
-        val link = File(homeDirectory, "storage")
-        try {
-            Os.lstat(link.absolutePath)
-            return link
-        } catch (error: ErrnoException) {
-            if (error.errno != OsConstants.ENOENT) return null
-        }
-        return try {
-            Os.symlink(target.absolutePath, link.absolutePath)
-            link
-        } catch (_: ErrnoException) {
-            null
-        }
-    }
 
     private fun openAllFilesSettings(activity: Activity): Boolean {
         val packageUri = Uri.parse("package:${activity.packageName}")

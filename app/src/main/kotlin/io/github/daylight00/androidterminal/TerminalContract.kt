@@ -57,6 +57,7 @@ internal object TerminalContract {
         "safe-window-reports-v1",
         "stable-addon-wave-v1",
         "login-shell-v1",
+        "native-account-session-v1",
         "layer2-completion-v1",
     )
 
@@ -78,6 +79,7 @@ internal object TerminalContract {
         "android-font-scale-state",
         "android-document-transport",
         "android-shared-storage-direct-path",
+        "android-native-account-session",
         "xterm-serialized-state",
     )
 }

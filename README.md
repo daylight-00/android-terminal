@@ -34,7 +34,9 @@ filesystem, or a Linux distribution.
 | Optional accelerated renderer | `@xterm/addon-webgl` 0.19.0 |
 | Native bridge | C11/JNI, `forkpty`, `execve`, `read`, `write`, `ioctl` |
 | Shell | device `/system/bin/sh`, direct login invocation with `argv[0] = -sh` |
-| PATH | `/system/bin` |
+| Session environment | inherit Android process environment; replace only `HOME`, `TMPDIR`, and `TERM` |
+| HOME | `Context.getFilesDir()`; no startup population |
+| TMPDIR | `Context.getCacheDir()/tmp` |
 | TERM | `xterm-256color` |
 | Layer 2 closure | repository-complete; real-device validation pending |
 
@@ -57,7 +59,7 @@ optional Layer 2 capability. Layer 2 must remain operational when the customizat
 empty or omitted. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
 upgrade boundary, [`docs/capability-matrix.md`](docs/capability-matrix.md) for the human-readable
 classification, and [`docs/upstream-capabilities.json`](docs/upstream-capabilities.json) for the
-machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-completion.json) for the closure gate and remaining device evidence.
+machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-completion.json) for the closure gate and remaining device evidence. The project-level account/session contract is defined in [`docs/native-account-session.md`](docs/native-account-session.md).
 
 ## Thin-layer decisions
 
@@ -84,7 +86,7 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
 - The official serialize addon produces opaque xterm framebuffer snapshots; Layer 2 stores them with an output-sequence watermark and bridges later bytes through a bounded raw tail journal without interpreting terminal state.
 - The official WebGL addon is attempted by Layer 2. Activation failure or context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched. Enabling the official ligatures capability reactivates an active WebGL addon as required by the upstream public contract.
 - The native bridge executes `/system/bin/sh` directly and requests login-shell startup only through the conventional leading-hyphen `argv[0]` (`-sh`). It adds no wrapper command, profile injection, alternate loader, or bundled shell.
-- Android shared-storage permissions expose ordinary POSIX paths through `EXTERNAL_STORAGE` and a non-destructive `HOME/storage` symlink. SAF imports remain real files under app-private `HOME/imports`, and exports accept only validated HOME-relative regular files; no `content://` URI is presented as a POSIX path or virtual mount.
+- Android shared-storage permission is requested through the platform system flow at startup. The shell uses actual Android paths with the app UID grant; Layer 2 creates no `HOME/storage` link and synthesizes no storage environment variable. SAF imports remain real files under app-private `HOME/imports`, and exports accept only validated HOME-relative regular files; no `content://` URI is presented as a POSIX path or virtual mount.
 - The manifest targets API 28 as a narrow Android compatibility boundary so the native shell can execute owner-provided binaries from the writable app-private HOME without adding a custom linker or loader path. The minimum runtime and native ABI floor remain API 29.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
@@ -164,12 +166,14 @@ After installation:
 
 ```sh
 id
-printf '%s\n' "$SHELL" "$PATH" "$HOME" "$TERM" "$ANDROID_STORAGE" "$EXTERNAL_STORAGE"
-ls -ld "$HOME/storage"
+printf 'argv0=<%s>\nHOME=<%s>\nTMPDIR=<%s>\nTERM=<%s>\nPATH=<%s>\n' \
+  "$0" "$HOME" "$TMPDIR" "$TERM" "${PATH-<unset>}"
+find "$HOME" -mindepth 1 -maxdepth 1 -print
+ls -ld "$TMPDIR"
+ls -ld /storage/emulated/0 2>&1 || true
 command -v sh
 command -v toybox
 getprop ro.build.version.sdk
 ```
 
-Expected policy properties are app-UID execution, `/system/bin/sh`, `PATH=/system/bin`,
-`TERM=xterm-256color`, an app-private `HOME`, `ANDROID_STORAGE=/storage`, and—after the user grants the required Android access—an `EXTERNAL_STORAGE` path reachable through the non-destructive `HOME/storage` link. Exact output and read/write behavior remain device evidence.
+Expected policy properties are app-UID execution, direct `/system/bin/sh` login invocation, an app-private and initially unpopulated `HOME`, `TMPDIR` at `cacheDir/tmp`, `TERM=xterm-256color`, and preservation of the Android parent environment without project-specific `PATH`, locale, Android-coordinate, or storage-variable reconstruction. Shared-storage pathname access follows the Android grant and uses no HOME link. Exact inherited values and read/write behavior remain device evidence.

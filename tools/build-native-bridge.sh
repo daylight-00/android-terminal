@@ -5,7 +5,10 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 REVISION=27.3.13750724
 API=29
 TRIPLE=aarch64-linux-android
-SOURCE="$ROOT/app/src/main/c/shell_bridge.c"
+SOURCES=(
+  "$ROOT/app/src/main/c/shell_bridge.c"
+  "$ROOT/app/src/main/c/session_environment.c"
+)
 OUTPUT_FILE=${NATIVE_OUTPUT_FILE:-"$ROOT/out/native-ndk-r27d/libshellbridge.so"}
 OUTPUT_DIR=$(dirname -- "$OUTPUT_FILE")
 
@@ -86,7 +89,7 @@ mkdir -p -- "$OUTPUT_DIR"
   -fvisibility=hidden -fstack-protector-strong -ffunction-sections -fdata-sections \
   -Wl,--gc-sections -Wl,-z,relro -Wl,-z,now -Wl,--no-undefined \
   -Wl,-soname,libshellbridge.so \
-  "$SOURCE" \
+  "${SOURCES[@]}" \
   -o "$OUTPUT_FILE"
 
 {

@@ -25,6 +25,7 @@ def verify(root: Path) -> list[str]:
     build = read_required(root, "app/build.gradle", failures)
     manifest = read_required(root, "app/src/main/AndroidManifest.xml", failures)
     native = read_required(root, "app/src/main/c/shell_bridge.c", failures)
+    session_environment = read_required(root, "app/src/main/c/session_environment.c", failures)
     activity = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt",
@@ -33,6 +34,11 @@ def verify(root: Path) -> list[str]:
     session = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt",
+        failures,
+    )
+    session_directories = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionDirectories.kt",
         failures,
     )
     controller = read_required(
@@ -156,8 +162,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 18" in build, "versionCode must identify the Layer 2 completion release", failures)
-    require("versionName '0.20.0'" in build, "versionName must identify the Layer 2 completion release", failures)
+    require("versionCode 19" in build, "versionCode must identify the native account/session policy release", failures)
+    require("versionName '0.21.0'" in build, "versionName must identify the native account/session policy release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -192,10 +198,20 @@ def verify(root: Path) -> list[str]:
     require("forkpty(" in native, "native bridge must use forkpty", failures)
     require("execve(" in native, "native bridge must use execve", failures)
     require("TIOCSWINSZ" in native, "native bridge must propagate PTY size", failures)
-    require("PATH=/system/bin" in native, "PATH must remain /system/bin", failures)
-    require("TERM=xterm-256color" in native, "TERM must match xterm.js capabilities", failures)
-    require("EXTERNAL_STORAGE=%s" in native, "shared-storage root must be exposed to the child", failures)
-    require("ANDROID_STORAGE=/storage" in native, "Android storage coordinate must be exposed to the child", failures)
+    require("session_environment_merge(" in native, "native shell must merge the inherited Android environment", failures)
+    for name in ('"HOME"', '"TMPDIR"', '"TERM"'):
+        require(name in session_environment, f"session environment override is missing: {name}", failures)
+    for forbidden in (
+        "PATH=/system/bin",
+        "SHELL=/system/bin/sh",
+        "LANG=C.UTF-8",
+        "ANDROID_ROOT=/system",
+        "ANDROID_DATA=/data",
+        "ANDROID_STORAGE=/storage",
+        "EXTERNAL_STORAGE=",
+    ):
+        require(forbidden not in native and forbidden not in session_environment, f"child environment must not synthesize {forbidden}", failures)
+    require("setenv(" not in native + session_environment and "unsetenv(" not in native + session_environment and "putenv(" not in native + session_environment, "process environment must be snapshotted without global mutation", failures)
     require('char *const arguments[] = {"-sh", NULL};' in native, "native shell must use login-shell argv[0] semantics", failures)
     require("execve(shell_path, arguments, environment)" in native, "login-shell adaptation must preserve direct execve", failures)
     require('"-l"' not in native and "system(" not in native and "popen(" not in native, "login shell must not use wrapper commands or secondary launchers", failures)
@@ -243,6 +259,7 @@ def verify(root: Path) -> list[str]:
         "android-hardware-keyboard-state",
         "android-document-transport",
         "android-shared-storage-direct-path",
+        "android-native-account-session",
         "xterm-serialized-state",
     ):
         require(capability in terminal_contract, f"native platform capability is required: {capability}", failures)
@@ -455,15 +472,19 @@ def verify(root: Path) -> list[str]:
         "Environment.isExternalStorageManager()",
         "Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
         "Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION",
-        "Os.symlink",
-        "prepareHomeLink",
+        "Environment.getExternalStorageDirectory()",
     ):
         require(token in shared_storage, f"shared-storage adapter token is required: {token}", failures)
-    require("TerminalSharedStorage.requestAccess(this)" in activity, "Activity storage access flow is required", failures)
-    require("TerminalSharedStorage.prepareHomeLink(homeDirectory)" in session, "HOME/storage preparation is required", failures)
+    require("TerminalSharedStorage.requestAccess(this)" in activity, "Activity must immediately enter the Android system storage grant flow", failures)
+    require("prepareHomeLink" not in shared_storage + session and "Os.symlink" not in shared_storage + session, "shared storage must not create a HOME entry", failures)
+    require("sharedStorageDirectory" not in session and "shared_storage_directory" not in native, "shared storage must not cross the PTY spawn contract", failures)
+    require("java.io.File(cacheDir, \"tmp\")" in session_service, "TMPDIR must map to cacheDir/tmp", failures)
+    require("TerminalSessionDirectories.prepareTemporaryDirectory(temporaryDirectory)" in session, "session must prepare the distinct TMPDIR", failures)
+    require("directory.mkdirs()" in session_directories and "directory.canWrite()" in session_directories, "TMPDIR creation and writability checks are required", failures)
     require("layer3-scaffold-v1" in terminal_contract and "layer3-scaffold-v1" in contract_js, "Layer 3 scaffold capability must match", failures)
     require("stable-addon-wave-v1" in terminal_contract and "stable-addon-wave-v1" in contract_js, "stable addon wave capability must match", failures)
     require("login-shell-v1" in terminal_contract and "login-shell-v1" in contract_js, "login-shell capability must match", failures)
+    require("native-account-session-v1" in terminal_contract and "native-account-session-v1" in contract_js, "native account/session page capability must match", failures)
     require("layer2-completion-v1" in terminal_contract and "layer2-completion-v1" in contract_js, "Layer 2 completion capability must match", failures)
     require("script-src 'self' 'wasm-unsafe-eval';" in web_client, "ImageAddon WebAssembly requires narrow CSP permission", failures)
     require("script-src 'self' 'unsafe-eval';" not in web_client, "JavaScript unsafe-eval must remain disabled", failures)

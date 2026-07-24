@@ -2,20 +2,22 @@
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SOURCE="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSharedStorage.kt"
+ACTIVITY="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt"
+SESSION="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt"
+NATIVE="$ROOT/app/src/main/c/shell_bridge.c"
+MANIFEST="$ROOT/app/src/main/AndroidManifest.xml"
 
-if ! command -v kotlinc >/dev/null 2>&1 || ! command -v kotlin >/dev/null 2>&1; then
-  python3 - "$SOURCE" "$ROOT/app/src/main/AndroidManifest.xml" <<'PY'
+python3 - "$SOURCE" "$ACTIVITY" "$SESSION" "$NATIVE" "$MANIFEST" <<'PY'
 from pathlib import Path
 import sys
-source = Path(sys.argv[1]).read_text(encoding='utf-8')
-manifest = Path(sys.argv[2]).read_text(encoding='utf-8')
+source, activity, session, native, manifest = (Path(p).read_text(encoding='utf-8') for p in sys.argv[1:])
 for token in (
     'Environment.isExternalStorageManager()',
     'Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION',
     'Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION',
     'Manifest.permission.READ_EXTERNAL_STORAGE',
     'Manifest.permission.WRITE_EXTERNAL_STORAGE',
-    'Os.symlink',
+    'Environment.getExternalStorageDirectory()',
 ):
     if token not in source:
         raise SystemExit(f'missing shared-storage token: {token}')
@@ -27,22 +29,30 @@ for token in (
 ):
     if token not in manifest:
         raise SystemExit(f'missing manifest storage token: {token}')
-print('PASS shared-storage-access static-python kotlinc=unavailable')
+if 'TerminalSharedStorage.requestAccess(this)' not in activity:
+    raise SystemExit('Activity must immediately enter the Android system grant flow')
+for forbidden in ('prepareHomeLink', 'Os.symlink', 'File(homeDirectory, "storage")'):
+    if forbidden in source or forbidden in session:
+        raise SystemExit(f'forbidden HOME storage mapping remains: {forbidden}')
+for forbidden in ('EXTERNAL_STORAGE=', 'ANDROID_STORAGE=/storage', 'shared_storage_directory'):
+    if forbidden in native:
+        raise SystemExit(f'forbidden child environment/path synthesis remains: {forbidden}')
+print('PASS shared-storage-access static-policy startup-request=yes home-link=no child-env-synthesis=no')
 PY
+
+if ! command -v kotlinc >/dev/null 2>&1 || ! command -v kotlin >/dev/null 2>&1; then
   exit 0
 fi
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p \
-  "$WORK/android" \
   "$WORK/android/app" \
   "$WORK/android/content" \
   "$WORK/android/content/pm" \
   "$WORK/android/net" \
   "$WORK/android/os" \
   "$WORK/android/provider" \
-  "$WORK/android/system" \
   "$WORK/io/github/daylight00/androidterminal"
 
 cat > "$WORK/android/Manifest.kt" <<'KT'
@@ -85,8 +95,7 @@ open class Activity {
     val started = mutableListOf<Intent>()
     var requestedPermissions: Array<String>? = null
     var requestedCode: Int = -1
-    open fun checkSelfPermission(permission: String): Int =
-        permissions[permission] ?: -1
+    open fun checkSelfPermission(permission: String): Int = permissions[permission] ?: -1
     open fun requestPermissions(permissions: Array<String>, requestCode: Int) {
         requestedPermissions = permissions
         requestedCode = requestCode
@@ -118,24 +127,6 @@ object Settings {
 }
 KT
 
-cat > "$WORK/android/system/System.kt" <<'KT'
-package android.system
-class ErrnoException(val functionName: String, val errno: Int) : Exception()
-object OsConstants { const val ENOENT: Int = 2 }
-object Os {
-    val entries = mutableSetOf<String>()
-    val links = mutableMapOf<String, String>()
-    fun lstat(path: String): Any {
-        if (path !in entries) throw ErrnoException("lstat", OsConstants.ENOENT)
-        return Any()
-    }
-    fun symlink(target: String, link: String) {
-        entries += link
-        links[link] = target
-    }
-}
-KT
-
 cat > "$WORK/io/github/daylight00/androidterminal/Test.kt" <<'KT'
 package io.github.daylight00.androidterminal
 
@@ -145,7 +136,6 @@ import android.content.ActivityNotFoundException
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
-import android.system.Os
 import java.io.File
 
 private class FallbackActivity : Activity() {
@@ -197,21 +187,9 @@ fun main() {
     check(!TerminalSharedStorage.requestAccess(denied))
 
     Environment.root = File("/storage/emulated/0")
-    val home = File("/data/user/0/app/files")
-    val link = TerminalSharedStorage.prepareHomeLink(home)
-    check(link?.path == File(home, "storage").path)
-    check(Os.links[link?.absolutePath] == Environment.root.absolutePath)
-    check(TerminalSharedStorage.prepareHomeLink(home)?.path == link?.path)
-    check(Os.links.size == 1)
+    check(TerminalSharedStorage.directory().absolutePath == "/storage/emulated/0")
 
-    val ownerHome = File("/data/user/0/app/owner-files")
-    val ownerEntry = File(ownerHome, "storage")
-    Os.entries += ownerEntry.absolutePath
-    check(TerminalSharedStorage.prepareHomeLink(ownerHome)?.path == ownerEntry.path)
-    check(ownerEntry.absolutePath !in Os.links)
-    check(Os.links.size == 1)
-
-    println("PASS shared-storage-access runtime=kotlinc api29=runtime-permissions api30=all-files settings-failure=bounded home-link=non-destructive")
+    println("PASS shared-storage-access runtime=kotlinc api29=runtime-permissions api30=all-files startup=host-owned home-link=absent")
 }
 KT
 
@@ -223,7 +201,6 @@ kotlinc -nowarn \
   "$WORK/android/net/Uri.kt" \
   "$WORK/android/os/Build.kt" \
   "$WORK/android/provider/Settings.kt" \
-  "$WORK/android/system/System.kt" \
   "$SOURCE" \
   "$WORK/io/github/daylight00/androidterminal/Test.kt" \
   -include-runtime -d "$WORK/test.jar"

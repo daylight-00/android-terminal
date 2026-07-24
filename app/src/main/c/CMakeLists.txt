@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 project(android_terminal_shellbridge LANGUAGES C)
 
-add_library(shellbridge SHARED shell_bridge.c)
+add_library(shellbridge SHARED
+    shell_bridge.c
+    session_environment.c
+)
 set_target_properties(shellbridge PROPERTIES
     C_STANDARD 11
     C_STANDARD_REQUIRED YES

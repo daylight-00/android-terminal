@@ -111,6 +111,40 @@ if python3 "$ROOT/tools/verify-layer-boundaries.py" "$STORAGE_INCOMPLETE" >/dev/
 fi
 printf 'PASS verifier-storage-incomplete\n'
 
+
+ENVIRONMENT_NEGATIVE=$TMP/environment-negative
+copy_fixture "$ENVIRONMENT_NEGATIVE"
+printf '\n/* PATH=/system/bin */\n' >> "$ENVIRONMENT_NEGATIVE/app/src/main/c/session_environment.c"
+if python3 "$ROOT/tools/verify_policy.py" "$ENVIRONMENT_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-environment-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-environment-negative\n'
+
+HOME_LINK_NEGATIVE=$TMP/home-link-negative
+copy_fixture "$HOME_LINK_NEGATIVE"
+printf '\n// prepareHomeLink Os.symlink\n' >> "$HOME_LINK_NEGATIVE/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSharedStorage.kt"
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$HOME_LINK_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-home-link-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-home-link-negative\n'
+
+TMPDIR_NEGATIVE=$TMP/tmpdir-negative
+copy_fixture "$TMPDIR_NEGATIVE"
+python3 - "$TMPDIR_NEGATIVE/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt" <<'PYNEG'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+path.write_text(text.replace('java.io.File(cacheDir, "tmp")', 'cacheDir', 1), encoding='utf-8')
+PYNEG
+if python3 "$ROOT/tools/verify_policy.py" "$TMPDIR_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-tmpdir-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-tmpdir-negative\n'
+
 FONT_SCALE_NEGATIVE=$TMP/font-scale-negative
 copy_fixture "$FONT_SCALE_NEGATIVE"
 python3 - "$FONT_SCALE_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-platform.js" <<'PY'

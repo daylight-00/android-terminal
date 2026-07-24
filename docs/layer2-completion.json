@@ -49,12 +49,42 @@
     "search, Unicode 11, web-font, and ligature capability activation",
     "WebGL activation/context-loss fallback",
     "shared-storage and SAF behavior",
-    "frontend and renderer replacement"
+    "frontend and renderer replacement",
+    "inherited Android process environment with only HOME, TMPDIR, and TERM replaced",
+    "fresh HOME remains unpopulated before explicit user action",
+    "TMPDIR maps to cacheDir/tmp and is recreated after cache eviction",
+    "startup shared-storage system permission flow without HOME symlink or child environment synthesis"
   ],
   "nonclaims": [
     "release-quality Layer 3 UX",
     "bundled userland or package manager",
     "generic browser behavior",
     "experimental Unicode grapheme addon"
-  ]
+  ],
+  "account_session": {
+    "status": "repository-complete-device-validation-pending",
+    "shell": "/system/bin/sh",
+    "argv0": "-sh",
+    "working_directory": "HOME",
+    "home": "Context.getFilesDir()",
+    "tmpdir": "Context.getCacheDir()/tmp",
+    "environment": {
+      "inherited": "Android application process environment",
+      "overrides": [
+        "HOME",
+        "TMPDIR",
+        "TERM"
+      ],
+      "synthesized": []
+    },
+    "home_initialization": "none",
+    "shared_storage": {
+      "permission_request": "startup Android system flow",
+      "path": "Android-reported direct path",
+      "home_link": "none",
+      "child_environment_synthesis": "none",
+      "denial_effect": "terminal and SAF remain available; direct path follows Android permission result"
+    },
+    "saf": "explicit Android document import/export; no virtual mount"
+  }
 }

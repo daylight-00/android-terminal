@@ -130,9 +130,11 @@ Repository verification executes `Terminal.onTitleChange` transport, control-cha
 
 Repository verification executes the pure Layer 2 renderer controller with a fake official addon surface. It verifies automatic addon activation, public `onContextLoss` handling, disposal of the addon and event subscription, permanent fallback to xterm core DOM rendering for the current frontend, activation-failure fallback, unavailable-addon fallback, and no retry loop. Real System WebView GPU support and context-loss behavior remain device gates.
 
-## Direct shared-storage adaptation
+## Native account/session and direct shared storage
 
-Repository verification compiles and executes the API 29 runtime-permission and API 30+ all-files settings branches against Android API-shape stubs while binding the manifest compatibility target to API 28. It verifies app-specific settings first, generic settings fallback, grant-state reporting, and non-destructive creation of `HOME/storage`. Static policy verification binds the manifest declarations, `requestLegacyExternalStorage`, `EXTERNAL_STORAGE`, and the native capability contract. Real permission dialogs, OEM settings routing, direct read/write behavior, and protected `/Android` subtrees remain device gates.
+Repository verification compiles the environment merge helper with a synthetic Android parent environment and proves that unrelated values are preserved while exactly one `HOME`, `TMPDIR`, and `TERM` override is produced. It rejects fixed `PATH`, locale, `ANDROID_*`, XDG, and storage-variable synthesis. A Kotlin test proves `TMPDIR == cacheDir/tmp`, recreates it when absent, rejects a non-directory path, and verifies that session setup leaves `HOME` untouched.
+
+The shared-storage fixture executes the API 29 runtime-permission and API 30+ all-files settings branches, verifies app-specific settings first, generic fallback, startup request ownership, grant-state reporting, and the Android-reported direct path. Static policy rejects `HOME/storage`, symlink creation, a shared-storage JNI argument, and child environment synthesis. Real permission dialogs, OEM settings routing, inherited environment values, direct read/write behavior, cache eviction, and protected `/Android` subtrees remain device gates.
 
 ## WebView renderer recovery
 

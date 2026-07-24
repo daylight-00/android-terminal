@@ -2,6 +2,10 @@
 
 Android Terminal is a thin Android host for unmodified upstream xterm.js and Android's native shell. The project completes Layer 2 before introducing Layer 3 product features.
 
+## Project-level scope
+
+At the largest scale, the project consists of the terminal mechanism and the minimum native account/session baseline. Actual user configuration and use are outside the repository. The repository Layer 1/2/3 design is orthogonal: it is the implementation philosophy used mainly to connect upstream xterm.js and Android-native behavior with minimal intervention.
+
 ## Layer authority
 
 ```text
@@ -58,7 +62,7 @@ Current Layer 2 responsibilities include:
 - official WebGL renderer activation with one-way fallback to xterm core DOM rendering after activation failure or public `onContextLoss` notification;
 - official serialize-addon snapshots plus a bounded raw PTY tail for replacement frontends;
 - SAF import/export for explicit document transactions;
-- direct shared-storage adaptation: Android 10 runtime storage permissions, Android 11+ all-files special access, API 28 compatibility targeting, `EXTERNAL_STORAGE`, and a non-destructive `HOME/storage` symlink;
+- direct shared-storage adaptation: Android 10 runtime permissions, Android 11+ all-files special access, startup entry into the official Android grant flow, and neutral reporting of the actual platform path and grant state;
 - API 28 compatibility targeting so owner-provided executables under writable app-private HOME remain launchable without a custom linker or loader shim;
 - PTY creation, login-shell `/system/bin/sh` execution via the standard leading-hyphen `argv[0]` convention, signals, reads, writes, resize, wait, and cleanup through the minimum JNI/C syscall bridge.
 
@@ -68,11 +72,13 @@ Layer 2 may contain fixed safety limits and neutral host mappings required to ma
 
 The app keeps `minSdk 29` and the native bridge API floor at 29, but declares `targetSdk 28`. This is a Layer 2 compatibility decision: Android 10 applies the writable-app-home `execve()` prohibition to apps targeting API 29 or later. The project does not absorb that platform transition through a custom dynamic linker, executable relocation service, copied loader, or bundled userland. Owner-provided Android executables remain ordinary files launched by `/system/bin/sh`; actual device execution is still a target gate.
 
-### Shared storage boundary
+### Native account/session and shared-storage boundary
 
-Direct POSIX shared-storage access is Layer 2 because Android's permission model otherwise prevents the native shell from using ordinary paths such as `/storage/emulated/0/Download`. The app declares `MANAGE_EXTERNAL_STORAGE`, uses the API 28 compatibility target with API 29 read/write runtime permissions, and directs API 30+ users to the app-specific all-files settings screen. Grant status remains a device/user decision.
+The child inherits the Android application environment and Layer 2 replaces only `HOME`, `TMPDIR`, and `TERM`. `HOME` is `filesDir`, `TMPDIR` is the distinct `cacheDir/tmp` namespace, and session startup does not create any entry under `HOME`.
 
-Layer 2 creates `HOME/storage` only when that path is absent and never replaces an existing owner-created entry. The symlink does not bypass Android permissions. SAF remains available for explicit document import/export and does not become a virtual mount.
+Direct POSIX shared-storage access is Layer 2 because Android permission is required before the app UID can use ordinary paths such as `/storage/emulated/0/Download`. The app declares `MANAGE_EXTERNAL_STORAGE`, uses the API 28 compatibility target with API 29 read/write runtime permissions, and immediately enters the official Android system grant flow when needed. Grant status remains a device/user decision; denial does not block the private shell or SAF.
+
+Layer 2 does not create `HOME/storage`, pass a shared-storage coordinate through JNI, or synthesize `EXTERNAL_STORAGE`. The shell uses real Android paths under the app UID's actual grant. SAF remains available for explicit document import/export and does not become a virtual mount. See `docs/native-account-session.md`.
 
 ### Plain-text web-link mapping
 

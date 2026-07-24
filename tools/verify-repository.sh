@@ -32,6 +32,8 @@ check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
 check terminal-document-transport "$ROOT/tools/test-document-transport.sh"
 check terminal-platform-adapter "$ROOT/tools/test-platform-adapter-compile.sh"
 check shared-storage-access "$ROOT/tools/test-shared-storage-access.sh"
+check session-environment "$ROOT/tools/test-session-environment.sh"
+check session-directories "$ROOT/tools/test-session-directories.sh"
 check frontend-recovery "$ROOT/tools/test-frontend-recovery.sh"
 check renderer-recovery-api "$ROOT/tools/test-renderer-recovery-compile.sh"
 check asset-provisioner "$ROOT/tools/test-asset-provisioner.sh"
@@ -61,6 +63,8 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-document-transport.sh" \
   "$ROOT/tools/test-platform-adapter-compile.sh" \
   "$ROOT/tools/test-shared-storage-access.sh" \
+  "$ROOT/tools/test-session-environment.sh" \
+  "$ROOT/tools/test-session-directories.sh" \
   "$ROOT/tools/test-frontend-recovery.sh" \
   "$ROOT/tools/test-renderer-recovery-compile.sh" \
   "$ROOT/tools/verify-no-saf-virtual-mount.sh" \
@@ -84,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 18' app/build.gradle
-check version-name grep -Fxq "        versionName '0.20.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 19' app/build.gradle
+check version-name grep -Fxq "        versionName '0.21.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -101,6 +105,10 @@ check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
 check login-shell-argv0 grep -Fq 'char *const arguments[] = {"-sh", NULL};' app/src/main/c/shell_bridge.c
 check login-shell-direct-exec grep -Fq 'execve(shell_path, arguments, environment)' app/src/main/c/shell_bridge.c
+check inherited-session-environment grep -Fq 'session_environment_merge(' app/src/main/c/shell_bridge.c
+check environment-helper test -f app/src/main/c/session_environment.c
+check no-fixed-path sh -c '! grep -Fq "PATH=/system/bin" app/src/main/c/shell_bridge.c app/src/main/c/session_environment.c'
+check no-storage-env-synthesis sh -c '! grep -Eq "EXTERNAL_STORAGE=|ANDROID_STORAGE=/storage" app/src/main/c/shell_bridge.c app/src/main/c/session_environment.c'
 check no-login-shell-wrapper sh -c '! grep -Eq "system\(|popen\(|\"-l\"" app/src/main/c/shell_bridge.c'
 check session-service grep -Fq 'class TerminalSessionService : Service()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
@@ -175,16 +183,20 @@ check android-document-capability grep -Fq 'android-document-transport' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check android-shared-storage-capability grep -Fq 'android-shared-storage-direct-path' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check native-account-capability grep -Fq 'android-native-account-session' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check manage-external-storage-permission grep -Fq 'android.permission.MANAGE_EXTERNAL_STORAGE' \
   app/src/main/AndroidManifest.xml
 check legacy-external-storage grep -Fq 'android:requestLegacyExternalStorage="true"' \
   app/src/main/AndroidManifest.xml
-check home-storage-link grep -Fq 'TerminalSharedStorage.prepareHomeLink(homeDirectory)' \
-  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
+check no-home-storage-link sh -c '! grep -Eq "prepareHomeLink|Os.symlink" app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSharedStorage.kt app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt'
+check startup-storage-request grep -Fq 'TerminalSharedStorage.requestAccess(this)' app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt
+check tmpdir-child grep -Fq 'java.io.File(cacheDir, "tmp")' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
+check tmpdir-preparation grep -Fq 'TerminalSessionDirectories.prepareTemporaryDirectory(temporaryDirectory)' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
 check stable-addon-wave-capability grep -Fq 'stable-addon-wave-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check login-shell-capability grep -Fq 'login-shell-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check native-account-page-capability grep -Fq 'native-account-session-v1' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check layer2-completion-capability grep -Fq 'layer2-completion-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check image-wasm-csp grep -Fq "script-src 'self' 'wasm-unsafe-eval';" \

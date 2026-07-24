@@ -16,6 +16,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "session_environment.h"
+
 typedef struct shell_session {
     pid_t child_pid;
     int master_fd;
@@ -66,64 +68,42 @@ Java_io_github_daylight00_androidterminal_NativePty_spawn(
         jstring cwd_value,
         jstring home_value,
         jstring temporary_directory_value,
-        jstring shared_storage_directory_value,
         jint rows,
         jint columns) {
     char *shell_path = copy_utf8(env, shell_path_value);
     char *cwd = copy_utf8(env, cwd_value);
     char *home = copy_utf8(env, home_value);
     char *temporary_directory = copy_utf8(env, temporary_directory_value);
-    char *shared_storage_directory = copy_utf8(env, shared_storage_directory_value);
 
     if ((*env)->ExceptionCheck(env)) {
         free(shell_path);
         free(cwd);
         free(home);
         free(temporary_directory);
-        free(shared_storage_directory);
         return 0;
     }
-    if (shell_path == NULL || cwd == NULL || home == NULL || temporary_directory == NULL ||
-            shared_storage_directory == NULL) {
+    if (shell_path == NULL || cwd == NULL || home == NULL || temporary_directory == NULL) {
         free(shell_path);
         free(cwd);
         free(home);
         free(temporary_directory);
-        free(shared_storage_directory);
         throw_io_exception(env, "copy arguments", ENOMEM);
         return 0;
     }
 
-    char home_entry[1024];
-    char temporary_entry[1024];
-    char shared_storage_entry[1024];
-    if (snprintf(home_entry, sizeof(home_entry), "HOME=%s", home) >= (int)sizeof(home_entry) ||
-            snprintf(temporary_entry, sizeof(temporary_entry), "TMPDIR=%s", temporary_directory) >=
-                    (int)sizeof(temporary_entry) ||
-            snprintf(shared_storage_entry, sizeof(shared_storage_entry), "EXTERNAL_STORAGE=%s",
-                    shared_storage_directory) >= (int)sizeof(shared_storage_entry)) {
+    extern char **environ;
+    char **environment = session_environment_merge(
+            environ, home, temporary_directory, "xterm-256color");
+    if (environment == NULL) {
+        int saved_errno = errno;
         free(shell_path);
         free(cwd);
         free(home);
         free(temporary_directory);
-        free(shared_storage_directory);
-        throw_io_exception(env, "construct environment", ENAMETOOLONG);
+        throw_io_exception(
+                env, "construct environment", saved_errno == 0 ? ENOMEM : saved_errno);
         return 0;
     }
-
-    char *const environment[] = {
-            home_entry,
-            temporary_entry,
-            shared_storage_entry,
-            "ANDROID_STORAGE=/storage",
-            "PATH=/system/bin",
-            "SHELL=/system/bin/sh",
-            "TERM=xterm-256color",
-            "LANG=C.UTF-8",
-            "ANDROID_ROOT=/system",
-            "ANDROID_DATA=/data",
-            NULL,
-    };
 
     struct winsize window_size;
     memset(&window_size, 0, sizeof(window_size));
@@ -143,7 +123,7 @@ Java_io_github_daylight00_androidterminal_NativePty_spawn(
         free(cwd);
         free(home);
         free(temporary_directory);
-        free(shared_storage_directory);
+        session_environment_destroy(environment);
         throw_io_exception(env, "forkpty", saved_errno);
         return 0;
     }
@@ -162,7 +142,7 @@ Java_io_github_daylight00_androidterminal_NativePty_spawn(
     free(cwd);
     free(home);
     free(temporary_directory);
-    free(shared_storage_directory);
+    session_environment_destroy(environment);
 
     int descriptor_flags = fcntl(master_fd, F_GETFD);
     if (descriptor_flags >= 0) {

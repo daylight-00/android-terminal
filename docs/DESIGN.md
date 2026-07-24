@@ -63,22 +63,15 @@ The child inherits the app UID and app SELinux domain. It is not ADB's UID 2000 
 account. System binary execution remains subject to file mode, seccomp, SELinux, Android
 permissions, and OEM policy.
 
-The child environment is:
+The child inherits the Android application process environment. Before `forkpty()`, Layer 2 copies that environment, removes any existing `HOME`, `TMPDIR`, and `TERM` entries, and appends exactly these values:
 
 ```text
 HOME=<app files directory>
-TMPDIR=<app cache directory>
-PATH=/system/bin
-SHELL=/system/bin/sh
+TMPDIR=<app cache directory>/tmp
 TERM=xterm-256color
-LANG=C.UTF-8
-ANDROID_ROOT=/system
-ANDROID_DATA=/data
-ANDROID_STORAGE=/storage
-EXTERNAL_STORAGE=<Android shared-storage root>
 ```
 
-No `LD_LIBRARY_PATH`, Termux prefix, copied shell, or package manager is introduced.
+No fixed `PATH`, `SHELL`, `LANG`, `ANDROID_*`, `EXTERNAL_STORAGE`, XDG variable, `LD_LIBRARY_PATH`, Termux prefix, copied shell, or package manager is introduced. The child path is limited to descriptor closure, `chdir(HOME)`, direct `execve()`, and `_exit()`.
 
 ## External-input boundary
 
