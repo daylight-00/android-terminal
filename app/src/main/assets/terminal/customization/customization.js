@@ -23,6 +23,11 @@
   const MAX_USER_FONT_SCALE = 3.0;
   const PINCH_STEP_RATIO = 0.1;
   const FONT_SIZE_STEP_PIXELS = 1;
+  const SCROLL_START_THRESHOLD_PIXELS = 6;
+  const SCROLL_SAMPLE_WINDOW_MILLIS = 120;
+  const SCROLL_MAX_FRAME_MILLIS = 32;
+  const SCROLL_FRICTION_PER_MILLISECOND = 0.006;
+  const SCROLL_STOP_VELOCITY = 0.02;
 
   function boundedScale(value, minimum, maximum) {
     const scale = Number(value);
@@ -40,12 +45,33 @@
     );
   }
 
+  function findTouch(touches, identifier) {
+    if (!touches) return null;
+    for (let index = 0; index < touches.length; index += 1) {
+      const touch = touches[index];
+      if (touch && touch.identifier === identifier) return touch;
+    }
+    return null;
+  }
+
   function consumeTouch(event) {
     event.preventDefault();
     event.stopPropagation();
     if (typeof event.stopImmediatePropagation === 'function') {
       event.stopImmediatePropagation();
     }
+  }
+
+  function eventTime(event) {
+    const timestamp = Number(event && event.timeStamp);
+    return Number.isFinite(timestamp) && timestamp >= 0 ? timestamp : Date.now();
+  }
+
+  function isScrollbarTarget(target) {
+    return Boolean(
+      target && typeof target.closest === 'function' &&
+      target.closest('.xterm-scrollable-element > .scrollbar')
+    );
   }
 
   function install(layer2) {
@@ -77,10 +103,23 @@
     let userFontScale = 1;
     let pinchDistance = 0;
     let pinchConsumesGesture = false;
+    let scrollTouchIdentifier = null;
+    let scrollStartY = 0;
+    let scrollLastY = 0;
+    let scrollPixelRemainder = 0;
+    let scrollConsumesGesture = false;
+    let scrollSamples = [];
+    let scrollAnimationFrame = 0;
     let disposed = false;
     const touchSurfaceAvailable =
       typeof terminalElement.addEventListener === 'function' &&
       typeof terminalElement.removeEventListener === 'function';
+    const requestFrame = typeof window.requestAnimationFrame === 'function'
+      ? (callback) => window.requestAnimationFrame(callback)
+      : (callback) => window.setTimeout(() => callback(Date.now()), 16);
+    const cancelFrame = typeof window.cancelAnimationFrame === 'function'
+      ? (handle) => window.cancelAnimationFrame(handle)
+      : (handle) => window.clearTimeout(handle);
 
     function applyAppearance(state) {
       layer2.terminal.options.theme = state.colorScheme === 'light' ? lightTheme : darkTheme;
@@ -109,42 +148,192 @@
       return true;
     }
 
-    function onTouchStart(event) {
-      if (!pinchConsumesGesture && event.touches.length < 2) return;
-      pinchConsumesGesture = true;
-      if (event.touches.length >= 2) {
-        pinchDistance = touchDistance(event.touches);
+    function measureCellHeight() {
+      const rows = Number(layer2.terminal.rows);
+      const screen = typeof terminalElement.querySelector === 'function'
+        ? terminalElement.querySelector('.xterm-screen')
+        : null;
+      if (screen && typeof screen.getBoundingClientRect === 'function' &&
+          Number.isFinite(rows) && rows > 0) {
+        const height = Number(screen.getBoundingClientRect().height);
+        if (Number.isFinite(height) && height > 0) return height / rows;
       }
+      const fontSize = Number(layer2.terminal.options.fontSize);
+      const lineHeight = Number(layer2.terminal.options.lineHeight);
+      if (Number.isFinite(fontSize) && fontSize > 0) {
+        return fontSize * (Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 1.2);
+      }
+      return 18;
+    }
+
+    function canScrollNormalBuffer() {
+      if (typeof layer2.terminal.scrollLines !== 'function') return false;
+      const activeBuffer = layer2.terminal.buffer && layer2.terminal.buffer.active;
+      if (activeBuffer && activeBuffer.type && activeBuffer.type !== 'normal') return false;
+      const modes = layer2.terminal.modes;
+      return !modes || !modes.mouseTrackingMode || modes.mouseTrackingMode === 'none';
+    }
+
+    function scrollByPixels(deltaPixels) {
+      if (!canScrollNormalBuffer()) return false;
+      const cellHeight = measureCellHeight();
+      if (!Number.isFinite(cellHeight) || cellHeight <= 0) return false;
+      scrollPixelRemainder += deltaPixels;
+      const rows = Math.trunc(scrollPixelRemainder / cellHeight);
+      if (rows === 0) return false;
+      scrollPixelRemainder -= rows * cellHeight;
+      layer2.terminal.scrollLines(rows);
+      return true;
+    }
+
+    function cancelScrollInertia() {
+      if (!scrollAnimationFrame) return;
+      cancelFrame(scrollAnimationFrame);
+      scrollAnimationFrame = 0;
+    }
+
+    function resetScrollGesture(resetRemainder) {
+      scrollTouchIdentifier = null;
+      scrollStartY = 0;
+      scrollLastY = 0;
+      scrollConsumesGesture = false;
+      scrollSamples = [];
+      if (resetRemainder) scrollPixelRemainder = 0;
+    }
+
+    function recordScrollSample(time, y) {
+      scrollSamples.push({time, y});
+      const minimumTime = time - SCROLL_SAMPLE_WINDOW_MILLIS;
+      while (scrollSamples.length > 2 && scrollSamples[0].time < minimumTime) {
+        scrollSamples.shift();
+      }
+    }
+
+    function startScrollInertia() {
+      if (scrollSamples.length < 2 || !canScrollNormalBuffer()) return;
+      const first = scrollSamples[0];
+      const last = scrollSamples[scrollSamples.length - 1];
+      const duration = last.time - first.time;
+      if (!(duration > 0)) return;
+      let velocity = (first.y - last.y) / duration;
+      if (!Number.isFinite(velocity) || Math.abs(velocity) < SCROLL_STOP_VELOCITY) return;
+      let previousTime = last.time;
+
+      function animate(timestamp) {
+        scrollAnimationFrame = 0;
+        if (disposed || !canScrollNormalBuffer()) return;
+        const now = Number.isFinite(Number(timestamp)) ? Number(timestamp) : Date.now();
+        const elapsed = Math.min(
+          SCROLL_MAX_FRAME_MILLIS,
+          Math.max(1, now - previousTime)
+        );
+        previousTime = now;
+        scrollByPixels(velocity * elapsed);
+        velocity *= Math.exp(-SCROLL_FRICTION_PER_MILLISECOND * elapsed);
+        if (Math.abs(velocity) >= SCROLL_STOP_VELOCITY) {
+          scrollAnimationFrame = requestFrame(animate);
+        }
+      }
+
+      scrollAnimationFrame = requestFrame(animate);
+    }
+
+    function beginOneFingerScroll(event) {
+      if (event.touches.length !== 1 || isScrollbarTarget(event.target) ||
+          !canScrollNormalBuffer()) {
+        resetScrollGesture(true);
+        return;
+      }
+      const touch = event.touches[0];
+      cancelScrollInertia();
+      scrollTouchIdentifier = touch.identifier;
+      scrollStartY = Number(touch.clientY);
+      scrollLastY = scrollStartY;
+      scrollPixelRemainder = 0;
+      scrollConsumesGesture = false;
+      scrollSamples = [];
+      recordScrollSample(eventTime(event), scrollStartY);
+    }
+
+    function beginPinch(event) {
+      cancelScrollInertia();
+      resetScrollGesture(true);
+      pinchConsumesGesture = true;
+      pinchDistance = touchDistance(event.touches);
       consumeTouch(event);
     }
 
-    function onTouchMove(event) {
-      if (!pinchConsumesGesture && event.touches.length < 2) return;
-      pinchConsumesGesture = true;
-      if (event.touches.length >= 2) {
-        const currentDistance = touchDistance(event.touches);
-        if (pinchDistance <= 0) {
-          pinchDistance = currentDistance;
-        } else if (currentDistance >= pinchDistance * (1 + PINCH_STEP_RATIO)) {
-          changeUserFontSize(1);
-          pinchDistance = currentDistance;
-        } else if (currentDistance <= pinchDistance * (1 - PINCH_STEP_RATIO)) {
-          changeUserFontSize(-1);
-          pinchDistance = currentDistance;
-        }
+    function onTouchStart(event) {
+      if (event.touches.length >= 2 || pinchConsumesGesture) {
+        beginPinch(event);
+        return;
       }
+      beginOneFingerScroll(event);
+    }
+
+    function onTouchMove(event) {
+      if (pinchConsumesGesture || event.touches.length >= 2) {
+        if (!pinchConsumesGesture) beginPinch(event);
+        const currentDistance = touchDistance(event.touches);
+        if (currentDistance > 0) {
+          if (pinchDistance <= 0) {
+            pinchDistance = currentDistance;
+          } else if (currentDistance >= pinchDistance * (1 + PINCH_STEP_RATIO)) {
+            changeUserFontSize(1);
+            pinchDistance = currentDistance;
+          } else if (currentDistance <= pinchDistance * (1 - PINCH_STEP_RATIO)) {
+            changeUserFontSize(-1);
+            pinchDistance = currentDistance;
+          }
+        }
+        consumeTouch(event);
+        return;
+      }
+
+      if (event.touches.length !== 1 || scrollTouchIdentifier === null) return;
+      const touch = findTouch(event.touches, scrollTouchIdentifier);
+      if (!touch) return;
+      const currentY = Number(touch.clientY);
+      if (!Number.isFinite(currentY)) return;
+      const deltaPixels = scrollLastY - currentY;
+      scrollLastY = currentY;
+      recordScrollSample(eventTime(event), currentY);
+      if (!scrollConsumesGesture &&
+          Math.abs(currentY - scrollStartY) < SCROLL_START_THRESHOLD_PIXELS) {
+        return;
+      }
+      scrollConsumesGesture = true;
+      scrollByPixels(deltaPixels);
       consumeTouch(event);
     }
 
     function onTouchEnd(event) {
-      if (!pinchConsumesGesture) return;
-      consumeTouch(event);
-      if (event.touches.length >= 2) {
-        pinchDistance = touchDistance(event.touches);
-      } else if (event.touches.length === 0) {
-        pinchDistance = 0;
-        pinchConsumesGesture = false;
+      if (pinchConsumesGesture) {
+        consumeTouch(event);
+        if (event.touches.length >= 2) {
+          pinchDistance = touchDistance(event.touches);
+        } else if (event.touches.length === 0) {
+          pinchDistance = 0;
+          pinchConsumesGesture = false;
+        }
+        return;
       }
+
+      if (scrollTouchIdentifier === null) return;
+      if (findTouch(event.touches, scrollTouchIdentifier)) return;
+      const consumed = scrollConsumesGesture;
+      if (consumed) startScrollInertia();
+      resetScrollGesture(false);
+      if (consumed) consumeTouch(event);
+    }
+
+    function onTouchCancel(event) {
+      const consumed = pinchConsumesGesture || scrollConsumesGesture;
+      pinchDistance = 0;
+      pinchConsumesGesture = false;
+      cancelScrollInertia();
+      resetScrollGesture(true);
+      if (consumed) consumeTouch(event);
     }
 
     const touchOptions = Object.freeze({capture: true, passive: false});
@@ -152,7 +341,7 @@
       terminalElement.addEventListener('touchstart', onTouchStart, touchOptions);
       terminalElement.addEventListener('touchmove', onTouchMove, touchOptions);
       terminalElement.addEventListener('touchend', onTouchEnd, touchOptions);
-      terminalElement.addEventListener('touchcancel', onTouchEnd, touchOptions);
+      terminalElement.addEventListener('touchcancel', onTouchCancel, touchOptions);
     }
 
     const platformSubscription = layer2.onPlatformState(applyAppearance);
@@ -161,12 +350,13 @@
       dispose() {
         if (disposed) return;
         disposed = true;
+        cancelScrollInertia();
         platformSubscription.dispose();
         if (touchSurfaceAvailable) {
           terminalElement.removeEventListener('touchstart', onTouchStart, touchOptions);
           terminalElement.removeEventListener('touchmove', onTouchMove, touchOptions);
           terminalElement.removeEventListener('touchend', onTouchEnd, touchOptions);
-          terminalElement.removeEventListener('touchcancel', onTouchEnd, touchOptions);
+          terminalElement.removeEventListener('touchcancel', onTouchCancel, touchOptions);
         }
       },
       getState() {
@@ -175,6 +365,8 @@
           userFontScale,
           effectiveFontSize: Number(layer2.terminal.options.fontSize),
           pinchConsumesGesture,
+          scrollConsumesGesture,
+          scrollAuthority: 'layer3-public-scroll-lines',
           touchSurfaceAvailable
         });
       }

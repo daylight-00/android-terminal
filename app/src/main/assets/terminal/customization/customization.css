@@ -1,10 +1,10 @@
 /*
  * Layer 3 interaction policy.
  *
- * The page remains fixed and xterm.js remains the sole scrollback authority.
- * Prevent the WebView from claiming touches that begin on the rendered screen
- * as browser page pan/zoom. The viewport itself is left alone so its upstream
- * scrollbar remains a browser-owned control.
+ * The page remains fixed and xterm.js remains the sole buffer/viewport
+ * authority. Prevent the WebView from claiming terminal-screen touches as
+ * browser page pan or page zoom so Layer 3 can translate touch gestures into
+ * public xterm operations. The xterm scrollbar remains browser-owned.
  */
 #terminal .xterm-screen,
 #terminal .xterm-screen canvas {
