@@ -53,7 +53,7 @@ Layer 2 is the active product scope. It must expose upstream functionality throu
 Current Layer 2 responsibilities include:
 
 - replaceable Activity/WebView frontend and service-owned PTY lifetime;
-- secure synthetic local origin, exact asset allowlist, CSP, and no runtime network access; the CSP grants only `'wasm-unsafe-eval'` beyond same-origin scripts because the official ImageAddon compiles embedded WebAssembly, while JavaScript string compilation remains disabled;
+- secure synthetic local origin, exact asset allowlist, CSP, and no WebView runtime network access even though the app UID grants native child processes `INTERNET`; the CSP grants only `'wasm-unsafe-eval'` beyond same-origin scripts because the official ImageAddon compiles embedded WebAssembly, while JavaScript string compilation remains disabled;
 - versioned WebMessagePort contract, attachment generations, capability handshake, bounded byte transport, ACK/backpressure, and explicit failures;
 - Android window, inset, rotation, focus, IME viewport, `ResizeObserver`, and `visualViewport` geometry reduced through `addon-fit` to deduplicated `TIOCSWINSZ` updates;
 - xterm input callbacks connected to PTY writes without reinterpreting keyboard or terminal semantics;
@@ -80,6 +80,12 @@ Direct POSIX shared-storage access is Layer 2 because Android permission is requ
 
 Layer 2 does not create `HOME/storage`, pass a shared-storage coordinate through JNI, or synthesize `EXTERNAL_STORAGE`. The shell uses real Android paths under the app UID's actual grant. SAF remains available for explicit document import/export, imposes no fixed HOME inbox, accepts a caller-selected HOME-relative import destination, and does not become a virtual mount. See `docs/native-account-session.md`.
 
+### Native process network boundary
+
+`android.permission.INTERNET` is declared as a normal app-UID permission so `/system/bin/sh` children and owner-provided Android-native tools can open network sockets without a private userland or proxy bridge. No environment variable, resolver replacement, certificate bundle, VPN policy, or command wrapper is synthesized. Tool behavior remains subject to Android DNS, routing, SELinux, VPN, proxy, certificate, and remote-server policy.
+
+The permission does not convert the terminal page into a network client. `WebSettings.blockNetworkLoads` remains enabled, the synthetic-origin asset client serves an exact local allowlist, navigation remains rejected, and the page CSP keeps `connect-src 'none'`.
+
 ### Plain-text web-link mapping
 
 The official `@xterm/addon-web-links` package owns URL recognition, wrapped-line handling, hover
@@ -88,7 +94,7 @@ That callback reuses the same bounded Android `open-external-uri` operation as O
 validated HTTP/HTTPS URIs without embedded credentials reach `ACTION_VIEW`.
 
 Layer 2 does not copy the upstream regular expression, register a private xterm link provider, call
-`window.open`, navigate the local WebView, or add runtime network permission. Upstream package bytes
+`window.open` or navigate the local WebView. The app UID network permission exists for native shell processes and does not become a WebView fetch path. Upstream package bytes
 remain unmodified in Layer 1; Android owns only external intent activation.
 
 ### Android font-scale mapping

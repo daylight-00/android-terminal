@@ -162,8 +162,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 20" in build, "versionCode must identify the native account/session policy release", failures)
-    require("versionName '0.22.0'" in build, "versionName must identify the native account/session policy release", failures)
+    require("versionCode 22" in build, "versionCode must identify the native account/session policy release", failures)
+    require("versionName '0.23.1'" in build, "versionName must identify the native account/session policy release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -494,8 +494,9 @@ def verify(root: Path) -> list[str]:
     require("script-src 'self' 'unsafe-eval';" not in web_client, "JavaScript unsafe-eval must remain disabled", failures)
     require("BuildConfig.DEBUG" in activity and "WebView.setWebContentsDebuggingEnabled(true)" in activity, "debug-only WebView device evidence surface is required", failures)
 
-    require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
+    require("android.permission.INTERNET" in manifest, "native child network access requires INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)
+    require("blockNetworkLoads = true" in controller, "WebView network loads must remain blocked", failures)
     require('android:name=".TerminalSessionService"' in manifest, "session service must be declared", failures)
     require('android:exported="false"' in manifest, "session service must not be exported", failures)
     require('android:stopWithTask="true"' in manifest, "task-removal session policy must be explicit", failures)

@@ -88,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 20' app/build.gradle
-check version-name grep -Fxq "        versionName '0.22.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 22' app/build.gradle
+check version-name grep -Fxq "        versionName '0.23.1'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -235,6 +235,8 @@ check no-androidx sh -c '! grep -R --exclude-dir=.git --exclude-dir=out -E "andr
 check no-rust sh -c '! find app/src/main -type f -name "*.rs" | grep .'
 check no-java-source sh -c '! find app/src/main/java -type f 2>/dev/null | grep .'
 check no-userland-payload sh -c '! find app/src/main -type f \( -name sh -o -name bash -o -name toybox -o -name busybox -o -name "libc.so*" -o -name "linker*" \) | grep .'
-check manifest-no-network sh -c '! grep -Fq "android.permission.INTERNET" app/src/main/AndroidManifest.xml'
+check manifest-native-network grep -Fq 'android.permission.INTERNET' app/src/main/AndroidManifest.xml
+check webview-network-block grep -Fq 'blockNetworkLoads = true' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt
+check webview-csp-no-connect grep -Fq "connect-src 'none'" app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt
 
 exit "$RC"

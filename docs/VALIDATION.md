@@ -8,7 +8,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 - native source shape and NDK r27d compilation when that NDK exists;
 - JavaScript codec/protocol behavior independent of xterm.js bytes;
 - pure JavaScript WebGL activation, context-loss cleanup, one-way fallback, and no-retry behavior;
-- WebView policy and absence of a bundled userland;
+- WebView local-origin/network isolation, native child network permission, and absence of a bundled userland;
 - no installation, device-runtime, OEM-policy, or sustained-performance claim.
 
 ## Layer-boundary verifier
@@ -26,7 +26,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 - minimum/native API 29, compatibility target API 28, NDK r27d, and arm64-only declarations;
 - Kotlin/WebView/WebMessagePort frontend and absence of the removed custom parser;
 - direct login-shell `/system/bin/sh` execution through `argv[0] = -sh` and `TERM=xterm-256color`;
-- no AndroidX, Compose, Rust, network permission, or bundled shell/userland;
+- no AndroidX, Compose, Rust, bundled shell/userland, or WebView runtime network path; native child processes intentionally inherit the app UID `INTERNET` permission;
 - local asset allowlist and restrictive WebView policy;
 - success, expected-negative, and missing-input verifier fixtures, including Android font-scale, service-owned title, localized-string, and safe-window-report authorities.
 
@@ -149,3 +149,15 @@ Repository verification checks that `onRenderProcessGone` destroys the failed We
 ## Stable official addon wave
 
 Repository verification loads the official Clipboard, Image, Progress, Search, Unicode 11, Web Fonts, and Ligatures addons through `Terminal.loadAddon`. Clipboard uses the official addon's default Base64 implementation and a bounded plain-text Android provider. Image uses upstream constructor defaults. Progress exposes neutral state, while Search, Unicode selection, web-font loading/relayout, and ligature activation are UI-free Layer 2 capabilities for Layer 3. Unicode 11 registration is the sole reason for the explicit `allowProposedApi` opt-in and Layer 2 does not change the active Unicode provider. The acquisition fixture rejects the obsolete CommonJS filename and requires the official `lib/addon-ligatures.mjs` entry plus package `module` metadata. Ligature activation reactivates an active WebGL addon as required by the upstream contract. Expected-negative fixtures reject a wrong ClipboardAddon constructor boundary, missing addon assets, and loss of login-shell `argv[0]` semantics. The pinned ImageAddon contains WebAssembly compilation sinks, so verification requires `script-src 'self' 'wasm-unsafe-eval'` and rejects JavaScript `'unsafe-eval'`. Real OSC 52, inline-image protocols and WebAssembly enforcement, WebView font access, ligature rendering, and shell startup-file behavior remain device evidence. The bounded procedure is documented in `docs/device-validation.md`; debug builds alone enable WebView inspection of `AndroidTerminalLayer2.completion.snapshot()`.
+
+## Native network and gesture-focus smoke
+
+The manifest `INTERNET` permission is an app-UID capability for the native shell and owner-provided executables. The terminal WebView remains local-only. A bounded device check is:
+
+```sh
+curl -I https://example.com
+```
+
+A successful HTTPS response verifies the native-process path. This does not claim DNS, proxy, VPN, captive-portal, cleartext HTTP, or arbitrary OEM network-policy coverage.
+
+With the soft keyboard hidden, perform a scroll and a pinch and release all fingers; the gesture must not open the keyboard. Repeat while the keyboard is already visible; the gesture must not deliberately hide it. The device finding that post-gesture mouse suppression was insufficient is covered by the Layer 3 fixture: terminal-screen touch ownership begins at `touchstart`, committed gestures replay no focus event, and a below-threshold release replays one ordinary tap so keyboard activation by a real tap still works.

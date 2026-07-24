@@ -104,8 +104,11 @@
     let pinchDistance = 0;
     let pinchConsumesGesture = false;
     let scrollTouchIdentifier = null;
+    let scrollStartX = 0;
     let scrollStartY = 0;
+    let scrollLastX = 0;
     let scrollLastY = 0;
+    let scrollTapTarget = null;
     let scrollPixelRemainder = 0;
     let scrollConsumesGesture = false;
     let scrollSamples = [];
@@ -194,8 +197,11 @@
 
     function resetScrollGesture(resetRemainder) {
       scrollTouchIdentifier = null;
+      scrollStartX = 0;
       scrollStartY = 0;
+      scrollLastX = 0;
       scrollLastY = 0;
+      scrollTapTarget = null;
       scrollConsumesGesture = false;
       scrollSamples = [];
       if (resetRemainder) scrollPixelRemainder = 0;
@@ -238,21 +244,49 @@
       scrollAnimationFrame = requestFrame(animate);
     }
 
+    function replayTap(target, clientX, clientY) {
+      if (target && typeof target.dispatchEvent === 'function' &&
+          typeof window.MouseEvent === 'function') {
+        const common = {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          view: window,
+          clientX,
+          clientY,
+          screenX: clientX,
+          screenY: clientY,
+          button: 0,
+          detail: 1
+        };
+        target.dispatchEvent(new window.MouseEvent('mousedown', {...common, buttons: 1}));
+        target.dispatchEvent(new window.MouseEvent('mouseup', {...common, buttons: 0}));
+        target.dispatchEvent(new window.MouseEvent('click', {...common, buttons: 0}));
+      }
+      if (typeof layer2.terminal.focus === 'function') {
+        layer2.terminal.focus();
+      }
+    }
+
     function beginOneFingerScroll(event) {
       if (event.touches.length !== 1 || isScrollbarTarget(event.target) ||
           !canScrollNormalBuffer()) {
         resetScrollGesture(true);
-        return;
+        return false;
       }
       const touch = event.touches[0];
       cancelScrollInertia();
       scrollTouchIdentifier = touch.identifier;
+      scrollStartX = Number(touch.clientX);
       scrollStartY = Number(touch.clientY);
+      scrollLastX = scrollStartX;
       scrollLastY = scrollStartY;
+      scrollTapTarget = event.target;
       scrollPixelRemainder = 0;
       scrollConsumesGesture = false;
       scrollSamples = [];
       recordScrollSample(eventTime(event), scrollStartY);
+      return true;
     }
 
     function beginPinch(event) {
@@ -268,7 +302,12 @@
         beginPinch(event);
         return;
       }
-      beginOneFingerScroll(event);
+      if (beginOneFingerScroll(event)) {
+        // Own the gesture from its first touch. Waiting until touchmove is too
+        // late on Android WebView because the initial touch can already arm
+        // xterm's focus/IME activation for release.
+        consumeTouch(event);
+      }
     }
 
     function onTouchMove(event) {
@@ -293,13 +332,17 @@
       if (event.touches.length !== 1 || scrollTouchIdentifier === null) return;
       const touch = findTouch(event.touches, scrollTouchIdentifier);
       if (!touch) return;
+      const currentX = Number(touch.clientX);
       const currentY = Number(touch.clientY);
-      if (!Number.isFinite(currentY)) return;
+      if (!Number.isFinite(currentX) || !Number.isFinite(currentY)) return;
       const deltaPixels = scrollLastY - currentY;
+      scrollLastX = currentX;
       scrollLastY = currentY;
       recordScrollSample(eventTime(event), currentY);
       if (!scrollConsumesGesture &&
-          Math.abs(currentY - scrollStartY) < SCROLL_START_THRESHOLD_PIXELS) {
+          Math.hypot(currentX - scrollStartX, currentY - scrollStartY) <
+            SCROLL_START_THRESHOLD_PIXELS) {
+        consumeTouch(event);
         return;
       }
       scrollConsumesGesture = true;
@@ -322,18 +365,22 @@
       if (scrollTouchIdentifier === null) return;
       if (findTouch(event.touches, scrollTouchIdentifier)) return;
       const consumed = scrollConsumesGesture;
+      const tapTarget = scrollTapTarget;
+      const tapX = scrollLastX;
+      const tapY = scrollLastY;
       if (consumed) startScrollInertia();
       resetScrollGesture(false);
-      if (consumed) consumeTouch(event);
+      consumeTouch(event);
+      if (!consumed) replayTap(tapTarget, tapX, tapY);
     }
 
     function onTouchCancel(event) {
-      const consumed = pinchConsumesGesture || scrollConsumesGesture;
+      const owned = pinchConsumesGesture || scrollTouchIdentifier !== null;
       pinchDistance = 0;
       pinchConsumesGesture = false;
       cancelScrollInertia();
       resetScrollGesture(true);
-      if (consumed) consumeTouch(event);
+      if (owned) consumeTouch(event);
     }
 
     const touchOptions = Object.freeze({capture: true, passive: false});
@@ -367,6 +414,7 @@
           pinchConsumesGesture,
           scrollConsumesGesture,
           scrollAuthority: 'layer3-public-scroll-lines',
+          touchActivationAuthority: 'layer3-deferred-tap-replay',
           touchSurfaceAvailable
         });
       }

@@ -34,7 +34,7 @@
   },
   "webview_requirements": {
     "origin": "https://app.local",
-    "runtime_network": "disabled",
+    "runtime_network": "disabled by blockNetworkLoads, local allowlist, navigation rejection, and CSP connect-src none",
     "image_webassembly": "script-src permits only 'wasm-unsafe-eval' in addition to 'self'",
     "javascript_string_compilation": "not permitted",
     "renderer": "WebGL2 automatic attempt with one-way DOM fallback"
@@ -92,6 +92,12 @@
       "fixed_home_inbox": "none",
       "collision_policy": "preserve existing files with a unique provider-derived name",
       "virtual_mount": "none"
+    },
+    "network": {
+      "permission": "android.permission.INTERNET",
+      "scope": "app UID and native child processes",
+      "webview": "network loads disabled; local assets only",
+      "synthesized_network_stack": "none"
     }
   },
   "device_evidence": {

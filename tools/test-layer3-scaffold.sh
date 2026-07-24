@@ -22,7 +22,23 @@ const vm = require('vm');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 
 class FakeTarget {
+  constructor() {
+    this.events = [];
+  }
   closest() { return null; }
+  dispatchEvent(event) {
+    this.events.push(event);
+    return !event.defaultPrevented;
+  }
+}
+
+class FakeMouseEvent {
+  constructor(type, init = {}) {
+    this.type = type;
+    Object.assign(this, init);
+    this.defaultPrevented = false;
+  }
+  preventDefault() { this.defaultPrevented = true; }
 }
 
 class FakeScreen {
@@ -56,11 +72,11 @@ class FakeElement {
   }
 }
 
-function touchEvent(touches, timeStamp) {
+function touchEvent(touches, timeStamp, target = new FakeTarget()) {
   return {
     touches,
     timeStamp,
-    target: new FakeTarget(),
+    target,
     prevented: false,
     stopped: false,
     immediate: false,
@@ -81,12 +97,14 @@ const frames = new Map();
 let nextFrameId = 1;
 let geometryRequests = 0;
 let disposed = false;
+let focusCalls = 0;
 const terminal = {
   rows: 12,
   options: {theme: {background: 'upstream-default'}, fontSize: 15, lineHeight: 1},
   buffer: {active: {type: 'normal'}},
   modes: {mouseTrackingMode: 'none'},
-  scrollLines(rows) { scrollCalls.push(rows); }
+  scrollLines(rows) { scrollCalls.push(rows); },
+  focus() { focusCalls += 1; }
 };
 const layer2 = Object.freeze({
   contractVersion: 4,
@@ -104,6 +122,7 @@ const document = Object.freeze({
 });
 const windowObject = {
   AndroidTerminalLayer2: layer2,
+  MouseEvent: FakeMouseEvent,
   requestAnimationFrame(callback) {
     const id = nextFrameId++;
     frames.set(id, callback);
@@ -139,15 +158,27 @@ if (terminal.options.theme.background !== '#fafafa') throw new Error('light pale
 if (Math.abs(terminal.options.fontSize - 18) > 1e-9) throw new Error('Android font scale was not composed');
 if (geometryRequests !== 1) throw new Error('Layer 3 did not request geometry refresh');
 
-const tapStart = touchEvent([point(1, 0, 100)], 0);
+const tapTarget = new FakeTarget();
+const tapStart = touchEvent([point(1, 40, 100)], 0, tapTarget);
 terminalElement.dispatch('touchstart', tapStart);
-const tapEnd = touchEvent([], 10);
+if (!tapStart.prevented || !tapStart.stopped || !tapStart.immediate) {
+  throw new Error('tap candidate was not owned from touchstart');
+}
+const tapEnd = touchEvent([], 10, tapTarget);
 terminalElement.dispatch('touchend', tapEnd);
-if (tapStart.prevented || tapEnd.prevented) throw new Error('ordinary tap was consumed as scrolling');
+if (!tapEnd.prevented || !tapEnd.stopped || !tapEnd.immediate) {
+  throw new Error('tap release was not isolated from WebView compatibility activation');
+}
+if (focusCalls !== 1) throw new Error('ordinary tap did not explicitly focus the terminal');
+if (tapTarget.events.map((event) => event.type).join(',') !== 'mousedown,mouseup,click') {
+  throw new Error('ordinary tap compatibility sequence was not replayed');
+}
 
-const dragStart = touchEvent([point(2, 0, 100)], 20);
+const dragTarget = new FakeTarget();
+const dragStart = touchEvent([point(2, 0, 100)], 20, dragTarget);
 terminalElement.dispatch('touchstart', dragStart);
-const dragDown = touchEvent([point(2, 0, 140)], 40);
+if (!dragStart.prevented) throw new Error('scroll candidate touchstart was not consumed');
+const dragDown = touchEvent([point(2, 0, 140)], 40, dragTarget);
 terminalElement.dispatch('touchmove', dragDown);
 if (!dragDown.prevented || !dragDown.stopped || !dragDown.immediate) {
   throw new Error('one-finger drag was not isolated from WebView page handling');
@@ -155,41 +186,55 @@ if (!dragDown.prevented || !dragDown.stopped || !dragDown.immediate) {
 if (scrollCalls.length !== 1 || scrollCalls[0] !== -2) {
   throw new Error(`drag-down row translation failed: ${JSON.stringify(scrollCalls)}`);
 }
-const dragUp = touchEvent([point(2, 0, 120)], 60);
+const dragUp = touchEvent([point(2, 0, 120)], 60, dragTarget);
 terminalElement.dispatch('touchmove', dragUp);
 if (scrollCalls.length !== 2 || scrollCalls[1] !== 1) {
   throw new Error(`drag-up row translation failed: ${JSON.stringify(scrollCalls)}`);
 }
-const dragEnd = touchEvent([], 70);
+const dragEnd = touchEvent([], 70, dragTarget);
 terminalElement.dispatch('touchend', dragEnd);
 if (!dragEnd.prevented || frames.size !== 1) throw new Error('scroll fling was not scheduled');
+if (focusCalls !== 1 || dragTarget.events.length !== 0) {
+  throw new Error('committed scroll replayed tap focus activation');
+}
 
-const pinchStart = touchEvent([point(3, 0, 0), point(4, 100, 0)], 80);
+const pinchTarget = new FakeTarget();
+const firstPinchFinger = touchEvent([point(3, 0, 0)], 75, pinchTarget);
+terminalElement.dispatch('touchstart', firstPinchFinger);
+if (!firstPinchFinger.prevented) throw new Error('first pinch finger was not owned');
+const pinchStart = touchEvent([point(3, 0, 0), point(4, 100, 0)], 80, pinchTarget);
 terminalElement.dispatch('touchstart', pinchStart);
 if (!pinchStart.prevented || !pinchStart.stopped || !pinchStart.immediate) {
   throw new Error('pinch gesture was not isolated from one-finger scrolling');
 }
 if (frames.size !== 0) throw new Error('pinch did not cancel prior scroll inertia');
-const pinchGrow = touchEvent([point(3, 0, 0), point(4, 111, 0)], 90);
+const pinchGrow = touchEvent([point(3, 0, 0), point(4, 111, 0)], 90, pinchTarget);
 terminalElement.dispatch('touchmove', pinchGrow);
 if (Math.abs(terminal.options.fontSize - 19) > 1e-9) throw new Error('pinch-out did not increase font size');
 if (geometryRequests !== 2) throw new Error('pinch-out did not request geometry refresh');
-const pinchEnd = touchEvent([], 100);
+const pinchEnd = touchEvent([], 100, pinchTarget);
 terminalElement.dispatch('touchend', pinchEnd);
+if (focusCalls !== 1 || pinchTarget.events.length !== 0) {
+  throw new Error('pinch replayed tap focus activation');
+}
 if (customization.getInteractionState().pinchConsumesGesture) throw new Error('pinch ownership did not reset');
 if (customization.getInteractionState().scrollAuthority !== 'layer3-public-scroll-lines') {
   throw new Error('scroll authority is not reported correctly');
 }
+if (customization.getInteractionState().touchActivationAuthority !== 'layer3-deferred-tap-replay') {
+  throw new Error('touch activation authority is not reported correctly');
+}
 
 terminal.buffer.active.type = 'alternate';
-const altStart = touchEvent([point(5, 0, 100)], 110);
+const altTarget = new FakeTarget();
+const altStart = touchEvent([point(5, 0, 100)], 110, altTarget);
 terminalElement.dispatch('touchstart', altStart);
-const altMove = touchEvent([point(5, 0, 140)], 130);
+const altMove = touchEvent([point(5, 0, 140)], 130, altTarget);
 terminalElement.dispatch('touchmove', altMove);
-if (altMove.prevented || scrollCalls.length !== 2) {
-  throw new Error('alternate-buffer touch was incorrectly translated as scrollback');
+if (altStart.prevented || altMove.prevented || scrollCalls.length !== 2) {
+  throw new Error('alternate-buffer touch was incorrectly captured as normal scrollback');
 }
-terminalElement.dispatch('touchend', touchEvent([], 140));
+terminalElement.dispatch('touchend', touchEvent([], 140, altTarget));
 terminal.buffer.active.type = 'normal';
 
 listeners[0]({colorScheme: 'dark', fontScale: 2});
@@ -203,7 +248,7 @@ if (geometryRequests !== 3) throw new Error('second platform update did not requ
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=deferred-tap-replay');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -218,6 +263,9 @@ for token in (
     'layer2.terminal.options.fontSize',
     "addEventListener('touchstart'",
     "addEventListener('touchmove'",
+    'consumeTouch(event);',
+    'replayTap(tapTarget, tapX, tapY)',
+    "touchActivationAuthority: 'layer3-deferred-tap-replay'",
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',
     "scrollAuthority: 'layer3-public-scroll-lines'",

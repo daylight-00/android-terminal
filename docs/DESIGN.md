@@ -20,7 +20,7 @@ The runtime is divided into unmodified upstream, required Android integration, a
 - `android.webkit.WebView` supplies the rendering and JavaScript runtime.
 - `android.webkit.WebMessagePort` carries bounded terminal messages.
 - `WebViewClient.shouldInterceptRequest` serves an exact allowlist of APK assets from
-  the synthetic `https://app.local` origin without a server or network permission.
+  the synthetic `https://app.local` origin without a server or WebView network fetch.
 - Kotlin is used only for Android lifecycle and bridge glue.
 
 ### Web terminal frontend
@@ -51,13 +51,16 @@ If that journal overflows, replay becomes explicitly unavailable while the live 
 
 The WebView:
 
-- requests no `INTERNET` permission;
+- runs under an app UID that declares `INTERNET` for native child processes, while WebView network loads remain blocked;
 - disables file and content access;
 - rejects all navigation except the single local document;
 - serves only twelve exact Layer 1/2 asset paths;
 - uses a restrictive Content Security Policy;
 - enables no JavaScript object bridge;
 - uses an HTML message channel transferred only to the local page.
+
+
+The native shell shares the app UID and therefore the normal `INTERNET` permission. This is a direct Android capability, not a bundled networking layer: the project does not add a proxy, resolver, certificate store, command wrapper, or network daemon. The local terminal page remains offline through `blockNetworkLoads`, exact local interception, navigation rejection, and CSP `connect-src 'none'`.
 
 The child inherits the app UID and app SELinux domain. It is not ADB's UID 2000 `shell`
 account. System binary execution remains subject to file mode, seccomp, SELinux, Android

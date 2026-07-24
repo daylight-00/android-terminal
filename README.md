@@ -88,7 +88,7 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
 - The native bridge executes `/system/bin/sh` directly and requests login-shell startup only through the conventional leading-hyphen `argv[0]` (`-sh`). It adds no wrapper command, profile injection, alternate loader, or bundled shell.
 - Android shared-storage permission is requested through the platform system flow at startup. The shell uses actual Android paths with the app UID grant; Layer 2 creates no `HOME/storage` link and synthesizes no storage environment variable. SAF imports remain real files under app-private `HOME`: the caller may select a validated HOME-relative destination directory, while an empty destination writes the provider-named file directly into HOME. Layer 2 imposes no fixed inbox directory. Exports accept only validated HOME-relative regular files; no `content://` URI is presented as a POSIX path or virtual mount.
 - The manifest targets API 28 as a narrow Android compatibility boundary so the native shell can execute owner-provided binaries from the writable app-private HOME without adding a custom linker or loader path. The minimum runtime and native ABI floor remain API 29.
-- Runtime network access is absent; no `INTERNET` permission is declared.
+- The app UID declares `INTERNET` so owner-provided native tools such as `curl` can use network sockets. The local WebView remains network-isolated by `blockNetworkLoads`, its exact asset allowlist, navigation rejection, and CSP `connect-src 'none'`.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
   origin and rejects every other resource or navigation. Its CSP permits the narrow
   `'wasm-unsafe-eval'` source expression because the pinned official ImageAddon compiles embedded
@@ -96,7 +96,9 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
   loads after Layer 2, and may consume only the stable customization capability.
 - Layer 3 touch interaction uses public xterm APIs inside the WebView: one-finger drag and fling
   translate CSS-pixel motion into `Terminal.scrollLines()`, while two-finger pinch changes the
-  public font size and reuses the existing geometry bridge. See `docs/layer3-touch-interactions.md`.
+  public font size and reuses the existing geometry bridge. Layer 3 owns a terminal-screen touch from
+  `touchstart`, suppresses WebView compatibility activation for committed gestures, and replays the
+  normal mouse/focus sequence only for an actual tap. See `docs/layer3-touch-interactions.md`.
 
 ## Upstream asset provisioning
 
