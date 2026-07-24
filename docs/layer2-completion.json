@@ -93,5 +93,17 @@
       "collision_policy": "preserve existing files with a unique provider-derived name",
       "virtual_mount": "none"
     }
+  },
+  "device_evidence": {
+    "overall_gate": "pending",
+    "single_device_smoke": {
+      "status": "passed-owner-reported",
+      "observed_at": "2026-07-24",
+      "scope": "bounded manual native account, PTY, lifecycle, clipboard, direct storage, link, and basic renderer smoke test",
+      "evidence": "docs/device-smoke-validation.md",
+      "home_executable_probe": "passed with owner-provided uv from writable app-private HOME",
+      "system_shell_copy_probe": "not applicable; copying /system/bin/sh was blocked by the device",
+      "saf_runtime": "not-tested-no-layer3-caller"
+    }
   }
 }

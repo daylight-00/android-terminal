@@ -76,6 +76,12 @@ A device PASS requires a bounded receipt containing at least:
 - PTY echo, Ctrl+C, resize, UTF-8/IME, scrollback, and lifecycle behavior;
 - complete first-failure context if any step fails.
 
+## Bounded single-device smoke evidence
+
+The project does not require the full device gate to be closed before a GitHub release. A bounded manual smoke receipt may coexist with `repository-complete-device-validation-pending` when the tested scope and nonclaims are explicit.
+
+The owner-reported 2026-07-24 single-device run passed the native account/session, writable-HOME executable, PTY/lifecycle, clipboard, direct shared-storage, external-link, and basic renderer probes. The executable probe used an owner-provided `uv` binary because copying `/system/bin/sh` was blocked by the device. SAF runtime remains `NOT_TESTED` because no Layer 3 caller or product UI exists. See `docs/device-smoke-validation.md`.
+
 ## WebView channel startup
 
 The terminal page must replace the loading overlay after receiving the exact `native-shell` marker with one transferred message port. It must not reject the native channel by comparing `MessageEvent.origin`, and it exposes a five-second startup diagnostic instead of leaving an indefinite loading overlay.
