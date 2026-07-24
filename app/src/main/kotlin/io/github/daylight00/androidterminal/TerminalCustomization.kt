@@ -7,5 +7,5 @@ package io.github.daylight00.androidterminal
  * be added here only through stable Layer 2 capabilities.
  */
 internal object TerminalCustomization {
-    const val CONTRACT_VERSION = 1
+    const val CONTRACT_VERSION = 2
 }

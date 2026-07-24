@@ -22,8 +22,9 @@ let geometryRequests = 0;
 let disposed = false;
 const terminal = {options: {theme: {background: 'upstream-default'}}};
 const layer2 = Object.freeze({
-  contractVersion: 3,
+  contractVersion: 4,
   terminal,
+  completion: Object.freeze({manifest: Object.freeze({schemaVersion: 1})}),
   onPlatformState(listener) {
     listeners.push(listener);
     return Object.freeze({dispose() { disposed = true; }});
@@ -33,7 +34,7 @@ const layer2 = Object.freeze({
 const context = vm.createContext({window: {AndroidTerminalLayer2: layer2}, Error, Object});
 vm.runInContext(source, context, {filename: 'customization.js'});
 const customization = context.window.AndroidTerminalCustomization;
-if (!customization || customization.contractVersion !== 1) {
+if (!customization || customization.contractVersion !== 2) {
   throw new Error('Layer 3 JavaScript contract is unavailable');
 }
 if (listeners.length !== 1) throw new Error('Layer 3 did not use the public Layer 2 state capability');

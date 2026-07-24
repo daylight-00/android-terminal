@@ -36,6 +36,7 @@ filesystem, or a Linux distribution.
 | Shell | device `/system/bin/sh`, direct login invocation with `argv[0] = -sh` |
 | PATH | `/system/bin` |
 | TERM | `xterm-256color` |
+| Layer 2 closure | repository-complete; real-device validation pending |
 
 `compileSdk`, the API 28 compatibility target, and the API 29 runtime/native floor are separate. The app uses no Compose,
 AndroidX, Rust, custom terminal parser, or custom terminal renderer.
@@ -56,7 +57,7 @@ optional Layer 2 capability. Layer 2 must remain operational when the customizat
 empty or omitted. See [`docs/architecture.md`](docs/architecture.md) for the ownership and
 upgrade boundary, [`docs/capability-matrix.md`](docs/capability-matrix.md) for the human-readable
 classification, and [`docs/upstream-capabilities.json`](docs/upstream-capabilities.json) for the
-machine-verified inventory.
+machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-completion.json) for the closure gate and remaining device evidence.
 
 ## Thin-layer decisions
 
@@ -87,7 +88,9 @@ machine-verified inventory.
 - The manifest targets API 28 as a narrow Android compatibility boundary so the native shell can execute owner-provided binaries from the writable app-private HOME without adding a custom linker or loader path. The minimum runtime and native ABI floor remain API 29.
 - Runtime network access is absent; no `INTERNET` permission is declared.
 - The terminal page is served from APK assets through an allowlisted synthetic HTTPS
-  origin and rejects every other resource or navigation. The optional Layer 3 script is local,
+  origin and rejects every other resource or navigation. Its CSP permits the narrow
+  `'wasm-unsafe-eval'` source expression because the pinned official ImageAddon compiles embedded
+  WebAssembly; JavaScript `'unsafe-eval'` remains forbidden. The optional Layer 3 script is local,
   loads after Layer 2, and may consume only the stable customization capability.
 
 ## Upstream asset provisioning
@@ -109,7 +112,7 @@ The app never loads a CDN or remote page at runtime.
 
 ## Local verification
 
-Repository-only checks:
+Repository-only checks, including the Layer 2 closure authority and CSP/ImageAddon WebAssembly boundary:
 
 ```sh
 ./tools/verify-repository.sh
@@ -153,6 +156,9 @@ x86_64, so the verified host-native Clang path remains the narrow Android-host a
 using the same NDK r27d sysroot and API 29 stubs.
 
 ## Runtime probe
+
+The complete real-device checklist is [`docs/device-validation.md`](docs/device-validation.md). Debug builds expose the neutral `AndroidTerminalLayer2.completion` snapshot through WebView inspection; release builds do not enable WebView debugging.
+
 
 After installation:
 

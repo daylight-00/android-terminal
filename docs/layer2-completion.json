@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-24",
+  "status": "repository-complete-device-validation-pending",
+  "repository_gate": "complete",
+  "device_gate": "pending",
+  "runtime_contract": {
+    "wire_protocol": 6,
+    "layer2_extension": 4,
+    "layer3_scaffold": 2,
+    "page_capability": "layer2-completion-v1"
+  },
+  "upstream": {
+    "core": "@xterm/xterm@6.0.0",
+    "automatic_addons": [
+      "@xterm/addon-clipboard@0.2.0",
+      "@xterm/addon-fit@0.11.0",
+      "@xterm/addon-image@0.9.0",
+      "@xterm/addon-progress@0.2.0",
+      "@xterm/addon-serialize@0.13.0",
+      "@xterm/addon-web-links@0.12.0",
+      "@xterm/addon-webgl@0.19.0"
+    ],
+    "registered_addons": [
+      "@xterm/addon-ligatures@0.10.0",
+      "@xterm/addon-search@0.16.0",
+      "@xterm/addon-unicode11@0.9.0",
+      "@xterm/addon-web-fonts@0.1.0"
+    ],
+    "excluded_addons": {
+      "@xterm/addon-attach": "native PTY backend; no WebSocket transport intersection",
+      "@xterm/addon-unicode-graphemes": "upstream experimental and excluded from the completion gate"
+    }
+  },
+  "webview_requirements": {
+    "origin": "https://app.local",
+    "runtime_network": "disabled",
+    "image_webassembly": "script-src permits only 'wasm-unsafe-eval' in addition to 'self'",
+    "javascript_string_compilation": "not permitted",
+    "renderer": "WebGL2 automatic attempt with one-way DOM fallback"
+  },
+  "layer3_rule": "Layer 2 operates with Layer 3 empty or omitted; optional UI, preferences, initial product values, and userland remain Layer 3.",
+  "device_validation": [
+    "debug WebView completion snapshot",
+    "login-shell startup-file behavior",
+    "OSC 52 Android clipboard round trip",
+    "SIXEL or iTerm inline image rendering and WebAssembly policy",
+    "OSC 9;4 progress state",
+    "search, Unicode 11, web-font, and ligature capability activation",
+    "WebGL activation/context-loss fallback",
+    "shared-storage and SAF behavior",
+    "frontend and renderer replacement"
+  ],
+  "nonclaims": [
+    "release-quality Layer 3 UX",
+    "bundled userland or package manager",
+    "generic browser behavior",
+    "experimental Unicode grapheme addon"
+  ]
+}

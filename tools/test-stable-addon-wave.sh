@@ -31,8 +31,10 @@ grep -Fq 'onProgressState' "$BRIDGE"
 grep -Fq 'findNext(term, options)' "$BRIDGE"
 grep -Fq 'setActiveVersion(version)' "$BRIDGE"
 grep -Fq 'loadFonts(fonts)' "$BRIDGE"
-grep -Fq 'contractVersion: 3' "$BRIDGE"
+grep -Fq 'contractVersion: 4' "$BRIDGE"
 grep -Fq 'stable-addon-wave-v1' "$ROOT/app/src/main/assets/terminal/bridge/terminal-contract.js"
+grep -Fq 'completionManifest' "$BRIDGE"
+grep -Fq "status: 'repository-complete-device-validation-pending'" "$BRIDGE"
 python3 - "$CAPS" <<'PY'
 import json,sys
 p=json.load(open(sys.argv[1]))

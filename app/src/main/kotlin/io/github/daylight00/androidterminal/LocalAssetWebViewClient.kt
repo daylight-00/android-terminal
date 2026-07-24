@@ -84,7 +84,7 @@ internal class LocalAssetWebViewClient(
             "Cache-Control" to "no-store",
             "Content-Security-Policy" to (
                 "default-src 'none'; " +
-                    "script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+                    "script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
                     "font-src 'self'; img-src 'self' data:; connect-src 'none'; " +
                     "object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
                 ),

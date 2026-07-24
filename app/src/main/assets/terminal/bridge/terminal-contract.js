@@ -66,7 +66,8 @@
       'localized-xterm-strings-v1',
       'safe-window-reports-v1',
       'stable-addon-wave-v1',
-      'login-shell-v1'
+      'login-shell-v1',
+      'layer2-completion-v1'
     ])
   });
 })();

@@ -303,10 +303,27 @@ const paths = process.argv.slice(2);
   if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
   if (!context.AndroidTerminalPlatformIntegration) throw new Error('platform integration export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
-  if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 3) {
+  if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 4) {
     throw new Error('stable Layer 2 customization capability missing');
   }
-  if (!context.AndroidTerminalCustomization || context.AndroidTerminalCustomization.contractVersion !== 1) {
+  const completion = context.AndroidTerminalLayer2.completion;
+  if (!completion || !completion.manifest || completion.manifest.schemaVersion !== 1) {
+    throw new Error('Layer 2 completion manifest missing');
+  }
+  if (completion.manifest.status !== 'repository-complete-device-validation-pending') {
+    throw new Error('Layer 2 completion status lost the device gate');
+  }
+  if (!completion.manifest.automaticAddons.includes('@xterm/addon-image@0.9.0') ||
+      !completion.manifest.registeredAddons.includes('@xterm/addon-search@0.16.0') ||
+      !completion.manifest.excludedAddons.includes('@xterm/addon-attach')) {
+    throw new Error('Layer 2 completion addon classification mismatch');
+  }
+  const completionSnapshot = completion.snapshot();
+  if (completionSnapshot.attached !== false || completionSnapshot.imageStorageLimit !== 128 ||
+      completionSnapshot.unicodeVersions.join(',') !== '6,11') {
+    throw new Error('Layer 2 completion snapshot mismatch');
+  }
+  if (!context.AndroidTerminalCustomization || context.AndroidTerminalCustomization.contractVersion !== 2) {
     throw new Error('Layer 3 scaffold missing');
   }
   if (!context.AndroidTerminalBridge || typeof context.AndroidTerminalBridge.getRendererState !== 'function') {
@@ -701,7 +718,7 @@ required = {
         "terminal.options.linkHandler",
         "terminal.onBell(",
         "terminal.onTitleChange(",
-        "contractVersion: 3",
+        "contractVersion: 4",
         "getTitleState()",
         "getWindowReportState()",
         "window.AndroidTerminalPlatform = platform",

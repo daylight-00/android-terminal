@@ -82,6 +82,8 @@ No `LD_LIBRARY_PATH`, Termux prefix, copied shell, or package manager is introdu
 
 ## External-input boundary
 
+The synthetic local origin uses `script-src 'self' 'wasm-unsafe-eval'`: the second source expression is required by the pinned official ImageAddon embedded WebAssembly decoder and does not permit JavaScript `eval` or `Function`.
+
 Repository source pins `@xterm/xterm` 6.0.0 and the approved official addon set: fit 0.11.0, serialize 0.13.0, clipboard 0.2.0, image 0.9.0, progress 0.2.0, search 0.16.0, Unicode 11 0.9.0, web-fonts 0.1.0, ligatures 0.10.0 through its unmodified ESM entry and a Layer 2 module adapter, web-links 0.12.0, and WebGL 0.19.0, but does not
 pretend to contain bytes the assistant could not acquire through the project authority
 path. The owner-side acquisition script fetches official npm tarballs, validates fixed
@@ -93,6 +95,7 @@ size metadata in a local receipt. Acquisition retains exact package metadata for
 - Platform WebMessagePort on API 29 is string-based, so PTY data uses Base64.
 - WebView implementation behavior varies with the installed Android System WebView.
 - WebGL is automatically attempted by Layer 2; activation, context loss, and DOM fallback still require real-device evidence.
+- ImageAddon WebAssembly compilation is authorized by the narrow CSP source expression; actual System WebView enforcement and inline-image rendering remain real-device evidence.
 - The PTY survives Activity/WebView replacement within the app process, but the current policy stops the service when the app task is removed.
 - Frontend reconstruction uses an official serialized xterm snapshot bounded to 8 MiB plus a rolling 1 MiB raw-output tail; it restores only state retained by the configured xterm scrollback.
 - Direct shared-storage access depends on user-granted Android storage access; settings routing, path readability/writability, and protected `/Android` subtrees require owner-device evidence.

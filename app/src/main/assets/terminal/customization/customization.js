@@ -18,8 +18,10 @@
   });
 
   function install(layer2) {
-    if (!layer2 || layer2.contractVersion !== 3 ||
-        !layer2.terminal || typeof layer2.onPlatformState !== 'function') {
+    if (!layer2 || layer2.contractVersion !== 4 ||
+        !layer2.terminal || !layer2.completion ||
+        !layer2.completion.manifest || layer2.completion.manifest.schemaVersion !== 1 ||
+        typeof layer2.onPlatformState !== 'function') {
       throw new Error('Layer 2 customization capability is unavailable.');
     }
 
@@ -31,7 +33,7 @@
 
   const installation = install(window.AndroidTerminalLayer2);
   window.AndroidTerminalCustomization = Object.freeze({
-    contractVersion: 1,
+    contractVersion: 2,
     installation
   });
 })();

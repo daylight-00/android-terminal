@@ -156,8 +156,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 17" in build, "versionCode must identify the stable-addon/login-shell release", failures)
-    require("versionName '0.19.0'" in build, "versionName must identify the stable-addon/login-shell release", failures)
+    require("versionCode 18" in build, "versionCode must identify the Layer 2 completion release", failures)
+    require("versionName '0.20.0'" in build, "versionName must identify the Layer 2 completion release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -320,7 +320,7 @@ def verify(root: Path) -> list[str]:
     require("upstreamFontSizes.get(terminal) * boundedFontScale(value)" in platform_js, "font-scale mapping must scale from the upstream baseline without compounding", failures)
     require("applyFontScale(terminal, state.fontScale)" in platform_js, "Android font scale must map through the public xterm option", failures)
     require("contractVersion: 4" in platform_js and "platformIntegration.contractVersion !== 4" in javascript, "platform integration contract must be version 4", failures)
-    require("contractVersion: 3" in javascript, "stable Layer 2 capability contract must be version 3", failures)
+    require("contractVersion: 4" in javascript, "stable Layer 2 capability contract must be version 4", failures)
     require("TerminalContract.MessageType.SESSION_TITLE" in controller and "handleSessionTitle" in controller, "controller must accept neutral session-title state", failures)
     require("fun updateTitle(" in session_service and "title = TerminalSessionTitle.sanitize(value)" in session_service, "service must own bounded terminal-title state", failures)
     require("MAX_CODE_POINTS = 1024" in session_title and "codePointAt(index)" in session_title, "terminal title must be Unicode-code-point bounded", failures)
@@ -401,7 +401,7 @@ def verify(root: Path) -> list[str]:
     require("terminal.options.theme" not in platform_js and "darkTheme" not in platform_js and "lightTheme" not in platform_js, "project palettes must not remain in Layer 2", failures)
     require("window.AndroidTerminalCustomization" in customization_js and "layer2.onPlatformState" in customization_js, "Layer 3 JavaScript scaffold must consume the public Layer 2 capability", failures)
     require("layer2.terminal.options.theme" in customization_js, "project palette must be owned by Layer 3", failures)
-    require("CONTRACT_VERSION = 1" in customization_kt, "Layer 3 native scaffold contract is required", failures)
+    require("CONTRACT_VERSION = 2" in customization_kt, "Layer 3 native scaffold contract is required", failures)
     require("nativePort" not in customization_js and "NativePty" not in customization_kt, "Layer 3 must not bypass Layer 2 internals", failures)
 
     require("@xterm/xterm/-/xterm-6.0.0.tgz" in acquisition, "xterm.js URL must be pinned", failures)
@@ -464,6 +464,10 @@ def verify(root: Path) -> list[str]:
     require("layer3-scaffold-v1" in terminal_contract and "layer3-scaffold-v1" in contract_js, "Layer 3 scaffold capability must match", failures)
     require("stable-addon-wave-v1" in terminal_contract and "stable-addon-wave-v1" in contract_js, "stable addon wave capability must match", failures)
     require("login-shell-v1" in terminal_contract and "login-shell-v1" in contract_js, "login-shell capability must match", failures)
+    require("layer2-completion-v1" in terminal_contract and "layer2-completion-v1" in contract_js, "Layer 2 completion capability must match", failures)
+    require("script-src 'self' 'wasm-unsafe-eval';" in web_client, "ImageAddon WebAssembly requires narrow CSP permission", failures)
+    require("script-src 'self' 'unsafe-eval';" not in web_client, "JavaScript unsafe-eval must remain disabled", failures)
+    require("BuildConfig.DEBUG" in activity and "WebView.setWebContentsDebuggingEnabled(true)" in activity, "debug-only WebView device evidence surface is required", failures)
 
     require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)

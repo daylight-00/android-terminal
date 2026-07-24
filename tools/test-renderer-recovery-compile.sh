@@ -158,7 +158,9 @@ interface WebResourceRequest { val url: android.net.Uri }
 class WebResourceResponse {
     constructor(mimeType: String, encoding: String, statusCode: Int, reasonPhrase: String, responseHeaders: Map<String, String>, data: java.io.InputStream)
 }
-open class WebView : android.view.View()
+open class WebView : android.view.View() {
+    companion object { fun setWebContentsDebuggingEnabled(enabled: Boolean) {} }
+}
 open class WebViewClient {
     open fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? = null
     open fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? = null
@@ -172,6 +174,7 @@ KT
 cat > "$WORK/io/github/daylight00/androidterminal/Stubs.kt" <<'KT'
 package io.github.daylight00.androidterminal
 
+object BuildConfig { const val DEBUG: Boolean = true }
 object TerminalContract {
     const val DOCUMENT_PATH: String = "/terminal/index.html"
     const val HOST: String = "app.local"

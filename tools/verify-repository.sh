@@ -25,6 +25,7 @@ check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
 check terminal-font-scale "$ROOT/tools/test-font-scale.sh"
 check core-host-integration "$ROOT/tools/test-core-host-integration.sh"
 check stable-addon-wave "$ROOT/tools/test-stable-addon-wave.sh"
+check layer2-completion "$ROOT/tools/test-layer2-completion.sh"
 check login-shell "$ROOT/tools/test-login-shell.sh"
 check layer3-scaffold "$ROOT/tools/test-layer3-scaffold.sh"
 check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
@@ -53,6 +54,7 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-font-scale.sh" \
   "$ROOT/tools/test-core-host-integration.sh" \
   "$ROOT/tools/test-stable-addon-wave.sh" \
+  "$ROOT/tools/test-layer2-completion.sh" \
   "$ROOT/tools/test-login-shell.sh" \
   "$ROOT/tools/test-layer3-scaffold.sh" \
   "$ROOT/tools/test-document-policy.sh" \
@@ -71,6 +73,7 @@ check python-syntax python3 -m py_compile \
   "$ROOT/tools/verify_policy.py" \
   "$ROOT/tools/verify-layer-boundaries.py" \
   "$ROOT/tools/verify-upstream-capabilities.py" \
+  "$ROOT/tools/verify-layer2-completion.py" \
   "$ROOT/tools/verify-web-assets.py"
 check identity-name test "$(git config --local user.name)" = 'daylight-00'
 check identity-email test "$(git config --local user.email)" = 'hwjang00@snu.ac.kr'
@@ -81,8 +84,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 17' app/build.gradle
-check version-name grep -Fxq "        versionName '0.19.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 18' app/build.gradle
+check version-name grep -Fxq "        versionName '0.20.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -182,6 +185,13 @@ check stable-addon-wave-capability grep -Fq 'stable-addon-wave-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check login-shell-capability grep -Fq 'login-shell-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check layer2-completion-capability grep -Fq 'layer2-completion-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check image-wasm-csp grep -Fq "script-src 'self' 'wasm-unsafe-eval';" \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt
+check no-javascript-unsafe-eval sh -c '! grep -Fq "script-src '''self''' '''unsafe-eval''';" app/src/main/kotlin/io/github/daylight00/androidterminal/LocalAssetWebViewClient.kt'
+check debug-webview-inspection grep -Fq 'if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt
 check layer3-scaffold grep -Fq 'layer3-scaffold-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check layer3-js-scaffold test -f app/src/main/assets/terminal/customization/customization.js

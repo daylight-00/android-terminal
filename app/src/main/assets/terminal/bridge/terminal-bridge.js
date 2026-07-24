@@ -443,8 +443,59 @@
     getTitle() { return lastTitleState; }
   });
 
+  const completionManifest = Object.freeze({
+    schemaVersion: 1,
+    status: 'repository-complete-device-validation-pending',
+    core: '@xterm/xterm@6.0.0',
+    automaticAddons: Object.freeze([
+      '@xterm/addon-clipboard@0.2.0',
+      '@xterm/addon-fit@0.11.0',
+      '@xterm/addon-image@0.9.0',
+      '@xterm/addon-progress@0.2.0',
+      '@xterm/addon-serialize@0.13.0',
+      '@xterm/addon-web-links@0.12.0',
+      '@xterm/addon-webgl@0.19.0'
+    ]),
+    registeredAddons: Object.freeze([
+      '@xterm/addon-ligatures@0.10.0',
+      '@xterm/addon-search@0.16.0',
+      '@xterm/addon-unicode11@0.9.0',
+      '@xterm/addon-web-fonts@0.1.0'
+    ]),
+    excludedAddons: Object.freeze([
+      '@xterm/addon-attach',
+      '@xterm/addon-unicode-graphemes'
+    ]),
+    webViewRequirements: Object.freeze([
+      'local-origin-only',
+      'webassembly-compilation-for-image-addon',
+      'webgl2-with-dom-fallback',
+      'webmessageport'
+    ])
+  });
+
+  const completion = Object.freeze({
+    manifest: completionManifest,
+    snapshot() {
+      return Object.freeze({
+        attached: isAttached(),
+        renderer: rendererController.getState(),
+        rows: terminal.rows,
+        columns: terminal.cols,
+        title: lastTitleState,
+        progress: lastProgressState,
+        unicodeVersion: terminal.unicode.activeVersion,
+        unicodeVersions: Object.freeze([...terminal.unicode.versions]),
+        ligaturesEnabled: ligaturesAddon !== null,
+        imageStorageLimit: imageAddon.storageLimit,
+        imageStorageUsage: imageAddon.storageUsage,
+        platformStateAvailable: lastPlatformState !== null
+      });
+    }
+  });
+
   window.AndroidTerminalLayer2 = Object.freeze({
-    contractVersion: 3,
+    contractVersion: 4,
     terminal,
     platform,
     search,
@@ -452,6 +503,7 @@
     webFonts,
     ligatures,
     images,
+    completion,
     onPlatformState,
     onTitleState,
     onProgressState,

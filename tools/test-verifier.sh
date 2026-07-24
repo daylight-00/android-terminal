@@ -18,6 +18,7 @@ copy_fixture "$SUCCESS"
 python3 "$ROOT/tools/verify_policy.py" "$SUCCESS" >/dev/null
 python3 "$ROOT/tools/verify-layer-boundaries.py" "$SUCCESS" >/dev/null
 python3 "$ROOT/tools/verify-upstream-capabilities.py" "$SUCCESS" >/dev/null
+python3 "$ROOT/tools/verify-layer2-completion.py" "$SUCCESS" >/dev/null
 python3 "$ROOT/tools/verify-web-assets.py" "$SUCCESS" >/dev/null
 printf 'PASS verifier-success-fixture\n'
 

@@ -184,9 +184,9 @@ def verify(root: Path) -> list[str]:
         fail("Layer 2 must expose the stable optional-customization capability", failures)
     if "AndroidTerminalCustomization" in bridge_js or "/terminal/customization/" in bridge_js:
         fail("Layer 2 must not depend on the Layer 3 implementation", failures)
-    if "contractVersion: 1" not in customization_js or "window.AndroidTerminalCustomization" not in customization_js:
+    if "contractVersion: 2" not in customization_js or "window.AndroidTerminalCustomization" not in customization_js:
         fail("Layer 3 JavaScript scaffold contract is incomplete", failures)
-    if "CONTRACT_VERSION = 1" not in customization_kt:
+    if "CONTRACT_VERSION = 2" not in customization_kt:
         fail("Layer 3 native scaffold contract is incomplete", failures)
 
     if "protocolVersion: 6" not in contract_js or "PROTOCOL_VERSION = 6" not in contract_kt:
@@ -262,7 +262,7 @@ def verify(root: Path) -> list[str]:
         "window.AndroidTerminalLayer2 = Object.freeze",
         "onPlatformState",
         "requestGeometrySync()",
-        "contractVersion: 3",
+        "contractVersion: 4",
     ):
         if token not in bridge_js:
             fail(f"Layer 2 bridge lacks required public integration token: {token}", failures)

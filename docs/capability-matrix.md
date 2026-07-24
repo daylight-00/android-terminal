@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-This document is the human-readable view of [`upstream-capabilities.json`](upstream-capabilities.json), the machine-verified authority for Layer 2 completion.
+This document is the human-readable view of [`upstream-capabilities.json`](upstream-capabilities.json), the machine-verified capability authority. [`layer2-completion.json`](layer2-completion.json) binds that inventory to the exact asset receipt, runtime extension contract, WebView requirements, and remaining device gate.
 
 The project connects only the necessary intersection between xterm.js/System WebView and Android native operation:
 
@@ -91,6 +91,7 @@ The inventory follows the current maintained-addon list, while implementation pi
 
 - local DOM and CSS required by xterm.js;
 - canvas and WebGL2 used by official renderers/addons;
+- WebAssembly byte compilation required by the official ImageAddon, allowed only by CSP `'wasm-unsafe-eval'`;
 - `ResizeObserver`, `visualViewport`, focus, IME, accessibility primitives;
 - `WebMessagePort` transport to Android;
 - local font loading required by a future official Web Fonts integration.
@@ -112,7 +113,7 @@ The current scaffold owns the project palette used to present Android light/dark
 
 ## Completion rule
 
-A Layer 2 completion claim requires:
+The repository gate is complete and the real-device gate remains pending. A final Android runtime claim requires:
 
 1. every maintained official addon to have one explicit classification;
 2. every relevant stable core capability to be connected, connected with bounds, native already, or explicitly pending only when its selected official addon remains unintegrated;
@@ -120,3 +121,5 @@ A Layer 2 completion claim requires:
 4. success, expected-negative, and incomplete/missing verification for each changed authority;
 5. bounded device evidence for Android runtime claims;
 6. optional UI, preferences, userland, and product policy to remain in Layer 3.
+
+The immutable runtime surface is `AndroidTerminalLayer2.completion`: its manifest mirrors the closure authority, while `snapshot()` exposes neutral evidence without adding Layer 3 UI. See [`device-validation.md`](device-validation.md).

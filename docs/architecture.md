@@ -49,7 +49,7 @@ Layer 2 is the active product scope. It must expose upstream functionality throu
 Current Layer 2 responsibilities include:
 
 - replaceable Activity/WebView frontend and service-owned PTY lifetime;
-- secure synthetic local origin, exact asset allowlist, CSP, and no runtime network access;
+- secure synthetic local origin, exact asset allowlist, CSP, and no runtime network access; the CSP grants only `'wasm-unsafe-eval'` beyond same-origin scripts because the official ImageAddon compiles embedded WebAssembly, while JavaScript string compilation remains disabled;
 - versioned WebMessagePort contract, attachment generations, capability handshake, bounded byte transport, ACK/backpressure, and explicit failures;
 - Android window, inset, rotation, focus, IME viewport, `ResizeObserver`, and `visualViewport` geometry reduced through `addon-fit` to deduplicated `TIOCSWINSZ` updates;
 - xterm input callbacks connected to PTY writes without reinterpreting keyboard or terminal semantics;
@@ -141,7 +141,7 @@ Layer 2 stable capability (`AndroidTerminalLayer2`)
 Layer 3 customization
 ```
 
-Layer 2 never imports or names the Layer 3 implementation. Layer 3 may use only the stable Layer 2 capability and public xterm.js APIs exposed through it; it may not access WebMessagePort, JNI, PTY/session internals, or xterm.js private objects.
+Layer 2 never imports or names the Layer 3 implementation. Layer 3 may use only the stable Layer 2 capability and public xterm.js APIs exposed through it; it may not access WebMessagePort, JNI, PTY/session internals, or xterm.js private objects. Extension contract 4 adds an immutable completion manifest and a read-only runtime snapshot; Layer 3 scaffold contract 2 binds that schema without becoming required by Layer 2.
 
 The current scaffold contains no custom UI. It owns the project light/dark terminal palettes because palette choice is product policy, while Layer 2 owns only the Android `uiMode` state and neutral notification. Future special keys, modifier bars, user themes, font selection, search UI, progress presentation, userland, and workspace features also belong here and require separate owner decisions.
 
@@ -153,4 +153,4 @@ Android adaptation    bridge/**, Kotlin platform host, JNI/C, manifest, verifier
 product customization customization/** and TerminalCustomization.kt only
 ```
 
-`tools/verify-layer-boundaries.py` rejects modified or unexpected Layer 1 assets, Layer 2 dependencies on Layer 3, Layer 3 access to transport/native internals, xterm.js private API use, custom terminal semantics, and Android adaptation that bypasses the stable contract. The machine authority is [`upstream-capabilities.json`](upstream-capabilities.json), verified by `tools/verify-upstream-capabilities.py`; [`capability-matrix.md`](capability-matrix.md) is its human-readable view.
+`tools/verify-layer-boundaries.py` rejects modified or unexpected Layer 1 assets, Layer 2 dependencies on Layer 3, Layer 3 access to transport/native internals, xterm.js private API use, custom terminal semantics, and Android adaptation that bypasses the stable contract. The machine capability authority is [`upstream-capabilities.json`](upstream-capabilities.json), verified by `tools/verify-upstream-capabilities.py`; [`capability-matrix.md`](capability-matrix.md) is its human-readable view. Repository closure is separately bound by [`layer2-completion.json`](layer2-completion.json) and `tools/verify-layer2-completion.py`, which cross-check the exact asset receipt, runtime extension contract, CSP requirements, Layer 3 scaffold contract, version, and remaining device gates.
