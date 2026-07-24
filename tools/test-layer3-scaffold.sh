@@ -98,6 +98,7 @@ let nextFrameId = 1;
 let geometryRequests = 0;
 let disposed = false;
 let focusCalls = 0;
+let blurCalls = 0;
 let softInputCalls = 0;
 const terminal = {
   rows: 12,
@@ -105,7 +106,8 @@ const terminal = {
   buffer: {active: {type: 'normal'}},
   modes: {mouseTrackingMode: 'none'},
   scrollLines(rows) { scrollCalls.push(rows); },
-  focus() { focusCalls += 1; }
+  focus() { focusCalls += 1; },
+  blur() { blurCalls += 1; }
 };
 const layer2 = Object.freeze({
   contractVersion: 4,
@@ -168,6 +170,7 @@ terminalElement.dispatch('touchstart', tapStart);
 if (!tapStart.prevented || !tapStart.stopped || !tapStart.immediate) {
   throw new Error('tap candidate was not owned from touchstart');
 }
+if (blurCalls !== 1) throw new Error('tap candidate did not suspend retained xterm input focus');
 const tapEnd = touchEvent([], 10, tapTarget);
 terminalElement.dispatch('touchend', tapEnd);
 if (!tapEnd.prevented || !tapEnd.stopped || !tapEnd.immediate) {
@@ -202,6 +205,7 @@ if (!dragEnd.prevented || frames.size !== 1) throw new Error('scroll fling was n
 if (focusCalls !== 1 || softInputCalls !== 1 || dragTarget.events.length !== 0) {
   throw new Error('committed scroll replayed tap focus activation');
 }
+if (blurCalls !== 2) throw new Error('committed scroll did not suspend retained xterm input focus');
 
 const pinchTarget = new FakeTarget();
 const firstPinchFinger = touchEvent([point(3, 0, 0)], 75, pinchTarget);
@@ -222,11 +226,12 @@ terminalElement.dispatch('touchend', pinchEnd);
 if (focusCalls !== 1 || softInputCalls !== 1 || pinchTarget.events.length !== 0) {
   throw new Error('pinch replayed tap focus activation');
 }
+if (blurCalls < 4) throw new Error('pinch did not keep retained xterm input focus suspended');
 if (customization.getInteractionState().pinchConsumesGesture) throw new Error('pinch ownership did not reset');
 if (customization.getInteractionState().scrollAuthority !== 'layer3-public-scroll-lines') {
   throw new Error('scroll authority is not reported correctly');
 }
-if (customization.getInteractionState().touchActivationAuthority !== 'layer3-deferred-tap-native-ime') {
+if (customization.getInteractionState().touchActivationAuthority !== 'layer3-blur-then-deferred-tap-native-ime') {
   throw new Error('touch activation authority is not reported correctly');
 }
 
@@ -253,7 +258,7 @@ if (geometryRequests !== 3) throw new Error('second platform update did not requ
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=deferred-tap-native-ime');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=blur-then-deferred-tap-native-ime');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -270,8 +275,9 @@ for token in (
     "addEventListener('touchmove'",
     'consumeTouch(event);',
     'replayTap(tapTarget, tapX, tapY)',
+    'layer2.terminal.blur()',
     'layer2.platform.showSoftInput()',
-    "touchActivationAuthority: 'layer3-deferred-tap-native-ime'",
+    "touchActivationAuthority: 'layer3-blur-then-deferred-tap-native-ime'",
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',
     "scrollAuthority: 'layer3-public-scroll-lines'",

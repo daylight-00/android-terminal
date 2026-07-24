@@ -162,8 +162,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 23" in build, "versionCode must identify the soft-input activation fix release", failures)
-    require("versionName '0.23.2'" in build, "versionName must identify the soft-input activation fix release", failures)
+    require("versionCode 24" in build, "versionCode must identify the retained-focus suppression fix release", failures)
+    require("versionName '0.23.3'" in build, "versionName must identify the retained-focus suppression fix release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,

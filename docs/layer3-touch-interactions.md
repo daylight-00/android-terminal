@@ -59,7 +59,9 @@ release below threshold
 
 Synthetic JavaScript mouse events are not trusted Android input events, so `terminal.focus()` alone can focus the hidden xterm textarea without causing WebView to reopen the IME. The ordinary-tap path therefore follows DOM focus with an explicit native `soft-input-show` platform request. Scroll and pinch never send that request.
 
-No `blur()` or hide operation is used. An already visible keyboard is not deliberately hidden, while a hidden keyboard receives no new activation request from a scroll or pinch. The xterm scrollbar and unsupported alternate-buffer/mouse-tracking paths remain outside this touch owner and retain their existing behavior.
+xterm can retain focus on its hidden textarea after the Android keyboard has been dismissed. Android WebView can then reopen the IME for the next native touch even if JavaScript later consumes that touch as a scroll or pinch. Layer 3 therefore calls the public `terminal.blur()` operation at the beginning of every gesture it owns. A completed tap restores terminal focus and sends the explicit native `soft-input-show` request; committed scroll and pinch gestures remain unfocused and never send that request.
+
+This intentionally means that beginning a Layer 3-owned gesture ends the terminal editing focus. The xterm scrollbar and unsupported alternate-buffer/mouse-tracking paths remain outside this touch owner and retain their existing behavior.
 
 ## Pinch font zoom
 

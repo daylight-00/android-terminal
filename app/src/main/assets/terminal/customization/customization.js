@@ -245,6 +245,17 @@
       scrollAnimationFrame = requestFrame(animate);
     }
 
+    function suspendTerminalInputFocus() {
+      // xterm can retain focus on its hidden textarea after the IME is dismissed.
+      // Android WebView may then reopen the keyboard for any later native touch,
+      // even when the DOM touch sequence is consumed as a scroll or pinch. Every
+      // Layer 3-owned touch therefore begins unfocused; only a completed tap is
+      // allowed to restore xterm focus and request the IME.
+      if (typeof layer2.terminal.blur === 'function') {
+        layer2.terminal.blur();
+      }
+    }
+
     function replayTap(target, clientX, clientY) {
       if (target && typeof target.dispatchEvent === 'function' &&
           typeof window.MouseEvent === 'function') {
@@ -295,6 +306,7 @@
     }
 
     function beginPinch(event) {
+      suspendTerminalInputFocus();
       cancelScrollInertia();
       resetScrollGesture(true);
       pinchConsumesGesture = true;
@@ -308,6 +320,7 @@
         return;
       }
       if (beginOneFingerScroll(event)) {
+        suspendTerminalInputFocus();
         // Own the gesture from its first touch. Waiting until touchmove is too
         // late on Android WebView because the initial touch can already arm
         // xterm's focus/IME activation for release.
@@ -419,7 +432,7 @@
           pinchConsumesGesture,
           scrollConsumesGesture,
           scrollAuthority: 'layer3-public-scroll-lines',
-          touchActivationAuthority: 'layer3-deferred-tap-native-ime',
+          touchActivationAuthority: 'layer3-blur-then-deferred-tap-native-ime',
           touchSurfaceAvailable
         });
       }
