@@ -1,4 +1,12 @@
 /*
- * Layer 3 stylesheet extension point.
- * Keep product UI, optional controls, and preference-driven styling here.
+ * Layer 3 interaction policy.
+ *
+ * The page remains fixed and xterm.js remains the sole scrollback authority.
+ * Prevent the WebView from claiming touches that begin on the rendered screen
+ * as browser page pan/zoom. The viewport itself is left alone so its upstream
+ * scrollbar remains a browser-owned control.
  */
+#terminal .xterm-screen,
+#terminal .xterm-screen canvas {
+  touch-action: none;
+}

@@ -94,6 +94,9 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
   `'wasm-unsafe-eval'` source expression because the pinned official ImageAddon compiles embedded
   WebAssembly; JavaScript `'unsafe-eval'` remains forbidden. The optional Layer 3 script is local,
   loads after Layer 2, and may consume only the stable customization capability.
+- The first Layer 3 interaction wave keeps xterm.js as the sole scrollback authority, lets its
+  upstream touch recognizer own one-finger scrolling, and maps two-finger pinch to public xterm
+  font-size changes plus the existing geometry bridge. See `docs/layer3-touch-interactions.md`.
 
 ## Upstream asset provisioning
 
