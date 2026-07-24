@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
+import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.WebView
 import org.json.JSONObject
@@ -24,6 +25,7 @@ internal class TerminalPlatformAdapter(
 ) : AutoCloseable {
     private val clipboardManager = activity.getSystemService(ClipboardManager::class.java)
     private val accessibilityManager = activity.getSystemService(AccessibilityManager::class.java)
+    private val inputMethodManager = activity.getSystemService(InputMethodManager::class.java)
     private val documentTransport = TerminalDocumentTransport(activity)
 
     private val accessibilityStateListener =
@@ -91,6 +93,7 @@ internal class TerminalPlatformAdapter(
                 completion(openExternalUri(payload.optString("uri")))
             }
             TerminalContract.PlatformOperation.BELL -> completion(performBell())
+            TerminalContract.PlatformOperation.SOFT_INPUT_SHOW -> completion(requestSoftInput())
             TerminalContract.PlatformOperation.DOCUMENT_IMPORT -> {
                 beginDocumentImport(payload, completion)
             }
@@ -252,6 +255,21 @@ internal class TerminalPlatformAdapter(
         } catch (_: SecurityException) {
             TerminalPlatformResult.failure("Android denied the external URI")
         }
+    }
+
+    private fun requestSoftInput(): TerminalPlatformResult {
+        val manager = inputMethodManager
+            ?: return TerminalPlatformResult.failure("Android input method service is unavailable")
+        if (!terminalView.isAttachedToWindow) {
+            return TerminalPlatformResult.failure("terminal WebView is not attached")
+        }
+        terminalView.post {
+            if (closed || !terminalView.isAttachedToWindow) return@post
+            terminalView.requestFocusFromTouch()
+            manager.restartInput(terminalView)
+            manager.showSoftInput(terminalView, InputMethodManager.SHOW_IMPLICIT)
+        }
+        return TerminalPlatformResult.success(JSONObject().put("requested", true))
     }
 
     private fun performBell(): TerminalPlatformResult {

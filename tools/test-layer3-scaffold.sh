@@ -98,6 +98,7 @@ let nextFrameId = 1;
 let geometryRequests = 0;
 let disposed = false;
 let focusCalls = 0;
+let softInputCalls = 0;
 const terminal = {
   rows: 12,
   options: {theme: {background: 'upstream-default'}, fontSize: 15, lineHeight: 1},
@@ -109,6 +110,9 @@ const terminal = {
 const layer2 = Object.freeze({
   contractVersion: 4,
   terminal,
+  platform: Object.freeze({
+    showSoftInput() { softInputCalls += 1; return {catch() {}}; }
+  }),
   completion: Object.freeze({manifest: Object.freeze({schemaVersion: 1})}),
   getPlatformState() { return null; },
   onPlatformState(listener) {
@@ -170,6 +174,7 @@ if (!tapEnd.prevented || !tapEnd.stopped || !tapEnd.immediate) {
   throw new Error('tap release was not isolated from WebView compatibility activation');
 }
 if (focusCalls !== 1) throw new Error('ordinary tap did not explicitly focus the terminal');
+if (softInputCalls !== 1) throw new Error('ordinary tap did not request Android soft input');
 if (tapTarget.events.map((event) => event.type).join(',') !== 'mousedown,mouseup,click') {
   throw new Error('ordinary tap compatibility sequence was not replayed');
 }
@@ -194,7 +199,7 @@ if (scrollCalls.length !== 2 || scrollCalls[1] !== 1) {
 const dragEnd = touchEvent([], 70, dragTarget);
 terminalElement.dispatch('touchend', dragEnd);
 if (!dragEnd.prevented || frames.size !== 1) throw new Error('scroll fling was not scheduled');
-if (focusCalls !== 1 || dragTarget.events.length !== 0) {
+if (focusCalls !== 1 || softInputCalls !== 1 || dragTarget.events.length !== 0) {
   throw new Error('committed scroll replayed tap focus activation');
 }
 
@@ -214,14 +219,14 @@ if (Math.abs(terminal.options.fontSize - 19) > 1e-9) throw new Error('pinch-out 
 if (geometryRequests !== 2) throw new Error('pinch-out did not request geometry refresh');
 const pinchEnd = touchEvent([], 100, pinchTarget);
 terminalElement.dispatch('touchend', pinchEnd);
-if (focusCalls !== 1 || pinchTarget.events.length !== 0) {
+if (focusCalls !== 1 || softInputCalls !== 1 || pinchTarget.events.length !== 0) {
   throw new Error('pinch replayed tap focus activation');
 }
 if (customization.getInteractionState().pinchConsumesGesture) throw new Error('pinch ownership did not reset');
 if (customization.getInteractionState().scrollAuthority !== 'layer3-public-scroll-lines') {
   throw new Error('scroll authority is not reported correctly');
 }
-if (customization.getInteractionState().touchActivationAuthority !== 'layer3-deferred-tap-replay') {
+if (customization.getInteractionState().touchActivationAuthority !== 'layer3-deferred-tap-native-ime') {
   throw new Error('touch activation authority is not reported correctly');
 }
 
@@ -248,7 +253,7 @@ if (geometryRequests !== 3) throw new Error('second platform update did not requ
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=deferred-tap-replay');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=deferred-tap-native-ime');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -265,7 +270,8 @@ for token in (
     "addEventListener('touchmove'",
     'consumeTouch(event);',
     'replayTap(tapTarget, tapX, tapY)',
-    "touchActivationAuthority: 'layer3-deferred-tap-replay'",
+    'layer2.platform.showSoftInput()',
+    "touchActivationAuthority: 'layer3-deferred-tap-native-ime'",
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',
     "scrollAuthority: 'layer3-public-scroll-lines'",

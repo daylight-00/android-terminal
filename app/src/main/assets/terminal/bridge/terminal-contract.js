@@ -24,6 +24,7 @@
     clipboardWrite: 'clipboard-write',
     openExternalUri: 'open-external-uri',
     bell: 'bell',
+    softInputShow: 'soft-input-show',
     documentImport: 'document-import',
     documentExport: 'document-export'
   });

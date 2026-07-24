@@ -162,8 +162,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 22" in build, "versionCode must identify the native account/session policy release", failures)
-    require("versionName '0.23.1'" in build, "versionName must identify the native account/session policy release", failures)
+    require("versionCode 23" in build, "versionCode must identify the soft-input activation fix release", failures)
+    require("versionName '0.23.2'" in build, "versionName must identify the soft-input activation fix release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -281,6 +281,7 @@ def verify(root: Path) -> list[str]:
     require("terminal.paste(text)" in javascript, "clipboard paste must use xterm paste API", failures)
     require("terminal.options.linkHandler" in javascript, "OSC 8 links must use xterm linkHandler", failures)
     require("terminal.onBell(" in javascript, "terminal bell must use the public xterm event", failures)
+    require("showSoftInput()" in javascript and "softInputShow" in contract_js, "Layer 2 must expose explicit Android soft-input activation", failures)
     require("importDocument(options = {})" in javascript, "Layer 2 must expose SAF import", failures)
     require("exportDocument(path, options = {})" in javascript, "Layer 2 must expose SAF export", failures)
     require("document-transport-v2" in terminal_contract and "document-transport-v2" in contract_js, "document transport capability must match", failures)
@@ -306,6 +307,7 @@ def verify(root: Path) -> list[str]:
     require("ClipboardManager" in platform_adapter and "ClipData.newPlainText" in platform_adapter, "platform adapter must use Android text clipboard APIs", failures)
     require("Intent.ACTION_VIEW" in platform_adapter, "platform adapter must route validated external URIs through ACTION_VIEW", failures)
     require("performHapticFeedback" in platform_adapter, "platform adapter must expose Android haptic bell capability", failures)
+    require("InputMethodManager" in platform_adapter and "showSoftInput" in platform_adapter and "restartInput" in platform_adapter, "platform adapter must explicitly activate Android soft input after a trusted Layer 3 tap", failures)
     require("AccessibilityStateChangeListener" in platform_adapter, "platform adapter must observe Android accessibility state", failures)
     require("TouchExplorationStateChangeListener" in platform_adapter, "platform adapter must observe touch exploration state", failures)
     require("data class TerminalPlatformState" in platform_state, "platform state contract must be explicit", failures)

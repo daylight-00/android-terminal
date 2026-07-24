@@ -34,7 +34,7 @@ A WebView feature that turns the application into a general browser is outside t
 | PTY input | `onData`, `onBinary` | Layer 2 runtime | Connected | Byte-preserving transport to the service-owned PTY | Special keys, modifier bars, and macros |
 | PTY output and flow control | `write(data, callback)`, `onWriteParsed` | Layer 2 runtime | Connected with bounds | Ordered sequence ACK, one in-flight batch, bounded recovery state | None |
 | Geometry | `resize`, `@xterm/addon-fit` | Layer 2 runtime | Connected | Android layout/insets/rotation/IME viewport converge on deduplicated `TIOCSWINSZ` | Optional layout chrome must request refit through Layer 2 |
-| Focus, IME, hardware keyboard | xterm DOM input and System WebView | Native already | Connected | WebView remains input authority; Android reports hardware-keyboard state only | Optional key UI |
+| Focus, IME, hardware keyboard | xterm DOM input and System WebView | Layer 2 runtime | Connected with bounds | WebView/xterm remain DOM-input authority; Android reports hardware-keyboard state and provides an explicit show-only IME request used after a Layer 3 ordinary tap | Optional key UI and gesture policy; scroll/pinch do not request or hide IME |
 | Explicit clipboard actions | selection APIs and `paste()` | Layer 2 runtime | Connected | Bounded Android `ClipboardManager` read/write | Buttons, gestures, and preference policy |
 | OSC 52 clipboard | xterm OSC 52 + official ClipboardAddon provider | Layer 2 runtime | **Connected with bounds** | Official addon backed by bounded Android `ClipboardManager` operations | Clipboard UX and policy |
 | OSC 8 links | core `linkHandler` | Layer 2 runtime | Connected | Validated HTTP/HTTPS URI to `ACTION_VIEW` | Menus, previews, history, browser UI |

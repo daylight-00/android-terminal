@@ -19,6 +19,9 @@ for token in (
     "openInputStream",
     "openOutputStream",
     "performHapticFeedback",
+    "InputMethodManager",
+    "showSoftInput",
+    "restartInput",
     "AccessibilityStateChangeListener",
     "TouchExplorationStateChangeListener",
     "configuration.locales[0].toLanguageTag()",
@@ -45,6 +48,7 @@ mkdir -p \
   "$WORK/android/provider" \
   "$WORK/android/view" \
   "$WORK/android/view/accessibility" \
+  "$WORK/android/view/inputmethod" \
   "$WORK/android/webkit" \
   "$WORK/org/json" \
   "$WORK/io/github/daylight00/androidterminal"
@@ -216,11 +220,27 @@ open class AccessibilityManager {
 }
 KT
 
+
+cat > "$WORK/android/view/inputmethod/InputMethodManager.kt" <<'KT'
+package android.view.inputmethod
+
+import android.webkit.WebView
+
+open class InputMethodManager {
+    fun restartInput(view: WebView) {}
+    fun showSoftInput(view: WebView, flags: Int): Boolean = true
+    companion object { const val SHOW_IMPLICIT: Int = 1 }
+}
+KT
+
 cat > "$WORK/android/webkit/WebView.kt" <<'KT'
 package android.webkit
 open class WebView {
+    val isAttachedToWindow: Boolean = true
     fun hasWindowFocus(): Boolean = true
     fun performHapticFeedback(feedbackConstant: Int): Boolean = true
+    fun requestFocusFromTouch(): Boolean = true
+    fun post(action: () -> Unit): Boolean { action(); return true }
 }
 KT
 
@@ -263,6 +283,7 @@ kotlinc -nowarn \
   "$WORK/android/provider/OpenableColumns.kt" \
   "$WORK/android/view/HapticFeedbackConstants.kt" \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \
+  "$WORK/android/view/inputmethod/InputMethodManager.kt" \
   "$WORK/android/webkit/WebView.kt" \
   "$WORK/org/json/JSONObject.kt" \
   "$WORK/io/github/daylight00/androidterminal/R.kt" \
@@ -275,4 +296,4 @@ kotlinc -nowarn \
   "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" \
   -d "$WORK/platform-adapter.jar"
 
-echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path"
+echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path soft-input=explicit"

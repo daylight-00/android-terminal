@@ -227,6 +227,9 @@
     bell() {
       return requestPlatform(contract.platformOperations.bell);
     },
+    showSoftInput() {
+      return requestPlatform(contract.platformOperations.softInputShow);
+    },
     importDocument(options = {}) {
       const mimeType = options && typeof options.mimeType === 'string' ? options.mimeType : '*/*';
       const destinationDirectory = options && typeof options.destinationDirectory === 'string'

@@ -474,6 +474,11 @@ const paths = process.argv.slice(2);
   await pastePromise;
   if (pastes[pastes.length - 1] !== 'paste value') throw new Error('clipboard text did not use xterm paste');
 
+  const softInputPromise = context.AndroidTerminalPlatform.showSoftInput();
+  const softInputRequest = latestRequest('soft-input-show');
+  completeRequest(softInputRequest, {requested: true});
+  if (!(await softInputPromise).requested) throw new Error('soft-input request result mismatch');
+
   const countBeforeBlockedUri = posted.length;
   let blocked = false;
   try {
@@ -660,7 +665,7 @@ const paths = process.argv.slice(2);
   if (windowHandler.callback([18]) !== false) throw new Error('upstream-owned window report was intercepted');
   titleSubscription.dispose();
 
-  console.log('PASS web-terminal-channel contract=6 stable-addons=clipboard,image,progress,search,unicode11,web-fonts,ligatures serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,documents layer3=optional-theme geometry=deduplicated');
+  console.log('PASS web-terminal-channel contract=6 stable-addons=clipboard,image,progress,search,unicode11,web-fonts,ligatures serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,soft-input,documents layer3=optional-theme geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -706,6 +711,8 @@ required = {
         "new window.Terminal({allowProposedApi: true})",
         "new window.SerializeAddon.SerializeAddon()",
         "new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider)",
+        "showSoftInput()",
+        "softInputShow: 'soft-input-show'",
         "new window.ImageAddon.ImageAddon()",
         "new window.ProgressAddon.ProgressAddon()",
         "new window.SearchAddon.SearchAddon()",

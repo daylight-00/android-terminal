@@ -34,6 +34,7 @@ internal object TerminalContract {
         const val CLIPBOARD_WRITE = "clipboard-write"
         const val OPEN_EXTERNAL_URI = "open-external-uri"
         const val BELL = "bell"
+        const val SOFT_INPUT_SHOW = "soft-input-show"
         const val DOCUMENT_IMPORT = "document-import"
         const val DOCUMENT_EXPORT = "document-export"
     }

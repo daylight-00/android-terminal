@@ -79,7 +79,8 @@
         !layer2.terminal || !layer2.completion ||
         !layer2.completion.manifest || layer2.completion.manifest.schemaVersion !== 1 ||
         typeof layer2.onPlatformState !== 'function' ||
-        typeof layer2.requestGeometrySync !== 'function') {
+        typeof layer2.requestGeometrySync !== 'function' ||
+        !layer2.platform || typeof layer2.platform.showSoftInput !== 'function') {
       throw new Error('Layer 2 customization capability is unavailable.');
     }
 
@@ -266,6 +267,10 @@
       if (typeof layer2.terminal.focus === 'function') {
         layer2.terminal.focus();
       }
+      const request = layer2.platform.showSoftInput();
+      if (request && typeof request.catch === 'function') {
+        request.catch((error) => console.warn('Android soft-input request failed.', error));
+      }
     }
 
     function beginOneFingerScroll(event) {
@@ -414,7 +419,7 @@
           pinchConsumesGesture,
           scrollConsumesGesture,
           scrollAuthority: 'layer3-public-scroll-lines',
-          touchActivationAuthority: 'layer3-deferred-tap-replay',
+          touchActivationAuthority: 'layer3-deferred-tap-native-ime',
           touchSurfaceAvailable
         });
       }

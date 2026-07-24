@@ -54,9 +54,12 @@ release below threshold
 → ordinary tap
 → replay mousedown, mouseup, click
 → focus xterm input
+→ request Android InputMethodManager activation through the existing Layer 2 platform bridge
 ```
 
-No `blur()` operation is used. An already visible keyboard is not deliberately hidden, while a hidden keyboard receives no new focus request from a scroll or pinch. The xterm scrollbar and unsupported alternate-buffer/mouse-tracking paths remain outside this touch owner and retain their existing behavior.
+Synthetic JavaScript mouse events are not trusted Android input events, so `terminal.focus()` alone can focus the hidden xterm textarea without causing WebView to reopen the IME. The ordinary-tap path therefore follows DOM focus with an explicit native `soft-input-show` platform request. Scroll and pinch never send that request.
+
+No `blur()` or hide operation is used. An already visible keyboard is not deliberately hidden, while a hidden keyboard receives no new activation request from a scroll or pinch. The xterm scrollbar and unsupported alternate-buffer/mouse-tracking paths remain outside this touch owner and retain their existing behavior.
 
 ## Pinch font zoom
 
