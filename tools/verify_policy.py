@@ -103,6 +103,7 @@ def verify(root: Path) -> list[str]:
     renderer = read_required(root, "app/src/main/assets/terminal/bridge/terminal-renderer.js", failures)
     codec = read_required(root, "app/src/main/assets/terminal/bridge/terminal-codec.js", failures)
     platform_js = read_required(root, "app/src/main/assets/terminal/bridge/terminal-platform.js", failures)
+    ligatures_loader = read_required(root, "app/src/main/assets/terminal/bridge/terminal-ligatures.js", failures)
     customization_js = read_required(
         root,
         "app/src/main/assets/terminal/customization/customization.js",
@@ -155,8 +156,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 16" in build, "versionCode must identify the core-host integration release", failures)
-    require("versionName '0.18.0'" in build, "versionName must identify the core-host integration release", failures)
+    require("versionCode 17" in build, "versionCode must identify the stable-addon/login-shell release", failures)
+    require("versionName '0.19.0'" in build, "versionName must identify the stable-addon/login-shell release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -195,6 +196,9 @@ def verify(root: Path) -> list[str]:
     require("TERM=xterm-256color" in native, "TERM must match xterm.js capabilities", failures)
     require("EXTERNAL_STORAGE=%s" in native, "shared-storage root must be exposed to the child", failures)
     require("ANDROID_STORAGE=/storage" in native, "Android storage coordinate must be exposed to the child", failures)
+    require('char *const arguments[] = {"-sh", NULL};' in native, "native shell must use login-shell argv[0] semantics", failures)
+    require("execve(shell_path, arguments, environment)" in native, "login-shell adaptation must preserve direct execve", failures)
+    require('"-l"' not in native and "system(" not in native and "popen(" not in native, "login shell must not use wrapper commands or secondary launchers", failures)
 
     require("WebView(activity)" in controller, "frontend must use platform WebView", failures)
     require("createWebMessageChannel()" in controller, "bridge must use WebMessagePort", failures)
@@ -209,6 +213,14 @@ def verify(root: Path) -> list[str]:
     require("override fun onRenderProcessGone" in web_client, "WebView renderer termination must be handled", failures)
     require("onRendererGone(detail.didCrash())" in web_client, "renderer termination must be forwarded without inspecting terminal semantics", failures)
     for asset_path in (
+        "/terminal/vendor/addon-clipboard.js",
+        "/terminal/vendor/addon-image.js",
+        "/terminal/vendor/addon-progress.js",
+        "/terminal/vendor/addon-search.js",
+        "/terminal/vendor/addon-unicode11.js",
+        "/terminal/vendor/addon-web-fonts.js",
+        "/terminal/vendor/addon-ligatures.mjs",
+        "/terminal/bridge/terminal-ligatures.js",
         "/terminal/vendor/addon-web-links.js",
         "/terminal/customization/customization.css",
         "/terminal/customization/customization.js",
@@ -261,15 +273,9 @@ def verify(root: Path) -> list[str]:
         require(token in document_policy, f"document policy token is required: {token}", failures)
     for forbidden in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission", "DocumentsContract", "FUSE"):
         require(forbidden not in document_transport and forbidden not in document_policy and forbidden not in activity, f"SAF virtual mount behavior is forbidden: {forbidden}", failures)
-    for unselected_upstream in ("ClipboardAddon", "osc52-clipboard", "ImageAddon"):
-        require(
-            unselected_upstream not in javascript and unselected_upstream not in contract_js,
-            f"unselected upstream addon must not be claimed: {unselected_upstream}",
-            failures,
-        )
     require("applyPlatformState" in platform_js, "Layer 2 must map Android platform state", failures)
     require("isExternalUriAllowed" in platform_js, "Layer 2 must define bounded URI activation mapping", failures)
-    require("new window.Terminal()" in javascript, "Layer 2 must preserve upstream terminal defaults", failures)
+    require("new window.Terminal({allowProposedApi: true})" in javascript, "Layer 2 must preserve upstream defaults except the official Unicode provider opt-in", failures)
     for option in ("cursorBlink", "cursorStyle", "fontFamily", "letterSpacing", "lineHeight", "scrollback"):
         require(option not in javascript and option not in platform_js, f"product option must not leak into Layer 2: {option}", failures)
     require("fontSize" not in javascript, "font size adaptation must remain isolated in the Android platform mapping", failures)
@@ -314,7 +320,7 @@ def verify(root: Path) -> list[str]:
     require("upstreamFontSizes.get(terminal) * boundedFontScale(value)" in platform_js, "font-scale mapping must scale from the upstream baseline without compounding", failures)
     require("applyFontScale(terminal, state.fontScale)" in platform_js, "Android font scale must map through the public xterm option", failures)
     require("contractVersion: 4" in platform_js and "platformIntegration.contractVersion !== 4" in javascript, "platform integration contract must be version 4", failures)
-    require("contractVersion: 2" in javascript, "stable Layer 2 capability contract must be version 2", failures)
+    require("contractVersion: 3" in javascript, "stable Layer 2 capability contract must be version 3", failures)
     require("TerminalContract.MessageType.SESSION_TITLE" in controller and "handleSessionTitle" in controller, "controller must accept neutral session-title state", failures)
     require("fun updateTitle(" in session_service and "title = TerminalSessionTitle.sanitize(value)" in session_service, "service must own bounded terminal-title state", failures)
     require("MAX_CODE_POINTS = 1024" in session_title and "codePointAt(index)" in session_title, "terminal title must be Unicode-code-point bounded", failures)
@@ -339,13 +345,48 @@ def verify(root: Path) -> list[str]:
     require("function activate()" in renderer and "rendererController.activate()" in javascript, "Layer 2 must automatically attempt WebGL", failures)
     require("policy-disabled" not in renderer and "preferWebgl" not in renderer and "preferWebgl" not in javascript, "WebGL must not depend on Layer 3 policy", failures)
     require("Color.BLACK" in host_appearance and "WEB_TEXT_ZOOM" in host_appearance, "Layer 2 host appearance mapping must be explicit", failures)
+    require("new window.Terminal({allowProposedApi: true})" in javascript, "official Unicode 11 registration must use the explicit proposed-API opt-in", failures)
+    require(javascript.count("allowProposedApi") == 1, "proposed API opt-in must be isolated to the official Unicode provider boundary", failures)
+    for token in (
+        "new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider)",
+        "new window.ImageAddon.ImageAddon()",
+        "new window.ProgressAddon.ProgressAddon()",
+        "new window.SearchAddon.SearchAddon()",
+        "new window.Unicode11Addon.Unicode11Addon()",
+        "new window.WebFontsAddon.WebFontsAddon()",
+        "new module.LigaturesAddon(options)",
+        "resolveLigaturesModule()",
+        "rendererController.reactivate()",
+        "onProgressState",
+        "findNext(term, options)",
+        "setActiveVersion(version)",
+        "loadFonts(fonts)",
+        "get storageLimit()",
+    ):
+        require(token in javascript, f"stable official addon integration token is required: {token}", failures)
+    require("import {LigaturesAddon} from '/terminal/vendor/addon-ligatures.mjs'" in ligatures_loader, "Layer 2 must adapt the official ESM-only LigaturesAddon without modifying Layer 1", failures)
+    require("AndroidTerminalLigaturesLoader" in ligatures_loader and "android-terminal-ligatures-loader-ready" in ligatures_loader, "ligatures ESM loader capability is incomplete", failures)
+    require("new window.ImageAddon.ImageAddon()" in javascript and "new window.ImageAddon.ImageAddon({" not in javascript, "ImageAddon must retain upstream defaults in Layer 2", failures)
+    require("unicode.activeVersion =" not in javascript.split("setActiveVersion(version)")[0], "Layer 2 must register Unicode 11 without choosing a product default", failures)
+    require("ligaturesAddon = null" in javascript and "terminal.loadAddon(ligaturesAddon)" in javascript, "ligatures must be exposed as an optional Layer 2 capability", failures)
+    require("function reactivate()" in renderer and "reactivate," in renderer, "WebGL must support official ligature-triggered reactivation", failures)
     require("terminal.write" in javascript, "PTY output must be passed to xterm.js", failures)
     require("terminal.onData" in javascript, "xterm.js input callback is required", failures)
     require("NativeShellCodec" in codec, "byte-preserving web codec is required", failures)
     require("/terminal/vendor/xterm.js" in html, "pinned xterm.js asset must be local", failures)
     require("/terminal/vendor/addon-fit.js" in html, "pinned addon-fit asset must be local", failures)
     require("/terminal/vendor/addon-serialize.js" in html, "pinned addon-serialize asset must be local", failures)
+    for addon_asset in (
+        "addon-clipboard.js",
+        "addon-image.js",
+        "addon-progress.js",
+        "addon-search.js",
+        "addon-unicode11.js",
+        "addon-web-fonts.js",
+    ):
+        require(f"/terminal/vendor/{addon_asset}" in html, f"pinned stable addon asset must be local: {addon_asset}", failures)
     require("/terminal/vendor/addon-web-links.js" in html, "pinned addon-web-links asset must be local", failures)
+    require("/terminal/bridge/terminal-ligatures.js" in html, "Layer 2 ligatures ESM adapter must load locally", failures)
     require("/terminal/vendor/addon-webgl.js" in html, "pinned addon-webgl asset must be local", failures)
     require("/terminal/bridge/terminal-contract.js" in html, "stable web contract must load locally", failures)
     require("/terminal/bridge/terminal-renderer.js" in html, "Layer 2 renderer controller must load locally", failures)
@@ -368,6 +409,17 @@ def verify(root: Path) -> list[str]:
     require("@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz" in acquisition, "addon-serialize URL must be pinned", failures)
     require("@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz" in acquisition, "addon-webgl URL must be pinned", failures)
     require("@xterm/addon-web-links/-/addon-web-links-0.12.0.tgz" in acquisition, "addon-web-links URL must be pinned", failures)
+    for package_url in (
+        "@xterm/addon-clipboard/-/addon-clipboard-0.2.0.tgz",
+        "@xterm/addon-image/-/addon-image-0.9.0.tgz",
+        "@xterm/addon-progress/-/addon-progress-0.2.0.tgz",
+        "@xterm/addon-search/-/addon-search-0.16.0.tgz",
+        "@xterm/addon-unicode11/-/addon-unicode11-0.9.0.tgz",
+        "@xterm/addon-web-fonts/-/addon-web-fonts-0.1.0.tgz",
+        "@xterm/addon-ligatures/-/addon-ligatures-0.10.0.tgz",
+    ):
+        require(package_url in acquisition, f"stable addon URL must be exact: {package_url}", failures)
+    require("resolve_integrity()" in acquisition and "dist.get('integrity')" in acquisition and "expected_tarball" in acquisition, "new stable addons must resolve and verify official exact-version SHA-512 metadata", failures)
     require("sha512-TQwDdQGt" in acquisition, "xterm.js npm integrity must be pinned", failures)
     require("sha512-jYcgT6xt" in acquisition, "addon-fit npm integrity must be pinned", failures)
     require("sha512-kGs8o6LW" in acquisition, "addon-serialize npm integrity must be pinned", failures)
@@ -381,6 +433,16 @@ def verify(root: Path) -> list[str]:
     require('"package/LICENSE": "LICENSE.addon-webgl.txt"' not in provisioner, "provisioner must not synthesize an addon-webgl license member", failures)
     require('"package/package.json": "PACKAGE.addon-web-links.json"' in provisioner, "addon-web-links package metadata must be retained", failures)
     require('"package/LICENSE": "LICENSE.addon-web-links.txt"' not in provisioner, "provisioner must not synthesize an addon-web-links license member", failures)
+    for metadata_name in (
+        "PACKAGE.addon-clipboard.json",
+        "PACKAGE.addon-image.json",
+        "PACKAGE.addon-progress.json",
+        "PACKAGE.addon-search.json",
+        "PACKAGE.addon-unicode11.json",
+        "PACKAGE.addon-web-fonts.json",
+        "PACKAGE.addon-ligatures.json",
+    ):
+        require(metadata_name in provisioner, f"stable addon package metadata must be retained: {metadata_name}", failures)
 
     for token in (
         "android.permission.MANAGE_EXTERNAL_STORAGE",
@@ -400,6 +462,8 @@ def verify(root: Path) -> list[str]:
     require("TerminalSharedStorage.requestAccess(this)" in activity, "Activity storage access flow is required", failures)
     require("TerminalSharedStorage.prepareHomeLink(homeDirectory)" in session, "HOME/storage preparation is required", failures)
     require("layer3-scaffold-v1" in terminal_contract and "layer3-scaffold-v1" in contract_js, "Layer 3 scaffold capability must match", failures)
+    require("stable-addon-wave-v1" in terminal_contract and "stable-addon-wave-v1" in contract_js, "stable addon wave capability must match", failures)
+    require("login-shell-v1" in terminal_contract and "login-shell-v1" in contract_js, "login-shell capability must match", failures)
 
     require("android.permission.INTERNET" not in manifest, "application must not request INTERNET", failures)
     require("android:usesCleartextTraffic=\"false\"" in manifest, "cleartext traffic must be disabled", failures)

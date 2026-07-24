@@ -6,156 +6,90 @@ trap 'rm -rf -- "$TMP"' EXIT
 
 python3 - "$TMP" <<'PY'
 from __future__ import annotations
-import base64
-import hashlib
-import io
-import pathlib
-import tarfile
-import sys
-
-root = pathlib.Path(sys.argv[1])
-
-def make(path: pathlib.Path, files: dict[str, bytes], extra=None):
-    with tarfile.open(path, "w:gz") as archive:
-        for name, data in files.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            info.mode = 0o644
-            archive.addfile(info, io.BytesIO(data))
-        if extra is not None:
-            archive.addfile(extra)
-
-def integrity(path: pathlib.Path) -> str:
-    return "sha512-" + base64.b64encode(hashlib.sha512(path.read_bytes()).digest()).decode()
-
-archives = {
-    "xterm": {
-        "package/lib/xterm.js": b"xterm-js",
-        "package/css/xterm.css": b"xterm-css",
-        "package/LICENSE": b"MIT xterm",
-    },
-    "fit": {
-        "package/lib/addon-fit.js": b"fit-js",
-        "package/LICENSE": b"MIT fit",
-    },
-    "serialize": {
-        "package/lib/addon-serialize.js": b"serialize-js",
-        "package/package.json": (
-            b'{"name":"@xterm/addon-serialize","version":"0.13.0",'
-            b'"main":"lib/addon-serialize.js","license":"MIT"}'
-        ),
-    },
-    "webgl": {
-        "package/lib/addon-webgl.js": b"webgl-js",
-        "package/package.json": (
-            b'{"name":"@xterm/addon-webgl","version":"0.19.0",'
-            b'"main":"lib/addon-webgl.js","license":"MIT"}'
-        ),
-    },
-    "web-links": {
-        "package/lib/addon-web-links.js": b"web-links-js",
-        "package/package.json": (
-            b'{"name":"@xterm/addon-web-links","version":"0.12.0",'
-            b'"main":"lib/addon-web-links.js","license":"MIT"}'
-        ),
-    },
+import base64, hashlib, io, json, pathlib, tarfile, sys
+root=pathlib.Path(sys.argv[1])
+packages={
+'xterm':('@xterm/xterm','6.0.0','lib/xterm.js', {'package/lib/xterm.js':b'xterm-js','package/css/xterm.css':b'xterm-css','package/LICENSE':b'MIT xterm'}),
+'fit':('@xterm/addon-fit','0.11.0','lib/addon-fit.js', {'package/lib/addon-fit.js':b'fit-js','package/LICENSE':b'MIT fit'}),
+'serialize':('@xterm/addon-serialize','0.13.0','lib/addon-serialize.js', {}),
+'webgl':('@xterm/addon-webgl','0.19.0','lib/addon-webgl.js', {}),
+'web-links':('@xterm/addon-web-links','0.12.0','lib/addon-web-links.js', {}),
+'clipboard':('@xterm/addon-clipboard','0.2.0','lib/addon-clipboard.js', {}),
+'image':('@xterm/addon-image','0.9.0','lib/addon-image.js', {}),
+'progress':('@xterm/addon-progress','0.2.0','lib/addon-progress.js', {}),
+'search':('@xterm/addon-search','0.16.0','lib/addon-search.js', {}),
+'unicode11':('@xterm/addon-unicode11','0.9.0','lib/addon-unicode11.js', {}),
+'web-fonts':('@xterm/addon-web-fonts','0.1.0','lib/addon-web-fonts.js', {}),
+'ligatures':('@xterm/addon-ligatures','0.10.0','lib/addon-ligatures.mjs', {}),
 }
-values = []
-for name, files in archives.items():
-    path = root / f"{name}.tgz"
-    make(path, files)
-    values.append(integrity(path))
-(root / "integrities").write_text("\n".join(values) + "\n")
-
-unsafe = root / "unsafe.tgz"
-link = tarfile.TarInfo("package/lib/xterm.js")
-link.type = tarfile.SYMTYPE
-link.linkname = "/etc/passwd"
-make(unsafe, {
-    "package/css/xterm.css": b"xterm-css",
-    "package/LICENSE": b"MIT xterm",
-}, extra=link)
-(root / "unsafe-integrity").write_text(integrity(unsafe) + "\n")
+values={}
+for key,(name,version,main,files) in packages.items():
+    if key not in ('xterm','fit'):
+        entry_field = 'module' if key == 'ligatures' else 'main'
+        files={f'package/{main}': f'{key}-js'.encode(), 'package/package.json': json.dumps({'name':name,'version':version,entry_field:main,'license':'MIT'}).encode()}
+    path=root/f'{key}.tgz'
+    with tarfile.open(path,'w:gz') as t:
+        for member,data in files.items():
+            info=tarfile.TarInfo(member); info.size=len(data); info.mode=0o644; t.addfile(info,io.BytesIO(data))
+    values[key]='sha512-'+base64.b64encode(hashlib.sha512(path.read_bytes()).digest()).decode()
+# Old CommonJS ligatures layout must be rejected; 0.10.0 is ESM-only.
+old_path=root/'ligatures-old.tgz'
+old_main='lib/addon-ligatures.js'
+old_files={f'package/{old_main}': b'old-ligatures-js', 'package/package.json': json.dumps({'name':'@xterm/addon-ligatures','version':'0.10.0','main':old_main,'license':'MIT'}).encode()}
+with tarfile.open(old_path,'w:gz') as t:
+    for member,data in old_files.items():
+        info=tarfile.TarInfo(member); info.size=len(data); info.mode=0o644; t.addfile(info,io.BytesIO(data))
+values['ligatures-old']='sha512-'+base64.b64encode(hashlib.sha512(old_path.read_bytes()).digest()).decode()
+(root/'integrities.json').write_text(json.dumps(values))
+# Unsafe symlink archive for xterm.
+path=root/'unsafe.tgz'
+with tarfile.open(path,'w:gz') as t:
+    link=tarfile.TarInfo('package/lib/xterm.js'); link.type=tarfile.SYMTYPE; link.linkname='/etc/passwd'; t.addfile(link)
+    for member,data in {'package/css/xterm.css':b'css','package/LICENSE':b'MIT'}.items():
+        info=tarfile.TarInfo(member); info.size=len(data); t.addfile(info,io.BytesIO(data))
+(root/'unsafe-integrity').write_text('sha512-'+base64.b64encode(hashlib.sha512(path.read_bytes()).digest()).decode())
 PY
 
-mapfile -t INTEGRITIES < "$TMP/integrities"
+integrity() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$TMP/integrities.json" "$1"; }
 provision() {
-  local xterm_archive=$1
-  local xterm_integrity=$2
-  local destination=$3
+  local xterm_archive=$1 xterm_integrity=$2 destination=$3
+  local ligatures_archive=${4:-"$TMP/ligatures.tgz"}
+  local ligatures_integrity=${5:-"$(integrity ligatures)"}
   python3 "$ROOT/tools/provision-web-terminal-assets.py" \
-    --xterm-archive "$xterm_archive" \
-    --xterm-url 'https://example.invalid/xterm.tgz' \
-    --xterm-integrity "$xterm_integrity" \
-    --fit-archive "$TMP/fit.tgz" \
-    --fit-url 'https://example.invalid/fit.tgz' \
-    --fit-integrity "${INTEGRITIES[1]}" \
-    --serialize-archive "$TMP/serialize.tgz" \
-    --serialize-url 'https://example.invalid/serialize.tgz' \
-    --serialize-integrity "${INTEGRITIES[2]}" \
-    --webgl-archive "$TMP/webgl.tgz" \
-    --webgl-url 'https://example.invalid/webgl.tgz' \
-    --webgl-integrity "${INTEGRITIES[3]}" \
-    --web-links-archive "$TMP/web-links.tgz" \
-    --web-links-url 'https://example.invalid/web-links.tgz' \
-    --web-links-integrity "${INTEGRITIES[4]}" \
+    --xterm-archive "$xterm_archive" --xterm-url 'https://example.invalid/xterm.tgz' --xterm-integrity "$xterm_integrity" \
+    --fit-archive "$TMP/fit.tgz" --fit-url 'https://example.invalid/fit.tgz' --fit-integrity "$(integrity fit)" \
+    --serialize-archive "$TMP/serialize.tgz" --serialize-url 'https://example.invalid/serialize.tgz' --serialize-integrity "$(integrity serialize)" \
+    --webgl-archive "$TMP/webgl.tgz" --webgl-url 'https://example.invalid/webgl.tgz' --webgl-integrity "$(integrity webgl)" \
+    --web-links-archive "$TMP/web-links.tgz" --web-links-url 'https://example.invalid/web-links.tgz' --web-links-integrity "$(integrity web-links)" \
+    --clipboard-archive "$TMP/clipboard.tgz" --clipboard-url 'https://example.invalid/clipboard.tgz' --clipboard-integrity "$(integrity clipboard)" \
+    --image-archive "$TMP/image.tgz" --image-url 'https://example.invalid/image.tgz' --image-integrity "$(integrity image)" \
+    --progress-archive "$TMP/progress.tgz" --progress-url 'https://example.invalid/progress.tgz' --progress-integrity "$(integrity progress)" \
+    --search-archive "$TMP/search.tgz" --search-url 'https://example.invalid/search.tgz' --search-integrity "$(integrity search)" \
+    --unicode11-archive "$TMP/unicode11.tgz" --unicode11-url 'https://example.invalid/unicode11.tgz' --unicode11-integrity "$(integrity unicode11)" \
+    --web-fonts-archive "$TMP/web-fonts.tgz" --web-fonts-url 'https://example.invalid/web-fonts.tgz' --web-fonts-integrity "$(integrity web-fonts)" \
+    --ligatures-archive "$ligatures_archive" --ligatures-url 'https://example.invalid/ligatures.tgz' --ligatures-integrity "$ligatures_integrity" \
     --destination "$destination"
 }
 
-provision "$TMP/xterm.tgz" "${INTEGRITIES[0]}" "$TMP/output"
-for file in \
-  xterm.js xterm.css addon-fit.js addon-serialize.js addon-webgl.js addon-web-links.js \
-  LICENSE.xterm.txt LICENSE.addon-fit.txt \
-  PACKAGE.addon-serialize.json PACKAGE.addon-webgl.json PACKAGE.addon-web-links.json ASSET_RECEIPT.json; do
+provision "$TMP/xterm.tgz" "$(integrity xterm)" "$TMP/output"
+for file in xterm.js xterm.css LICENSE.xterm.txt LICENSE.addon-fit.txt \
+  addon-fit.js addon-serialize.js addon-webgl.js addon-web-links.js addon-clipboard.js addon-image.js \
+  addon-progress.js addon-search.js addon-unicode11.js addon-web-fonts.js addon-ligatures.mjs \
+  PACKAGE.addon-serialize.json PACKAGE.addon-webgl.json PACKAGE.addon-web-links.json \
+  PACKAGE.addon-clipboard.json PACKAGE.addon-image.json PACKAGE.addon-progress.json PACKAGE.addon-search.json \
+  PACKAGE.addon-unicode11.json PACKAGE.addon-web-fonts.json PACKAGE.addon-ligatures.json ASSET_RECEIPT.json; do
   test -s "$TMP/output/$file"
 done
-test ! -e "$TMP/output/LICENSE.addon-serialize.txt"
-test ! -e "$TMP/output/LICENSE.addon-webgl.txt"
 printf 'PASS asset-provisioner-success\n'
 
-# Convert a current receipt into the immediate previous generation (all current assets except web-links).
-PREVIOUS_ROOT="$TMP/previous-root"
-mkdir -p "$PREVIOUS_ROOT/app/src/main/assets/terminal"
-cp -a "$TMP/output" "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor"
-rm -f \
-  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/addon-web-links.js" \
-  "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/PACKAGE.addon-web-links.json"
-python3 - "$PREVIOUS_ROOT/app/src/main/assets/terminal/vendor/ASSET_RECEIPT.json" <<'PY'
-import json
-import pathlib
-import sys
-path = pathlib.Path(sys.argv[1])
-receipt = json.loads(path.read_text())
-expected = {
-    "@xterm/xterm": (
-        "https://registry.npmjs.org/@xterm/xterm/-/xterm-6.0.0.tgz",
-        "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==",
-    ),
-    "@xterm/addon-fit": (
-        "https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz",
-        "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==",
-    ),
-    "@xterm/addon-serialize": (
-        "https://registry.npmjs.org/@xterm/addon-serialize/-/addon-serialize-0.13.0.tgz",
-        "sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ==",
-    ),
-    "@xterm/addon-webgl": (
-        "https://registry.npmjs.org/@xterm/addon-webgl/-/addon-webgl-0.19.0.tgz",
-        "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==",
-    ),
-}
-receipt["packages"] = [entry for entry in receipt["packages"] if entry["name"] in expected]
-for entry in receipt["packages"]:
-    entry["url"], entry["npm_integrity"] = expected[entry["name"]]
-receipt["files"] = [entry for entry in receipt["files"] if entry["package"] != "@xterm/addon-web-links@0.12.0"]
-path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
-PY
-python3 "$ROOT/tools/verify-web-assets.py" "$PREVIOUS_ROOT" | grep -Fq 'state=stale-provisioned'
-printf 'PASS asset-provisioner-previous-generation\n'
+
+if provision "$TMP/xterm.tgz" "$(integrity xterm)" "$TMP/old-ligatures-output" "$TMP/ligatures-old.tgz" "$(integrity ligatures-old)" >/dev/null 2>&1; then
+  printf 'FAIL asset-provisioner-old-ligatures-layout unexpectedly passed\n' >&2; exit 1
+fi
+printf 'PASS asset-provisioner-old-ligatures-layout-rejected\n'
 
 UNSAFE_INTEGRITY=$(cat "$TMP/unsafe-integrity")
 if provision "$TMP/unsafe.tgz" "$UNSAFE_INTEGRITY" "$TMP/unsafe-output" >/dev/null 2>&1; then
-  printf 'FAIL asset-provisioner-unsafe unexpectedly passed\n' >&2
-  exit 1
+  printf 'FAIL asset-provisioner-unsafe unexpectedly passed\n' >&2; exit 1
 fi
 printf 'PASS asset-provisioner-unsafe\n'

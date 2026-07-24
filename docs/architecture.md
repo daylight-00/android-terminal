@@ -24,7 +24,7 @@ A bundled userland is Layer 3. Android storage permissions, WebView lifecycle re
 
 ### Vendored xterm.js frontend
 
-`app/src/main/assets/terminal/vendor/` contains exact production files from pinned official npm releases of `@xterm/xterm`, `@xterm/addon-fit`, `@xterm/addon-serialize`, `@xterm/addon-web-links`, and `@xterm/addon-webgl`. `tools/acquire-web-terminal-assets.sh` verifies the fixed npm integrity values, validates archive shape, installs only selected production files, and records exact installed identities in `ASSET_RECEIPT.json`.
+`app/src/main/assets/terminal/vendor/` contains exact production files from pinned official npm releases of `@xterm/xterm` and the stable Layer 2 addon set: fit, serialize, clipboard, image, progress, search, unicode11, web-fonts, ligatures, web-links, and webgl. `tools/acquire-web-terminal-assets.sh` verifies the fixed npm integrity values, validates archive shape, installs only selected production files, and records exact installed identities in `ASSET_RECEIPT.json`.
 
 The vendored files are never edited. xterm.js owns terminal parsing, screen state, Unicode layout, cursor behavior, selection, scrollback, keyboard/IME semantics, and rendering. Official addons continue to own their feature semantics. A routine upstream update changes only `vendor/**`, package coordinates, and the receipt.
 
@@ -53,14 +53,14 @@ Current Layer 2 responsibilities include:
 - versioned WebMessagePort contract, attachment generations, capability handshake, bounded byte transport, ACK/backpressure, and explicit failures;
 - Android window, inset, rotation, focus, IME viewport, `ResizeObserver`, and `visualViewport` geometry reduced through `addon-fit` to deduplicated `TIOCSWINSZ` updates;
 - xterm input callbacks connected to PTY writes without reinterpreting keyboard or terminal semantics;
-- clipboard, OSC 8 URI activation, official plain-text web-link activation, bell, Android color-scheme state, accessibility, touch exploration, hardware-keyboard state, font scale, Android-localized upstream strings, and neutral service-owned title state mapped through public APIs;
+- explicit clipboard actions plus official OSC 52 clipboard handling, official image/progress/search/Unicode 11/web-font/ligature capabilities, OSC 8 URI activation, official plain-text web-link activation, bell, Android color-scheme state, accessibility, touch exploration, hardware-keyboard state, font scale, Android-localized upstream strings, and neutral service-owned title state mapped through public APIs;
 - truthful xterm window reports for cell pixels, terminal pixels, rows/columns, title stack, refresh, and current title, while desktop position/stacking/screen/fullscreen/terminal-driven host resize operations remain disabled;
 - official WebGL renderer activation with one-way fallback to xterm core DOM rendering after activation failure or public `onContextLoss` notification;
 - official serialize-addon snapshots plus a bounded raw PTY tail for replacement frontends;
 - SAF import/export for explicit document transactions;
 - direct shared-storage adaptation: Android 10 runtime storage permissions, Android 11+ all-files special access, API 28 compatibility targeting, `EXTERNAL_STORAGE`, and a non-destructive `HOME/storage` symlink;
 - API 28 compatibility targeting so owner-provided executables under writable app-private HOME remain launchable without a custom linker or loader shim;
-- PTY creation, `/system/bin/sh` execution, signals, reads, writes, resize, wait, and cleanup through the minimum JNI/C syscall bridge.
+- PTY creation, login-shell `/system/bin/sh` execution via the standard leading-hyphen `argv[0]` convention, signals, reads, writes, resize, wait, and cleanup through the minimum JNI/C syscall bridge.
 
 Layer 2 may contain fixed safety limits and neutral host mappings required to make a feature operational. It must not contain a custom VT parser, screen model, renderer, shell-command semantics, bundled userland, package manager, or distribution filesystem.
 
@@ -107,6 +107,14 @@ OSC 0/2 title changes remain upstream-parsed. Layer 2 listens through `Terminal.
 Android resources supply only xterm's public `promptLabel` and `tooMuchOutput` strings. Layer 2 transports the current locale tag and applies those values through `Terminal.strings`, with a neutral 512-code-point bound. Product copy remains Layer 3.
 
 The window-operation bridge enables only truthful reports that xterm can answer from its own geometry and title state. Upstream default handlers retain cell-pixel, terminal-pixel, row/column, and title-stack semantics; public parser/input/refresh APIs handle refresh and current-title reports. Android desktop-window approximations are forbidden.
+
+### Stable addon integration wave
+
+Layer 2 automatically loads ClipboardAddon, ImageAddon, ProgressAddon, SearchAddon, Unicode11Addon, and WebFontsAddon using their public APIs. ClipboardAddon retains the official default Base64 implementation and receives a bounded plain-text Android provider; ImageAddon retains upstream constructor defaults; ProgressAddon exposes neutral state; SearchAddon exposes its engine without UI; Unicode 11 is registered without changing the active provider; and Web Fonts exposes loading/relayout without selecting any font. `allowProposedApi` is enabled solely because the official Unicode namespace requires that opt-in. The official LigaturesAddon 0.10.0 ESM entry remains unmodified in Layer 1 and is exposed through a minimal Layer 2 module adapter. Ligatures remain a one-time Layer 2 capability and activate only after Layer 3 explicitly requests them; an active WebGL renderer is then reactivated through the Layer 2 renderer controller as required by the official ligatures contract.
+
+### Login shell boundary
+
+The native bridge still executes the Android-provided `/system/bin/sh` directly with the unchanged environment. It marks the shell as a login shell solely by passing `-sh` as `argv[0]`, the conventional shell interface. No shell wrapper, profile injection, userland, loader, or command string is added. Startup-file interpretation remains the responsibility of the Android-provided shell.
 
 ### Upstream update delegation
 

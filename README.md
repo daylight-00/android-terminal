@@ -23,10 +23,17 @@ filesystem, or a Linux distribution.
 | Terminal frontend | system WebView + `@xterm/xterm` 6.0.0 |
 | Fit logic | `@xterm/addon-fit` 0.11.0 |
 | Frontend state serialization | `@xterm/addon-serialize` 0.13.0 |
+| Android clipboard / OSC 52 | `@xterm/addon-clipboard` 0.2.0 |
+| Inline images | `@xterm/addon-image` 0.9.0 |
+| Progress state | `@xterm/addon-progress` 0.2.0 |
+| Search engine | `@xterm/addon-search` 0.16.0 |
+| Unicode 11 provider | `@xterm/addon-unicode11` 0.9.0 |
+| Web-font relayout | `@xterm/addon-web-fonts` 0.1.0 |
+| Optional ligatures | `@xterm/addon-ligatures` 0.10.0 (official ESM entry through a Layer 2 module adapter) |
 | Plain-text web links | `@xterm/addon-web-links` 0.12.0 |
 | Optional accelerated renderer | `@xterm/addon-webgl` 0.19.0 |
 | Native bridge | C11/JNI, `forkpty`, `execve`, `read`, `write`, `ioctl` |
-| Shell | device `/system/bin/sh` |
+| Shell | device `/system/bin/sh`, direct login invocation with `argv[0] = -sh` |
 | PATH | `/system/bin` |
 | TERM | `xterm-256color` |
 
@@ -60,8 +67,9 @@ machine-verified inventory.
 - C only owns the PTY and process syscalls that Android's managed API does not expose.
 - Android window, inset, rotation, and IME viewport changes are reduced to positive, deduplicated
   geometry before `addon-fit` dimensions reach `TIOCSWINSZ`.
-- A bounded protocol v6 platform bridge connects explicit clipboard actions, OSC 8 links, official
-  plain-text web-link activation, bell events, service-owned OSC 0/2 title state, Android-localized
+- A bounded protocol v6 platform bridge connects explicit clipboard actions, official OSC 52 clipboard
+  handling, inline images, progress state, neutral search/Unicode/web-font/ligature capabilities, OSC 8
+  links, official plain-text web-link activation, bell events, service-owned OSC 0/2 title state, Android-localized
   xterm accessibility strings, truthful safe window reports, Android color-scheme state, accessibility
   state, Android font scale, hardware-keyboard presence, and SAF document import/export without adding a
   terminal parser or replacing WebView/xterm input semantics.
@@ -73,7 +81,8 @@ machine-verified inventory.
   captures that upstream default once, applies a bounded system scale through the public `fontSize`
   option, and refits geometry without defining a project-specific base font or preference.
 - The official serialize addon produces opaque xterm framebuffer snapshots; Layer 2 stores them with an output-sequence watermark and bridges later bytes through a bounded raw tail journal without interpreting terminal state.
-- The official WebGL addon is attempted by Layer 2. Activation failure or context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched.
+- The official WebGL addon is attempted by Layer 2. Activation failure or context loss disposes only the addon and permanently falls back to xterm core's DOM renderer for that frontend; the PTY, serialized state, and WebView session remain untouched. Enabling the official ligatures capability reactivates an active WebGL addon as required by the upstream public contract.
+- The native bridge executes `/system/bin/sh` directly and requests login-shell startup only through the conventional leading-hyphen `argv[0]` (`-sh`). It adds no wrapper command, profile injection, alternate loader, or bundled shell.
 - Android shared-storage permissions expose ordinary POSIX paths through `EXTERNAL_STORAGE` and a non-destructive `HOME/storage` symlink. SAF imports remain real files under app-private `HOME/imports`, and exports accept only validated HOME-relative regular files; no `content://` URI is presented as a POSIX path or virtual mount.
 - The manifest targets API 28 as a narrow Android compatibility boundary so the native shell can execute owner-provided binaries from the writable app-private HOME without adding a custom linker or loader path. The minimum runtime and native ABI floor remain API 29.
 - Runtime network access is absent; no `INTERNET` permission is declared.
@@ -90,9 +99,12 @@ run the bounded owner-side acquisition script:
 ./tools/acquire-web-terminal-assets.sh
 ```
 
-It downloads only the pinned official npm tarballs, checks their fixed npm SHA-512
-integrity values, validates archive members, installs only the required production
-files, and freezes the acquired archive and installed-file SHA-256/size values in a receipt under `app/src/main/assets/terminal/vendor/`. Exact package metadata for serialize, Web Links, and WebGL is retained and each `MIT` declaration is validated against the project-wide xterm.js license; no addon-specific license file is synthesized.
+It downloads only exact-version official npm tarballs. Existing pins retain their fixed npm SHA-512
+values; the newly connected stable addons resolve the exact-version registry record, verify its exact
+package identity and tarball URL, and require its `sha512-` integrity before extraction. The provisioner
+validates archive safety and package metadata, installs only required production files, and freezes the
+acquired archive plus installed-file SHA-256/size values in `ASSET_RECEIPT.json`. No addon-specific
+license file is synthesized when the package publishes only its MIT metadata declaration.
 The app never loads a CDN or remote page at runtime.
 
 ## Local verification

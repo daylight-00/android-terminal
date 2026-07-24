@@ -28,6 +28,7 @@ def verify(root: Path) -> list[str]:
     codec_js = read(root, str(base / "bridge/terminal-codec.js"), failures)
     bridge_css = read(root, str(base / "bridge/bridge.css"), failures)
     platform_js = read(root, str(base / "bridge/terminal-platform.js"), failures)
+    ligatures_loader = read(root, str(base / "bridge/terminal-ligatures.js"), failures)
     customization_js = read(root, str(base / "customization/customization.js"), failures)
     customization_css = read(root, str(base / "customization/customization.css"), failures)
     customization_kt = read(
@@ -139,8 +140,15 @@ def verify(root: Path) -> list[str]:
         "/terminal/vendor/xterm.js",
         "/terminal/vendor/addon-fit.js",
         "/terminal/vendor/addon-serialize.js",
+        "/terminal/vendor/addon-clipboard.js",
+        "/terminal/vendor/addon-image.js",
+        "/terminal/vendor/addon-progress.js",
+        "/terminal/vendor/addon-search.js",
+        "/terminal/vendor/addon-unicode11.js",
+        "/terminal/vendor/addon-web-fonts.js",
         "/terminal/vendor/addon-web-links.js",
         "/terminal/vendor/addon-webgl.js",
+        "/terminal/bridge/terminal-ligatures.js",
         "/terminal/bridge/terminal-contract.js",
         "/terminal/bridge/terminal-renderer.js",
         "/terminal/bridge/terminal-codec.js",
@@ -156,7 +164,15 @@ def verify(root: Path) -> list[str]:
     if "/terminal/customization/customization.css" not in html:
         fail("HTML does not load the Layer 3 stylesheet scaffold", failures)
     for asset_path in (
+        "/terminal/vendor/addon-clipboard.js",
+        "/terminal/vendor/addon-image.js",
+        "/terminal/vendor/addon-progress.js",
+        "/terminal/vendor/addon-search.js",
+        "/terminal/vendor/addon-unicode11.js",
+        "/terminal/vendor/addon-web-fonts.js",
         "/terminal/vendor/addon-web-links.js",
+        "/terminal/vendor/addon-webgl.js",
+        "/terminal/bridge/terminal-ligatures.js",
         "/terminal/customization/customization.css",
         "/terminal/customization/customization.js",
     ):
@@ -201,8 +217,18 @@ def verify(root: Path) -> list[str]:
             fail(f"Kotlin contract lacks message type: {wire}", failures)
 
     for token in (
-        "new window.Terminal()",
+        "new window.Terminal({allowProposedApi: true})",
         "new window.FitAddon.FitAddon()",
+        "new window.SerializeAddon.SerializeAddon()",
+        "new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider)",
+        "new window.ImageAddon.ImageAddon()",
+        "new window.ProgressAddon.ProgressAddon()",
+        "new window.SearchAddon.SearchAddon()",
+        "new window.Unicode11Addon.Unicode11Addon()",
+        "new window.WebFontsAddon.WebFontsAddon()",
+        "new module.LigaturesAddon(options)",
+        "resolveLigaturesModule()",
+        "rendererController.reactivate()",
         "terminal.onData(",
         "terminal.onBinary(",
         "terminal.write(",
@@ -236,10 +262,17 @@ def verify(root: Path) -> list[str]:
         "window.AndroidTerminalLayer2 = Object.freeze",
         "onPlatformState",
         "requestGeometrySync()",
-        "contractVersion: 2",
+        "contractVersion: 3",
     ):
         if token not in bridge_js:
             fail(f"Layer 2 bridge lacks required public integration token: {token}", failures)
+
+    if bridge_js.count("allowProposedApi") != 1:
+        fail("proposed API opt-in must be isolated to official Unicode 11 registration", failures)
+    if "new window.ImageAddon.ImageAddon({" in bridge_js:
+        fail("Layer 2 must instantiate ImageAddon with upstream defaults", failures)
+    if "unicode.activeVersion =" in bridge_js.split("setActiveVersion(version)")[0]:
+        fail("Layer 2 must not select a Unicode version before Layer 3 requests one", failures)
 
     for token in (
         "cursorBlink",
@@ -353,10 +386,6 @@ def verify(root: Path) -> list[str]:
     ):
         if forbidden in customization_js or forbidden in customization_kt:
             fail(f"Layer 3 bypasses the stable Layer 2 capability: {forbidden}", failures)
-
-    for unselected_upstream in ("ClipboardAddon", "osc52-clipboard", "ImageAddon"):
-        if unselected_upstream in bridge_js or unselected_upstream in contract_js:
-            fail(f"unselected upstream addon leaked into Layer 2: {unselected_upstream}", failures)
 
     for token in ("documentImport: 'document-import'", "documentExport: 'document-export'", "android-document-transport"):
         if token not in contract_js:
@@ -539,8 +568,17 @@ def verify(root: Path) -> list[str]:
         fail("session must prepare non-destructive HOME/storage path", failures)
     if "EXTERNAL_STORAGE=%s" not in native or "ANDROID_STORAGE=/storage" not in native:
         fail("native shell environment must expose Android storage coordinates", failures)
+    if 'char *const arguments[] = {"-sh", NULL};' not in native:
+        fail("native shell must use leading-hyphen argv[0] login semantics", failures)
+    if '"-l"' in native or "system(" in native or "popen(" in native:
+        fail("login shell must remain a direct execve adaptation", failures)
     if "layer3-scaffold-v1" not in contract_js or "layer3-scaffold-v1" not in contract_kt:
         fail("Layer 3 scaffold capability must match", failures)
+
+    if "import {LigaturesAddon} from '/terminal/vendor/addon-ligatures.mjs'" not in ligatures_loader:
+        fail("Layer 2 ligatures module adapter must import the unmodified Layer 1 ESM entry", failures)
+    if "AndroidTerminalLigaturesLoader" not in ligatures_loader:
+        fail("Layer 2 ligatures module adapter is incomplete", failures)
 
     semantic_parser_pattern = re.compile(r"\b(?:CSI|OSC|DCS|SGR)\b|escape sequence|terminal cell", re.IGNORECASE)
     for name, text in (("Kotlin controller", controller), ("native PTY bridge", native)):
@@ -558,11 +596,25 @@ def verify(root: Path) -> list[str]:
             "xterm.css",
             "addon-fit.js",
             "addon-serialize.js",
+            "addon-clipboard.js",
+            "addon-image.js",
+            "addon-progress.js",
+            "addon-search.js",
+            "addon-unicode11.js",
+            "addon-web-fonts.js",
+            "addon-ligatures.mjs",
             "addon-web-links.js",
             "addon-webgl.js",
             "LICENSE.xterm.txt",
             "LICENSE.addon-fit.txt",
             "PACKAGE.addon-serialize.json",
+            "PACKAGE.addon-clipboard.json",
+            "PACKAGE.addon-image.json",
+            "PACKAGE.addon-progress.json",
+            "PACKAGE.addon-search.json",
+            "PACKAGE.addon-unicode11.json",
+            "PACKAGE.addon-web-fonts.json",
+            "PACKAGE.addon-ligatures.json",
             "PACKAGE.addon-web-links.json",
             "PACKAGE.addon-webgl.json",
         }

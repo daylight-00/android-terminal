@@ -149,14 +149,15 @@ def provision(packages: list[Package], destination: pathlib.Path) -> None:
 
     readme = """# Provisioned upstream assets
 
-These files were acquired by `tools/acquire-web-terminal-assets.sh` from the pinned
-official npm package URLs. `ASSET_RECEIPT.json` records the package coordinates,
-fixed npm SHA-512 integrity, acquired tarball SHA-256/size, and every installed file
-SHA-256/size. Exact package metadata is retained for official addons that do not
-need a separately installed license member; `LICENSE.xterm.txt` contains the upstream
-xterm.js project license and each retained package metadata file records its MIT declaration.
-The application loads
-production JavaScript only from its APK assets.
+These files were acquired by `tools/acquire-web-terminal-assets.sh` from exact-version
+official npm package URLs. `ASSET_RECEIPT.json` records package coordinates, verified
+npm SHA-512 integrity, acquired tarball SHA-256/size, and every installed file SHA-256/size.
+Existing coordinates retain fixed SHA-512 pins; newly connected stable addons resolve and
+validate the exact-version registry record before acquisition. Exact package metadata is
+retained for official addons that do not need a separately installed license member;
+`LICENSE.xterm.txt` contains the upstream xterm.js project license and each retained package
+metadata file records its MIT declaration. The application loads production JavaScript only
+from its APK assets.
 """
     (destination / "README.md").write_text(readme, encoding="utf-8")
     receipt = {
@@ -190,6 +191,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--web-links-archive", required=True, type=pathlib.Path)
     parser.add_argument("--web-links-url", required=True)
     parser.add_argument("--web-links-integrity", required=True)
+    for key in ("clipboard", "image", "progress", "search", "unicode11", "web-fonts", "ligatures"):
+        parser.add_argument(f"--{key}-archive", required=True, type=pathlib.Path)
+        parser.add_argument(f"--{key}-url", required=True)
+        parser.add_argument(f"--{key}-integrity", required=True)
     parser.add_argument("--destination", required=True, type=pathlib.Path)
     return parser.parse_args()
 
@@ -274,6 +279,41 @@ def main() -> int:
                 "license": "MIT",
             },
         ),
+        Package(
+            name="@xterm/addon-clipboard", version="0.2.0", archive=arguments.clipboard_archive,
+            url=arguments.clipboard_url, integrity=arguments.clipboard_integrity,
+            members={"package/lib/addon-clipboard.js": "addon-clipboard.js", "package/package.json": "PACKAGE.addon-clipboard.json"},
+            metadata_member="package/package.json", expected_metadata={"name": "@xterm/addon-clipboard", "version": "0.2.0", "main": "lib/addon-clipboard.js", "license": "MIT"}),
+        Package(
+            name="@xterm/addon-image", version="0.9.0", archive=arguments.image_archive,
+            url=arguments.image_url, integrity=arguments.image_integrity,
+            members={"package/lib/addon-image.js": "addon-image.js", "package/package.json": "PACKAGE.addon-image.json"},
+            metadata_member="package/package.json", expected_metadata={"name": "@xterm/addon-image", "version": "0.9.0", "main": "lib/addon-image.js", "license": "MIT"}),
+        Package(
+            name="@xterm/addon-progress", version="0.2.0", archive=arguments.progress_archive,
+            url=arguments.progress_url, integrity=arguments.progress_integrity,
+            members={"package/lib/addon-progress.js": "addon-progress.js", "package/package.json": "PACKAGE.addon-progress.json"},
+            metadata_member="package/package.json", expected_metadata={"name": "@xterm/addon-progress", "version": "0.2.0", "main": "lib/addon-progress.js", "license": "MIT"}),
+        Package(
+            name="@xterm/addon-search", version="0.16.0", archive=arguments.search_archive,
+            url=arguments.search_url, integrity=arguments.search_integrity,
+            members={"package/lib/addon-search.js": "addon-search.js", "package/package.json": "PACKAGE.addon-search.json"},
+            metadata_member="package/package.json", expected_metadata={"name": "@xterm/addon-search", "version": "0.16.0", "main": "lib/addon-search.js", "license": "MIT"}),
+        Package(
+            name="@xterm/addon-unicode11", version="0.9.0", archive=arguments.unicode11_archive,
+            url=arguments.unicode11_url, integrity=arguments.unicode11_integrity,
+            members={"package/lib/addon-unicode11.js": "addon-unicode11.js", "package/package.json": "PACKAGE.addon-unicode11.json"},
+            metadata_member="package/package.json", expected_metadata={"name": "@xterm/addon-unicode11", "version": "0.9.0", "main": "lib/addon-unicode11.js", "license": "MIT"}),
+        Package(
+            name="@xterm/addon-web-fonts", version="0.1.0", archive=arguments.web_fonts_archive,
+            url=arguments.web_fonts_url, integrity=arguments.web_fonts_integrity,
+            members={"package/lib/addon-web-fonts.js": "addon-web-fonts.js", "package/package.json": "PACKAGE.addon-web-fonts.json"},
+            metadata_member="package/package.json", expected_metadata={"name": "@xterm/addon-web-fonts", "version": "0.1.0", "main": "lib/addon-web-fonts.js", "license": "MIT"}),
+        Package(
+            name="@xterm/addon-ligatures", version="0.10.0", archive=arguments.ligatures_archive,
+            url=arguments.ligatures_url, integrity=arguments.ligatures_integrity,
+            members={"package/lib/addon-ligatures.mjs": "addon-ligatures.mjs", "package/package.json": "PACKAGE.addon-ligatures.json"},
+            metadata_member="package/package.json", expected_metadata={"name": "@xterm/addon-ligatures", "version": "0.10.0", "module": "lib/addon-ligatures.mjs", "license": "MIT"}),
     ]
     try:
         provision(packages, arguments.destination)

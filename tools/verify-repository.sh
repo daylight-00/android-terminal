@@ -24,6 +24,8 @@ check terminal-geometry "$ROOT/tools/test-terminal-geometry.sh"
 check terminal-platform-policy "$ROOT/tools/test-platform-policy.sh"
 check terminal-font-scale "$ROOT/tools/test-font-scale.sh"
 check core-host-integration "$ROOT/tools/test-core-host-integration.sh"
+check stable-addon-wave "$ROOT/tools/test-stable-addon-wave.sh"
+check login-shell "$ROOT/tools/test-login-shell.sh"
 check layer3-scaffold "$ROOT/tools/test-layer3-scaffold.sh"
 check terminal-document-policy "$ROOT/tools/test-document-policy.sh"
 check terminal-document-transport "$ROOT/tools/test-document-transport.sh"
@@ -50,6 +52,8 @@ check shell-syntax bash -n \
   "$ROOT/tools/test-platform-policy.sh" \
   "$ROOT/tools/test-font-scale.sh" \
   "$ROOT/tools/test-core-host-integration.sh" \
+  "$ROOT/tools/test-stable-addon-wave.sh" \
+  "$ROOT/tools/test-login-shell.sh" \
   "$ROOT/tools/test-layer3-scaffold.sh" \
   "$ROOT/tools/test-document-policy.sh" \
   "$ROOT/tools/test-document-transport.sh" \
@@ -77,8 +81,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 16' app/build.gradle
-check version-name grep -Fxq "        versionName '0.18.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 17' app/build.gradle
+check version-name grep -Fxq "        versionName '0.19.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -92,10 +96,23 @@ check cmake-project grep -Fq 'add_library(shellbridge SHARED' app/src/main/c/CMa
 check uv-cmake-project grep -Fq 'uv run --project' tools/build-native-bridge-cmake.sh
 check system-shell grep -Fq 'const val SHELL_PATH = "/system/bin/sh"' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
+check login-shell-argv0 grep -Fq 'char *const arguments[] = {"-sh", NULL};' app/src/main/c/shell_bridge.c
+check login-shell-direct-exec grep -Fq 'execve(shell_path, arguments, environment)' app/src/main/c/shell_bridge.c
+check no-login-shell-wrapper sh -c '! grep -Eq "system\(|popen\(|\"-l\"" app/src/main/c/shell_bridge.c'
 check session-service grep -Fq 'class TerminalSessionService : Service()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check serialized-snapshot-store grep -Fq 'TerminalSerializedSnapshotStore(TerminalContract.MAX_SERIALIZED_SNAPSHOT_BYTES)' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check serialize-addon grep -Fq 'new window.SerializeAddon.SerializeAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check clipboard-addon grep -Fq 'new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider)' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check image-addon-defaults grep -Fq 'new window.ImageAddon.ImageAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check progress-addon grep -Fq 'new window.ProgressAddon.ProgressAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check search-addon grep -Fq 'new window.SearchAddon.SearchAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check unicode11-addon grep -Fq 'new window.Unicode11Addon.Unicode11Addon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check web-fonts-addon grep -Fq 'new window.WebFontsAddon.WebFontsAddon()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check ligatures-addon grep -Fq 'new module.LigaturesAddon(options)' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check ligatures-esm-loader grep -Fq "import {LigaturesAddon} from '/terminal/vendor/addon-ligatures.mjs'" app/src/main/assets/terminal/bridge/terminal-ligatures.js
+check ligatures-webgl-reactivation grep -Fq 'rendererController.reactivate()' app/src/main/assets/terminal/bridge/terminal-bridge.js
+check unicode-proposed-api-opt-in sh -c '[ "$(grep -Fo allowProposedApi app/src/main/assets/terminal/bridge/terminal-bridge.js | wc -l)" -eq 1 ]'
 check web-links-addon grep -Fq 'new window.WebLinksAddon.WebLinksAddon(' app/src/main/assets/terminal/bridge/terminal-bridge.js
 check web-links-native-route grep -Fq 'platform.openExternalUri(uri)' app/src/main/assets/terminal/bridge/terminal-bridge.js
 check web-links-capability grep -Fq 'web-links-v1' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
@@ -161,6 +178,10 @@ check legacy-external-storage grep -Fq 'android:requestLegacyExternalStorage="tr
   app/src/main/AndroidManifest.xml
 check home-storage-link grep -Fq 'TerminalSharedStorage.prepareHomeLink(homeDirectory)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSession.kt
+check stable-addon-wave-capability grep -Fq 'stable-addon-wave-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check login-shell-capability grep -Fq 'login-shell-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check layer3-scaffold grep -Fq 'layer3-scaffold-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check layer3-js-scaffold test -f app/src/main/assets/terminal/customization/customization.js
@@ -176,6 +197,7 @@ check activity-document-result grep -Fq 'override fun onActivityResult' \
 check no-saf-virtual-mount "$ROOT/tools/verify-no-saf-virtual-mount.sh" "$ROOT"
 check no-saf-virtual-mount-fixture "$ROOT/tools/test-no-saf-virtual-mount.sh"
 check native-exec grep -Fq 'execve(shell_path, arguments, environment);' app/src/main/c/shell_bridge.c
+check login-shell-argv0 grep -Fq 'char *const arguments[] = {"-sh", NULL};' app/src/main/c/shell_bridge.c
 check webview grep -Fq 'val view: WebView = WebView(activity)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt
 check web-message-port grep -Fq 'createWebMessageChannel()' \

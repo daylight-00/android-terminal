@@ -67,8 +67,8 @@
       "id": "osc52-clipboard",
       "authority": "@xterm/xterm OSC 52 support plus @xterm/addon-clipboard provider",
       "classification": "layer2-runtime",
-      "status": "pending",
-      "android_boundary": "Official ClipboardAddon must use an Android-backed IClipboardProvider.",
+      "status": "connected-with-bounds",
+      "android_boundary": "Official ClipboardAddon uses an Android ClipboardManager-backed provider as a plain-text provider while the official addon retains OSC 52 Base64 handling and the existing bounded native clipboard policy.",
       "layer3_boundary": "Permission prompts or clipboard UX are Layer 3; protocol semantics remain upstream."
     },
     {
@@ -164,7 +164,7 @@
     {
       "package": "@xterm/addon-clipboard",
       "classification": "layer2-runtime",
-      "status": "pending",
+      "status": "connected-with-bounds",
       "default_activation": "automatic",
       "android_boundary": "Use the official addon with an Android ClipboardManager-backed IClipboardProvider for OSC 52.",
       "layer3_boundary": "Clipboard UI and user policy are Layer 3."
@@ -180,7 +180,7 @@
     {
       "package": "@xterm/addon-image",
       "classification": "layer2-runtime",
-      "status": "pending",
+      "status": "connected-with-upstream-defaults",
       "default_activation": "automatic",
       "android_boundary": "Use upstream defaults for SIXEL, IIP, partial Kitty graphics, storage, payload, pixel, and size-report behavior unless Android evidence requires a neutral safety bound.",
       "layer3_boundary": "User-selectable protocol toggles and custom limits are Layer 3."
@@ -188,7 +188,7 @@
     {
       "package": "@xterm/addon-ligatures",
       "classification": "layer2-capability",
-      "status": "pending",
+      "status": "available",
       "default_activation": "registered",
       "android_boundary": "Expose the official addon without selecting a font or ligature policy.",
       "layer3_boundary": "Font and ligature enablement are Layer 3."
@@ -196,7 +196,7 @@
     {
       "package": "@xterm/addon-progress",
       "classification": "layer2-runtime",
-      "status": "pending",
+      "status": "connected",
       "default_activation": "automatic",
       "android_boundary": "Parse OSC 9;4 and expose neutral progress state through Layer 2.",
       "layer3_boundary": "Toolbar, notification, tab badge, and display policy are Layer 3."
@@ -204,7 +204,7 @@
     {
       "package": "@xterm/addon-search",
       "classification": "layer2-capability",
-      "status": "pending",
+      "status": "available",
       "default_activation": "registered",
       "android_boundary": "Expose official buffer-search operations and result state.",
       "layer3_boundary": "Search field, Ctrl+F, navigation controls, decorations, and preferences are Layer 3."
@@ -228,7 +228,7 @@
     {
       "package": "@xterm/addon-unicode11",
       "classification": "layer2-capability",
-      "status": "pending",
+      "status": "available",
       "default_activation": "registered",
       "android_boundary": "Register the official Unicode 11 provider without selecting it as active.",
       "layer3_boundary": "Active Unicode-version policy is Layer 3."
@@ -236,7 +236,7 @@
     {
       "package": "@xterm/addon-web-fonts",
       "classification": "layer2-capability",
-      "status": "pending",
+      "status": "available",
       "default_activation": "registered",
       "android_boundary": "Expose official font preload and relayout capability for local APK assets.",
       "layer3_boundary": "Font assets, family choice, and fallback policy are Layer 3."

@@ -18,7 +18,7 @@
   });
 
   function install(layer2) {
-    if (!layer2 || layer2.contractVersion !== 2 ||
+    if (!layer2 || layer2.contractVersion !== 3 ||
         !layer2.terminal || typeof layer2.onPlatformState !== 'function') {
       throw new Error('Layer 2 customization capability is unavailable.');
     }

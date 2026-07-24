@@ -310,3 +310,55 @@ if python3 "$ROOT/tools/verify_policy.py" "$CORE_HOST_INCOMPLETE" >/dev/null 2>&
   exit 1
 fi
 printf 'PASS verifier-core-host-incomplete\n'
+
+STABLE_ADDON_NEGATIVE=$TMP/stable-addon-negative
+copy_fixture "$STABLE_ADDON_NEGATIVE"
+python3 - "$STABLE_ADDON_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-bridge.js" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace(
+    "new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider)",
+    "new window.ClipboardAddon.ClipboardAddon(clipboardProvider)",
+    1,
+)
+path.write_text(text, encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify_policy.py" "$STABLE_ADDON_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-stable-addon-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-stable-addon-negative\n'
+
+STABLE_ADDON_INCOMPLETE=$TMP/stable-addon-incomplete
+copy_fixture "$STABLE_ADDON_INCOMPLETE"
+python3 - "$STABLE_ADDON_INCOMPLETE/app/src/main/assets/terminal/bridge/index.html" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace('  <script src="/terminal/vendor/addon-image.js"></script>\n', '', 1)
+path.write_text(text, encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify-layer-boundaries.py" "$STABLE_ADDON_INCOMPLETE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-stable-addon-incomplete unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-stable-addon-incomplete\n'
+
+LOGIN_SHELL_NEGATIVE=$TMP/login-shell-negative
+copy_fixture "$LOGIN_SHELL_NEGATIVE"
+python3 - "$LOGIN_SHELL_NEGATIVE/app/src/main/c/shell_bridge.c" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace('char *const arguments[] = {"-sh", NULL};', 'char *const arguments[] = {shell_path, NULL};', 1)
+path.write_text(text, encoding="utf-8")
+PY
+if python3 "$ROOT/tools/verify_policy.py" "$LOGIN_SHELL_NEGATIVE" >/dev/null 2>&1; then
+  printf 'FAIL verifier-login-shell-negative unexpectedly passed\n' >&2
+  exit 1
+fi
+printf 'PASS verifier-login-shell-negative\n'

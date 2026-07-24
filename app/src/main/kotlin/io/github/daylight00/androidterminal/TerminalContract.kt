@@ -55,6 +55,8 @@ internal object TerminalContract {
         "session-title-state-v1",
         "localized-xterm-strings-v1",
         "safe-window-reports-v1",
+        "stable-addon-wave-v1",
+        "login-shell-v1",
     )
 
     val NATIVE_CAPABILITIES = listOf(

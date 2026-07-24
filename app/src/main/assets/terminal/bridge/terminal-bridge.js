@@ -57,17 +57,33 @@
   if (typeof window.Terminal !== 'function' ||
       !window.FitAddon || typeof window.FitAddon.FitAddon !== 'function' ||
       !window.SerializeAddon || typeof window.SerializeAddon.SerializeAddon !== 'function' ||
+      !window.ClipboardAddon || typeof window.ClipboardAddon.ClipboardAddon !== 'function' ||
+      !window.ImageAddon || typeof window.ImageAddon.ImageAddon !== 'function' ||
+      !window.ProgressAddon || typeof window.ProgressAddon.ProgressAddon !== 'function' ||
+      !window.SearchAddon || typeof window.SearchAddon.SearchAddon !== 'function' ||
+      !window.Unicode11Addon || typeof window.Unicode11Addon.Unicode11Addon !== 'function' ||
+      !window.WebFontsAddon || typeof window.WebFontsAddon.WebFontsAddon !== 'function' ||
       !window.WebLinksAddon || typeof window.WebLinksAddon.WebLinksAddon !== 'function' ||
       !window.WebglAddon || typeof window.WebglAddon.WebglAddon !== 'function') {
     fail(message('missingUpstream', 'Pinned xterm.js assets are not provisioned.'));
     return;
   }
 
-  const terminal = new window.Terminal();
+  const terminal = new window.Terminal({allowProposedApi: true});
   const fitAddon = new window.FitAddon.FitAddon();
   const serializeAddon = new window.SerializeAddon.SerializeAddon();
+  const imageAddon = new window.ImageAddon.ImageAddon();
+  const progressAddon = new window.ProgressAddon.ProgressAddon();
+  const searchAddon = new window.SearchAddon.SearchAddon();
+  const unicode11Addon = new window.Unicode11Addon.Unicode11Addon();
+  const webFontsAddon = new window.WebFontsAddon.WebFontsAddon();
   terminal.loadAddon(fitAddon);
   terminal.loadAddon(serializeAddon);
+  terminal.loadAddon(imageAddon);
+  terminal.loadAddon(progressAddon);
+  terminal.loadAddon(searchAddon);
+  terminal.loadAddon(unicode11Addon);
+  terminal.loadAddon(webFontsAddon);
   terminal.open(container);
 
   const rendererController = renderer.create({
@@ -96,7 +112,11 @@
   const pendingPlatformRequests = new Map();
   const platformStateListeners = new Set();
   const titleStateListeners = new Set();
+  const progressStateListeners = new Set();
   let lastTitleState = '';
+  let lastProgressState = Object.freeze({state: 0, value: 0});
+  let ligaturesAddon = null;
+  let ligaturesActivation = null;
   const MAX_PENDING_PLATFORM_REQUESTS = 16;
   const MAX_SNAPSHOT_BASE64_CHARACTERS = Math.ceil(contract.serializedSnapshotMaxBytes / 3) * 4;
   const SNAPSHOT_DELAY_MILLIS = 200;
@@ -297,18 +317,149 @@
     });
   }
 
+  const clipboardProvider = Object.freeze({
+    readText(_selection) {
+      return requestPlatform(contract.platformOperations.clipboardRead).then((result) => (
+        result && typeof result.text === 'string' ? result.text : ''
+      ));
+    },
+    writeText(_selection, text) {
+      if (typeof text !== 'string') {
+        return Promise.reject(new TypeError('OSC 52 clipboard text must be a string.'));
+      }
+      return requestPlatform(contract.platformOperations.clipboardWrite, {text}).then(() => undefined);
+    }
+  });
+  terminal.loadAddon(new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider));
+
+  progressAddon.onChange((value) => {
+    const state = Number.isInteger(value && value.state) ? Math.max(0, Math.min(4, value.state)) : 0;
+    const progress = Number.isFinite(value && value.value) ? Math.max(0, Math.min(100, Math.trunc(value.value))) : 0;
+    lastProgressState = Object.freeze({state, value: progress});
+    for (const listener of [...progressStateListeners]) {
+      try { listener(lastProgressState); } catch (error) { console.error('Layer 3 progress listener failed.', error); }
+    }
+  });
+
+  function onProgressState(listener) {
+    if (typeof listener !== 'function') throw new TypeError('A progress listener must be a function.');
+    progressStateListeners.add(listener);
+    listener(lastProgressState);
+    let active = true;
+    return Object.freeze({dispose() { if (!active) return; active = false; progressStateListeners.delete(listener); }});
+  }
+
+  const search = Object.freeze({
+    findNext(term, options) { return searchAddon.findNext(String(term), options); },
+    findPrevious(term, options) { return searchAddon.findPrevious(String(term), options); },
+    clearDecorations() { if (typeof searchAddon.clearDecorations === 'function') searchAddon.clearDecorations(); },
+    clearActiveDecoration() { if (typeof searchAddon.clearActiveDecoration === 'function') searchAddon.clearActiveDecoration(); },
+    onResult(listener) {
+      if (typeof searchAddon.onDidChangeResults !== 'function') {
+        return Object.freeze({dispose() {}});
+      }
+      return searchAddon.onDidChangeResults(listener);
+    }
+  });
+
+  const unicode = Object.freeze({
+    get activeVersion() { return terminal.unicode.activeVersion; },
+    get versions() { return Object.freeze([...terminal.unicode.versions]); },
+    setActiveVersion(version) {
+      const requested = String(version);
+      if (!terminal.unicode.versions.includes(requested)) throw new RangeError('Unsupported Unicode provider.');
+      terminal.unicode.activeVersion = requested;
+      scheduleGeometry();
+    }
+  });
+
+  const webFonts = Object.freeze({
+    loadFonts(fonts) {
+      if (fonts !== undefined && !Array.isArray(fonts)) {
+        return Promise.reject(new TypeError('Web font selection must be an array when provided.'));
+      }
+      return webFontsAddon.loadFonts(fonts).then(() => { scheduleGeometry(); });
+    },
+    relayout() { return webFontsAddon.relayout().then(() => { scheduleGeometry(); }); }
+  });
+
+  function resolveLigaturesModule(timeoutMillis = 5000) {
+    const current = window.AndroidTerminalLigaturesLoader;
+    if (current && current.ready && typeof current.ready.then === 'function') {
+      return current.ready;
+    }
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        const loader = window.AndroidTerminalLigaturesLoader;
+        if (!loader || !loader.ready || typeof loader.ready.then !== 'function') return;
+        settled = true;
+        window.clearTimeout(timeout);
+        window.removeEventListener('android-terminal-ligatures-loader-ready', finish);
+        loader.ready.then(resolve, reject);
+      };
+      const timeout = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('android-terminal-ligatures-loader-ready', finish);
+        reject(new Error('Official LigaturesAddon module did not load.'));
+      }, timeoutMillis);
+      window.addEventListener('android-terminal-ligatures-loader-ready', finish);
+      finish();
+    });
+  }
+
+  const ligatures = Object.freeze({
+    enable(options) {
+      if (ligaturesAddon !== null) return Promise.resolve(false);
+      if (ligaturesActivation !== null) return ligaturesActivation;
+      ligaturesActivation = resolveLigaturesModule().then((module) => {
+        if (!module || typeof module.LigaturesAddon !== 'function') {
+          throw new Error('Official LigaturesAddon export is unavailable.');
+        }
+        if (ligaturesAddon !== null) return false;
+        ligaturesAddon = new module.LigaturesAddon(options);
+        terminal.loadAddon(ligaturesAddon);
+        rendererController.reactivate();
+        scheduleGeometry();
+        return true;
+      }).finally(() => {
+        ligaturesActivation = null;
+      });
+      return ligaturesActivation;
+    },
+    get enabled() { return ligaturesAddon !== null; }
+  });
+
+  const images = Object.freeze({
+    get storageLimit() { return imageAddon.storageLimit; },
+    get storageUsage() { return imageAddon.storageUsage; },
+    getImageAtBufferCell(x, y) { return imageAddon.getImageAtBufferCell(x, y); },
+    extractTileAtBufferCell(x, y) { return imageAddon.extractTileAtBufferCell(x, y); }
+  });
+
   const windowOperations = platformIntegration.configureWindowOperations(terminal, {
     getTitle() { return lastTitleState; }
   });
 
   window.AndroidTerminalLayer2 = Object.freeze({
-    contractVersion: 2,
+    contractVersion: 3,
     terminal,
     platform,
+    search,
+    unicode,
+    webFonts,
+    ligatures,
+    images,
     onPlatformState,
     onTitleState,
+    onProgressState,
     getTitleState() {
       return lastTitleState;
+    },
+    getProgressState() {
+      return lastProgressState;
     },
     getPlatformState() {
       return lastPlatformState ? {...lastPlatformState} : null;

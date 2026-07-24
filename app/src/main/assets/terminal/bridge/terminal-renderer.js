@@ -68,6 +68,14 @@
       }
     }
 
+    function reactivate() {
+      if (disposed) return publish('dom', 'disposed');
+      if (permanentlyFellBack) return state;
+      if (activeAddon === null) return activate();
+      releaseActiveAddon();
+      return activate();
+    }
+
     function dispose() {
       if (disposed) return;
       disposed = true;
@@ -77,6 +85,7 @@
 
     return Object.freeze({
       activate,
+      reactivate,
       dispose,
       getState() { return state; }
     });

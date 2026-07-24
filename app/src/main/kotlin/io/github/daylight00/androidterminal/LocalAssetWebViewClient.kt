@@ -122,6 +122,10 @@ internal class LocalAssetWebViewClient(
                 "terminal/bridge/terminal-platform.js",
                 "application/javascript",
             ),
+            "/terminal/bridge/terminal-ligatures.js" to Asset(
+                "terminal/bridge/terminal-ligatures.js",
+                "application/javascript",
+            ),
             "/terminal/bridge/terminal-bridge.js" to Asset(
                 "terminal/bridge/terminal-bridge.js",
                 "application/javascript",
@@ -136,6 +140,13 @@ internal class LocalAssetWebViewClient(
                 "terminal/vendor/addon-serialize.js",
                 "application/javascript",
             ),
+            "/terminal/vendor/addon-clipboard.js" to Asset("terminal/vendor/addon-clipboard.js", "application/javascript"),
+            "/terminal/vendor/addon-image.js" to Asset("terminal/vendor/addon-image.js", "application/javascript"),
+            "/terminal/vendor/addon-progress.js" to Asset("terminal/vendor/addon-progress.js", "application/javascript"),
+            "/terminal/vendor/addon-search.js" to Asset("terminal/vendor/addon-search.js", "application/javascript"),
+            "/terminal/vendor/addon-unicode11.js" to Asset("terminal/vendor/addon-unicode11.js", "application/javascript"),
+            "/terminal/vendor/addon-web-fonts.js" to Asset("terminal/vendor/addon-web-fonts.js", "application/javascript"),
+            "/terminal/vendor/addon-ligatures.mjs" to Asset("terminal/vendor/addon-ligatures.mjs", "application/javascript"),
             "/terminal/vendor/addon-web-links.js" to Asset(
                 "terminal/vendor/addon-web-links.js",
                 "application/javascript",

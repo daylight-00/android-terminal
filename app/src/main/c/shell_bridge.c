@@ -149,7 +149,7 @@ Java_io_github_daylight00_androidterminal_NativePty_spawn(
     }
 
     if (child_pid == 0) {
-        char *const arguments[] = {shell_path, NULL};
+        char *const arguments[] = {"-sh", NULL};
         close_child_fds(descriptor_limit.rlim_cur);
         if (chdir(cwd) != 0) {
             _exit(126);

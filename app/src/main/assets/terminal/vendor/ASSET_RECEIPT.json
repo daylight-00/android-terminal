@@ -15,10 +15,59 @@
       "source_member": "package/LICENSE"
     },
     {
+      "package": "@xterm/addon-clipboard@0.2.0",
+      "path": "PACKAGE.addon-clipboard.json",
+      "sha256": "c158133c4c4cd843e4c24d9a1d1f740e457934308dc761bb7519a96eb18bef4c",
+      "size": 781,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-image@0.9.0",
+      "path": "PACKAGE.addon-image.json",
+      "sha256": "39c526d82bc1406a30cdaccc92a555211148ca3777c5230c111be027f74e2eed",
+      "size": 791,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-ligatures@0.10.0",
+      "path": "PACKAGE.addon-ligatures.json",
+      "sha256": "2d1ec72e5abba97775a0e5c2aa5711c826e5d3e94811ee879040dfca8c8436ea",
+      "size": 1165,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-progress@0.2.0",
+      "path": "PACKAGE.addon-progress.json",
+      "sha256": "37d4e76854d05717d7d2760ade25af249123b9a5c9128b08183d6b9f68852ddc",
+      "size": 725,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-search@0.16.0",
+      "path": "PACKAGE.addon-search.json",
+      "sha256": "9724dbe0ba2a52235ed3959e3b88ae32819f163c15af34680160e2c15f43e7d9",
+      "size": 686,
+      "source_member": "package/package.json"
+    },
+    {
       "package": "@xterm/addon-serialize@0.13.0",
       "path": "PACKAGE.addon-serialize.json",
       "sha256": "3051e774858e3bfc9d51c375f474dbdd9d3001144fe75afb8a44bd6ffd3a042d",
       "size": 1172,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-unicode11@0.9.0",
+      "path": "PACKAGE.addon-unicode11.json",
+      "sha256": "5efc7bd738527737369d355f5a584d40b0cf05d1e254ad1dde4d0d2495ddf275",
+      "size": 730,
+      "source_member": "package/package.json"
+    },
+    {
+      "package": "@xterm/addon-web-fonts@0.1.0",
+      "path": "PACKAGE.addon-web-fonts.json",
+      "sha256": "63d6a99fee46b4e103df6c682c32bb25cc4518f101ea07226705cde4f1643986",
+      "size": 818,
       "source_member": "package/package.json"
     },
     {
@@ -36,6 +85,13 @@
       "source_member": "package/package.json"
     },
     {
+      "package": "@xterm/addon-clipboard@0.2.0",
+      "path": "addon-clipboard.js",
+      "sha256": "ddae2ca81f1cadfe74d960dd1436eb334606d6aa674cab1f06683cffc22cbec5",
+      "size": 6384,
+      "source_member": "package/lib/addon-clipboard.js"
+    },
+    {
       "package": "@xterm/addon-fit@0.11.0",
       "path": "addon-fit.js",
       "sha256": "ba3ea256ce0620a0992a197d6c9baea64823fc93d8da07a9e366ca9943c18527",
@@ -43,11 +99,53 @@
       "source_member": "package/lib/addon-fit.js"
     },
     {
+      "package": "@xterm/addon-image@0.9.0",
+      "path": "addon-image.js",
+      "sha256": "1f28c132c9c43e7d649d49e5acddad63660291296855bed59511e60a0558b61e",
+      "size": 79399,
+      "source_member": "package/lib/addon-image.js"
+    },
+    {
+      "package": "@xterm/addon-ligatures@0.10.0",
+      "path": "addon-ligatures.mjs",
+      "sha256": "51aa9b689ce28791ea322bc6cdc81a17c1ccd2068712a33431225cb0711c44d8",
+      "size": 203978,
+      "source_member": "package/lib/addon-ligatures.mjs"
+    },
+    {
+      "package": "@xterm/addon-progress@0.2.0",
+      "path": "addon-progress.js",
+      "sha256": "c97a86b5737807e3f04f858259e092349b82e9405f3045151849a9f8c63f6edc",
+      "size": 1429,
+      "source_member": "package/lib/addon-progress.js"
+    },
+    {
+      "package": "@xterm/addon-search@0.16.0",
+      "path": "addon-search.js",
+      "sha256": "7bc1b8c7b3549411f6f6f779524c4ded6ca621fd80d64b40a70ae7c78aefbf55",
+      "size": 78826,
+      "source_member": "package/lib/addon-search.js"
+    },
+    {
       "package": "@xterm/addon-serialize@0.13.0",
       "path": "addon-serialize.js",
       "sha256": "fc432359a02f7482bdccd7b8ac46dc917c2d05ea540737900ded8d9cd150b633",
       "size": 25210,
       "source_member": "package/lib/addon-serialize.js"
+    },
+    {
+      "package": "@xterm/addon-unicode11@0.9.0",
+      "path": "addon-unicode11.js",
+      "sha256": "72353b5178e1a7382716df1cfedf8ab070eea655d38995bb9f4f284fe56e2f2b",
+      "size": 52489,
+      "source_member": "package/lib/addon-unicode11.js"
+    },
+    {
+      "package": "@xterm/addon-web-fonts@0.1.0",
+      "path": "addon-web-fonts.js",
+      "sha256": "67b0d9ba415a5917575219af13c27df9b5536e50bebcf80dda14ef16b498d4a4",
+      "size": 1940,
+      "source_member": "package/lib/addon-web-fonts.js"
     },
     {
       "package": "@xterm/addon-web-links@0.12.0",
@@ -118,6 +216,62 @@
       "npm_integrity": "sha512-4Smom3RPyVp7ZMYOYDoC/9eGJJJqYhnPLGGqJ6wOBfB8VxPViJNSKdgRYb8NpaM6YSelEKbA2SStD7lGyqaobw==",
       "url": "https://registry.npmjs.org/@xterm/addon-web-links/-/addon-web-links-0.12.0.tgz",
       "version": "0.12.0"
+    },
+    {
+      "archive_sha256": "3c0556aa54c766fb415354ee179d16f44211708a133ba78c7234c1b7d606de7f",
+      "archive_size": 18934,
+      "name": "@xterm/addon-clipboard",
+      "npm_integrity": "sha512-Dl31BCtBhLaUEECUbEiVcCLvLBbaeGYdT7NofB8OJkGTD3MWgBsaLjXvfGAD4tQNHhm6mbKyYkR7XD8kiZsdNg==",
+      "url": "https://registry.npmjs.org/@xterm/addon-clipboard/-/addon-clipboard-0.2.0.tgz",
+      "version": "0.2.0"
+    },
+    {
+      "archive_sha256": "ec5a3d92798cac4fe482dacc1f19661d70a9aa07428108beac923524b9d27a5f",
+      "archive_size": 203418,
+      "name": "@xterm/addon-image",
+      "npm_integrity": "sha512-oYWA8/QAr5/Emwl1xL7WCoOqeG3IZfpzEz/OVq1j4Oi9934TQmHiyubClikRf0D/jL3JNiNuz/Lsqx0kXQ02BA==",
+      "url": "https://registry.npmjs.org/@xterm/addon-image/-/addon-image-0.9.0.tgz",
+      "version": "0.9.0"
+    },
+    {
+      "archive_sha256": "a78dd6dc55f21e3a45f1cd82a2c14e7d2b5ff85749a65d036f7cadcdc92b8bbc",
+      "archive_size": 6875,
+      "name": "@xterm/addon-progress",
+      "npm_integrity": "sha512-94uxxYyv30z3+6QIqJhCgALrzZfH7z2ounuZWQvb5Lp8dA7bWZmsUZGi5V7lKsq3Fyif4hTbaxq8YoCsQRtXgg==",
+      "url": "https://registry.npmjs.org/@xterm/addon-progress/-/addon-progress-0.2.0.tgz",
+      "version": "0.2.0"
+    },
+    {
+      "archive_sha256": "e9d0795c72f4de749ed996ad7868f0738b44f37cee1e483be81977cefd7f4f81",
+      "archive_size": 213325,
+      "name": "@xterm/addon-search",
+      "npm_integrity": "sha512-9OeuBFu0/uZJPu+9AHKY6g/w0Czyb/Ut0A5t79I4ULoU4IfU5BEpPFVGQxP4zTTMdfZEYkVIRYbHBX1xWwjeSA==",
+      "url": "https://registry.npmjs.org/@xterm/addon-search/-/addon-search-0.16.0.tgz",
+      "version": "0.16.0"
+    },
+    {
+      "archive_sha256": "b665667792f916873fe946ba98cc98a1a742af08e163fb66e1c0809c120ca42e",
+      "archive_size": 145829,
+      "name": "@xterm/addon-unicode11",
+      "npm_integrity": "sha512-FxDnYcyuXhNl+XSqGZL/t0U9eiNb/q3EWT5rYkQT/zuig8Gz/VagnQANKHdDWFM2lTMk9ly0EFQxxxtZUoRetw==",
+      "url": "https://registry.npmjs.org/@xterm/addon-unicode11/-/addon-unicode11-0.9.0.tgz",
+      "version": "0.9.0"
+    },
+    {
+      "archive_sha256": "945358b3dd99a2cbb958328c0fde001be3504106cfc0d06a94262c49b27c8260",
+      "archive_size": 10420,
+      "name": "@xterm/addon-web-fonts",
+      "npm_integrity": "sha512-6plTfWFE1aBnZ0rcFu7Zpzb+rYFBYin7A1g2GP/KP6sqvcH8CRHWXTyutj/1lYMMlRE7OpwOxlRlzQHH8eU18Q==",
+      "url": "https://registry.npmjs.org/@xterm/addon-web-fonts/-/addon-web-fonts-0.1.0.tgz",
+      "version": "0.1.0"
+    },
+    {
+      "archive_sha256": "89b5c25d3fd5be352b7e76ba4db9b63b74d04ada5736f542cfdf14dea79544a0",
+      "archive_size": 254617,
+      "name": "@xterm/addon-ligatures",
+      "npm_integrity": "sha512-/Few8ZSHMib7sGjRJoc5l7bCtEB9XJfkNofvPpOcWADxKaUl8og8P172j67OoACSNJAXqeCLIuvj8WFCBkcTxg==",
+      "url": "https://registry.npmjs.org/@xterm/addon-ligatures/-/addon-ligatures-0.10.0.tgz",
+      "version": "0.10.0"
     }
   ],
   "schema_version": 1

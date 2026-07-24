@@ -59,10 +59,61 @@ PACKAGE_DEFINITIONS = {
             "license": "MIT",
         },
     },
+    "@xterm/addon-clipboard": {
+        "version": "0.2.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-clipboard/-/addon-clipboard-0.2.0.tgz",
+        "npm_integrity": None,
+        "files": {"addon-clipboard.js", "PACKAGE.addon-clipboard.json"},
+        "metadata": {"path": "PACKAGE.addon-clipboard.json", "name": "@xterm/addon-clipboard", "version": "0.2.0", "main": "lib/addon-clipboard.js", "license": "MIT"},
+    },
+    "@xterm/addon-image": {
+        "version": "0.9.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-image/-/addon-image-0.9.0.tgz",
+        "npm_integrity": None,
+        "files": {"addon-image.js", "PACKAGE.addon-image.json"},
+        "metadata": {"path": "PACKAGE.addon-image.json", "name": "@xterm/addon-image", "version": "0.9.0", "main": "lib/addon-image.js", "license": "MIT"},
+    },
+    "@xterm/addon-progress": {
+        "version": "0.2.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-progress/-/addon-progress-0.2.0.tgz",
+        "npm_integrity": None,
+        "files": {"addon-progress.js", "PACKAGE.addon-progress.json"},
+        "metadata": {"path": "PACKAGE.addon-progress.json", "name": "@xterm/addon-progress", "version": "0.2.0", "main": "lib/addon-progress.js", "license": "MIT"},
+    },
+    "@xterm/addon-search": {
+        "version": "0.16.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-search/-/addon-search-0.16.0.tgz",
+        "npm_integrity": None,
+        "files": {"addon-search.js", "PACKAGE.addon-search.json"},
+        "metadata": {"path": "PACKAGE.addon-search.json", "name": "@xterm/addon-search", "version": "0.16.0", "main": "lib/addon-search.js", "license": "MIT"},
+    },
+    "@xterm/addon-unicode11": {
+        "version": "0.9.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-unicode11/-/addon-unicode11-0.9.0.tgz",
+        "npm_integrity": None,
+        "files": {"addon-unicode11.js", "PACKAGE.addon-unicode11.json"},
+        "metadata": {"path": "PACKAGE.addon-unicode11.json", "name": "@xterm/addon-unicode11", "version": "0.9.0", "main": "lib/addon-unicode11.js", "license": "MIT"},
+    },
+    "@xterm/addon-web-fonts": {
+        "version": "0.1.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-web-fonts/-/addon-web-fonts-0.1.0.tgz",
+        "npm_integrity": None,
+        "files": {"addon-web-fonts.js", "PACKAGE.addon-web-fonts.json"},
+        "metadata": {"path": "PACKAGE.addon-web-fonts.json", "name": "@xterm/addon-web-fonts", "version": "0.1.0", "main": "lib/addon-web-fonts.js", "license": "MIT"},
+    },
+    "@xterm/addon-ligatures": {
+        "version": "0.10.0",
+        "url": "https://registry.npmjs.org/@xterm/addon-ligatures/-/addon-ligatures-0.10.0.tgz",
+        "npm_integrity": None,
+        "files": {"addon-ligatures.mjs", "PACKAGE.addon-ligatures.json"},
+        "metadata": {"path": "PACKAGE.addon-ligatures.json", "name": "@xterm/addon-ligatures", "version": "0.10.0", "module": "lib/addon-ligatures.mjs", "license": "MIT"},
+    },
+
 }
 
 RECOGNIZED_GENERATIONS = (
     ("provisioned", frozenset(PACKAGE_DEFINITIONS)),
+    ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-serialize", "@xterm/addon-webgl", "@xterm/addon-web-links"})),
     ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-serialize", "@xterm/addon-webgl"})),
     ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-serialize"})),
     ("stale-provisioned", frozenset({"@xterm/xterm", "@xterm/addon-fit"})),
@@ -106,8 +157,10 @@ def verify_metadata(vendor: Path, package_names: frozenset[str], failures: list[
         if not isinstance(metadata, dict):
             failures.append(f"{package_name} package metadata must be an object")
             continue
-        for field in ("name", "version", "main", "license"):
-            if metadata.get(field) != metadata_definition[field]:
+        for field, expected_value in metadata_definition.items():
+            if field == "path":
+                continue
+            if metadata.get(field) != expected_value:
                 failures.append(f"{package_name} package metadata mismatch: {field}")
 
 
@@ -162,9 +215,16 @@ def verify(root: Path) -> tuple[str, list[str]]:
     for name in package_names:
         expected = PACKAGE_DEFINITIONS[name]
         actual = actual_packages.get(name, {})
-        for field in ("version", "url", "npm_integrity"):
+        for field in ("version", "url"):
             if actual.get(field) != expected[field]:
                 failures.append(f"asset receipt mismatch for {name} {field}")
+        expected_integrity = expected["npm_integrity"]
+        actual_integrity = actual.get("npm_integrity")
+        if expected_integrity is None:
+            if not isinstance(actual_integrity, str) or not actual_integrity.startswith("sha512-"):
+                failures.append(f"asset receipt lacks registry SHA-512 integrity for {name}")
+        elif actual_integrity != expected_integrity:
+            failures.append(f"asset receipt mismatch for {name} npm_integrity")
         if not isinstance(actual.get("archive_sha256"), str) or len(str(actual.get("archive_sha256", ""))) != 64:
             failures.append(f"asset receipt lacks archive SHA-256 for {name}")
         if not isinstance(actual.get("archive_size"), int) or int(actual.get("archive_size", 0)) <= 0:

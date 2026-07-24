@@ -36,7 +36,7 @@ A WebView feature that turns the application into a general browser is outside t
 | Geometry | `resize`, `@xterm/addon-fit` | Layer 2 runtime | Connected | Android layout/insets/rotation/IME viewport converge on deduplicated `TIOCSWINSZ` | Optional layout chrome must request refit through Layer 2 |
 | Focus, IME, hardware keyboard | xterm DOM input and System WebView | Native already | Connected | WebView remains input authority; Android reports hardware-keyboard state only | Optional key UI |
 | Explicit clipboard actions | selection APIs and `paste()` | Layer 2 runtime | Connected | Bounded Android `ClipboardManager` read/write | Buttons, gestures, and preference policy |
-| OSC 52 clipboard | xterm OSC 52 + official ClipboardAddon provider | Layer 2 runtime | **Pending** | Official addon backed by Android `ClipboardManager` | Clipboard UX and policy |
+| OSC 52 clipboard | xterm OSC 52 + official ClipboardAddon provider | Layer 2 runtime | **Connected with bounds** | Official addon backed by bounded Android `ClipboardManager` operations | Clipboard UX and policy |
 | OSC 8 links | core `linkHandler` | Layer 2 runtime | Connected | Validated HTTP/HTTPS URI to `ACTION_VIEW` | Menus, previews, history, browser UI |
 | Bell | `onBell` | Layer 2 runtime | Connected with bounds | Neutral rate-limited Android haptic signal | Sound, pattern, and enablement preferences |
 | Terminal title | `onTitleChange` | Layer 2 capability | Connected with bounds | Sanitize to 1024 Unicode code points, retain in the service-owned session, restore on attachment, and answer truthful title reports | Toolbar, tab, notification, or task-label presentation |
@@ -68,20 +68,20 @@ The official xterm.js repository currently lists the following 13 maintained add
 | Official addon | Classification | Status | Default Layer 2 state | Android integration | Layer 3 boundary |
 |---|---|---|---|---|---|
 | `@xterm/addon-attach` | Not applicable | Excluded | None | Current backend is a native PTY, not WebSocket transport | Future remote session product |
-| `@xterm/addon-clipboard` | Layer 2 runtime | **Pending** | Automatic | Android-backed `IClipboardProvider` for OSC 52 | Clipboard UI/policy |
+| `@xterm/addon-clipboard` | Layer 2 runtime | Connected with bounds | Automatic | Official provider maps OSC 52 to bounded Android `ClipboardManager` operations | Clipboard UI/policy |
 | `@xterm/addon-fit` | Layer 2 runtime | Connected | Automatic | Container fit → bounded PTY geometry | None |
-| `@xterm/addon-image` | Layer 2 runtime | **Pending** | Automatic | Official SIXEL/IIP/partial Kitty support; begin with upstream defaults | User protocol toggles and custom resource limits |
-| `@xterm/addon-ligatures` | Layer 2 capability | **Pending** | Registered | Expose official renderer integration without selecting font policy | Font and ligature enablement |
-| `@xterm/addon-progress` | Layer 2 runtime | **Pending** | Automatic | Parse OSC 9;4 and expose neutral progress state | Toolbar, notification, tab badge, display policy |
-| `@xterm/addon-search` | Layer 2 capability | **Pending** | Registered | Expose official search engine/result state | Search field, shortcuts, controls, decorations |
+| `@xterm/addon-image` | Layer 2 runtime | Connected with upstream defaults | Automatic | Official SIXEL/IIP/partial Kitty support and public storage/image APIs | User protocol toggles and custom resource limits |
+| `@xterm/addon-ligatures` | Layer 2 capability | Available | Registered | Neutral one-time enable capability; not active by default | Font and ligature enablement |
+| `@xterm/addon-progress` | Layer 2 runtime | Connected | Automatic | Parse OSC 9;4 and expose neutral bounded progress state | Toolbar, notification, tab badge, display policy |
+| `@xterm/addon-search` | Layer 2 capability | Available | Registered | Expose official find/clear/result APIs without UI | Search field, shortcuts, controls, decorations |
 | `@xterm/addon-serialize` | Layer 2 runtime | Connected with bounds | Automatic | Replacement-frontend snapshot authority | Persistent history |
 | `@xterm/addon-unicode-graphemes` | Experimental | Excluded from completion gate | None | Upstream marks it experimental and not published to npm | Explicit later experiment only |
-| `@xterm/addon-unicode11` | Layer 2 capability | **Pending** | Registered | Register provider without selecting it active | Active Unicode-version policy |
-| `@xterm/addon-web-fonts` | Layer 2 capability | **Pending** | Registered | Local asset preload/relayout capability | Font assets, family choice, fallback policy |
+| `@xterm/addon-unicode11` | Layer 2 capability | Available | Registered | Register provider without selecting it active | Active Unicode-version policy |
+| `@xterm/addon-web-fonts` | Layer 2 capability | Available | Registered | Expose official preload and relayout operations | Font assets, family choice, fallback policy |
 | `@xterm/addon-web-links` | Layer 2 runtime | Connected | Automatic | Detected links use validated Android `ACTION_VIEW` bridge | Link UX/history/browser behavior |
 | `@xterm/addon-webgl` | Layer 2 runtime | Connected with bounds | Automatic attempt | WebGL2 with one-way DOM fallback | Renderer preference UI |
 
-The inventory follows the current maintained-addon list, while implementation pins must be compatible with the repository's pinned `@xterm/xterm@6.0.0`. A pending addon does not receive a guessed version: its exact official version and integrity are frozen only after bounded compatibility preflight.
+The inventory follows the current maintained-addon list, while implementation pins must be compatible with the repository's pinned `@xterm/xterm@6.0.0`. Stable addon coordinates are exact. Existing locked packages retain fixed integrity values; newly connected packages resolve the exact version metadata from the official npm registry, verify the returned SHA-512 integrity and tarball URL, and must reproduce the same receipt and Git tree in isolated preflight and canonical application.
 
 `@xterm/addon-canvas` is legacy for this baseline. The selected renderer path is xterm core DOM plus the official WebGL addon, so canvas is not part of the maintained inventory or completion gate.
 

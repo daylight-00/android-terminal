@@ -23,6 +23,7 @@ const source = fs.readFileSync(path, 'utf8');
 const context = {
   Uint8Array,
   TextEncoder,
+  TextDecoder,
   btoa(value) { return Buffer.from(value, 'binary').toString('base64'); },
   atob(value) { return Buffer.from(value, 'base64').toString('binary'); }
 };
@@ -74,6 +75,13 @@ const paths = process.argv.slice(2);
   let resizeObserverCallback = null;
   let terminalInstance = null;
   let webLinksInstance = null;
+  let clipboardInstance = null;
+  let imageInstance = null;
+  let progressInstance = null;
+  let searchInstance = null;
+  let unicodeInstance = null;
+  let webFontsInstance = null;
+  let ligaturesInstance = null;
   const loadedAddons = [];
   const writes = [];
   const pastes = [];
@@ -91,6 +99,7 @@ const paths = process.argv.slice(2);
       this.rows = 0;
       this.cols = 0;
       this.options = {fontSize: 15, ...options};
+      this.unicode = {activeVersion: '6', versions: ['6']};
       this.strings = {promptLabel: 'upstream prompt', tooMuchOutput: 'upstream output'};
       this.selection = '';
       this.parser = {
@@ -102,7 +111,10 @@ const paths = process.argv.slice(2);
       };
       terminalInstance = this;
     }
-    loadAddon(addon) { loadedAddons.push(addon); }
+    loadAddon(addon) {
+      loadedAddons.push(addon);
+      if (addon && typeof addon.activate === 'function') addon.activate(this);
+    }
     open() {}
     onData(callback) { this.dataCallback = callback; return {dispose() {}}; }
     onBinary(callback) { this.binaryCallback = callback; return {dispose() {}}; }
@@ -124,6 +136,58 @@ const paths = process.argv.slice(2);
   class WebglAddon {
     onContextLoss() { return {dispose() {}}; }
     dispose() {}
+  }
+
+
+  class ClipboardAddon {
+    constructor(base64, provider) {
+      if (base64 !== undefined) throw new Error('official default Base64 codec must remain selected');
+      this.provider = provider;
+      clipboardInstance = this;
+    }
+  }
+
+  class ImageAddon {
+    constructor(options) {
+      if (options !== undefined) throw new Error('ImageAddon must use upstream defaults');
+      this.storageLimit = 128;
+      this.storageUsage = 0;
+      imageInstance = this;
+    }
+    getImageAtBufferCell(x, y) { return {x, y, kind: 'image'}; }
+    extractTileAtBufferCell(x, y) { return {x, y, kind: 'tile'}; }
+  }
+
+  class ProgressAddon {
+    constructor() { progressInstance = this; this.listener = null; }
+    onChange(callback) { this.listener = callback; return {dispose() {}}; }
+  }
+
+  class SearchAddon {
+    constructor() { searchInstance = this; this.resultListener = null; }
+    findNext(term, options) { this.lastNext = {term, options}; return term === 'next'; }
+    findPrevious(term, options) { this.lastPrevious = {term, options}; return term === 'previous'; }
+    clearDecorations() { this.decorationsCleared = true; }
+    clearActiveDecoration() { this.activeDecorationCleared = true; }
+    onDidChangeResults(callback) { this.resultListener = callback; return {dispose() {}}; }
+  }
+
+  class Unicode11Addon {
+    constructor() { unicodeInstance = this; }
+    activate(terminal) {
+      if (!terminal.options.allowProposedApi) throw new Error('Unicode11 requires proposed API opt-in');
+      if (!terminal.unicode.versions.includes('11')) terminal.unicode.versions.push('11');
+    }
+  }
+
+  class WebFontsAddon {
+    constructor() { webFontsInstance = this; }
+    loadFonts(fonts) { this.fonts = fonts; return Promise.resolve(); }
+    relayout() { this.relayoutCalled = true; return Promise.resolve(); }
+  }
+
+  class LigaturesAddon {
+    constructor(options) { this.options = options; ligaturesInstance = this; }
   }
 
   class WebLinksAddon {
@@ -188,10 +252,18 @@ const paths = process.argv.slice(2);
     URL,
     Uint8Array,
     TextEncoder,
+    TextDecoder,
     document: documentObject,
     Terminal,
     FitAddon: {FitAddon},
     SerializeAddon: {SerializeAddon},
+    ClipboardAddon: {ClipboardAddon},
+    ImageAddon: {ImageAddon},
+    ProgressAddon: {ProgressAddon},
+    SearchAddon: {SearchAddon},
+    Unicode11Addon: {Unicode11Addon},
+    WebFontsAddon: {WebFontsAddon},
+    AndroidTerminalLigaturesLoader: {ready: Promise.resolve({LigaturesAddon})},
     WebLinksAddon: {WebLinksAddon},
     WebglAddon: {WebglAddon},
     ResizeObserver: class {
@@ -231,7 +303,7 @@ const paths = process.argv.slice(2);
   if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
   if (!context.AndroidTerminalPlatformIntegration) throw new Error('platform integration export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
-  if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 2) {
+  if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 3) {
     throw new Error('stable Layer 2 customization capability missing');
   }
   if (!context.AndroidTerminalCustomization || context.AndroidTerminalCustomization.contractVersion !== 1) {
@@ -244,7 +316,12 @@ const paths = process.argv.slice(2);
   if (rendererState.mode !== 'webgl' || rendererState.reason !== 'active') {
     throw new Error('Layer 2 WebGL activation state mismatch');
   }
-  if (context.ClipboardAddon) throw new Error('unselected clipboard addon leaked into Layer 2');
+  if (!clipboardInstance || !loadedAddons.includes(clipboardInstance)) throw new Error('official ClipboardAddon was not loaded');
+  for (const instance of [imageInstance, progressInstance, searchInstance, unicodeInstance, webFontsInstance]) {
+    if (!instance || !loadedAddons.includes(instance)) throw new Error('stable official addon was not loaded');
+  }
+  if (!terminalInstance.options.allowProposedApi) throw new Error('Unicode provider proposed-API opt-in missing');
+  if (terminalInstance.unicode.activeVersion !== '6') throw new Error('Layer 2 selected a Unicode product default');
   if (!context.WebLinksAddon || !webLinksInstance || !loadedAddons.includes(webLinksInstance)) {
     throw new Error('official Web Links addon was not loaded');
   }
@@ -389,6 +466,41 @@ const paths = process.argv.slice(2);
   }
   if (!blocked || posted.length !== countBeforeBlockedUri) throw new Error('blocked URI reached Android');
 
+  const oscReadPromise = clipboardInstance.provider.readText('c');
+  const oscReadRequest = latestRequest('clipboard-read');
+  completeRequest(oscReadRequest, {text: '클립보드'});
+  if (await oscReadPromise !== '클립보드') throw new Error('OSC 52 clipboard read provider mismatch');
+  const oscWritePromise = clipboardInstance.provider.writeText('c', 'write-text');
+  const oscWriteRequest = latestRequest('clipboard-write');
+  if (oscWriteRequest.payload.text !== 'write-text') throw new Error('OSC 52 clipboard write provider mismatch');
+  completeRequest(oscWriteRequest, {written: true});
+  await oscWritePromise;
+
+  const progressEvents = [];
+  const progressSubscription = context.AndroidTerminalLayer2.onProgressState((value) => progressEvents.push(value));
+  progressInstance.listener({state: 2, value: 42.9});
+  const progressState = context.AndroidTerminalLayer2.getProgressState();
+  if (progressState.state !== 2 || progressState.value !== 42 || progressEvents.at(-1).value !== 42) throw new Error('progress state bridge mismatch');
+  progressSubscription.dispose();
+
+  if (!context.AndroidTerminalLayer2.search.findNext('next', {caseSensitive: true})) throw new Error('search next capability missing');
+  if (!context.AndroidTerminalLayer2.search.findPrevious('previous', {})) throw new Error('search previous capability missing');
+  context.AndroidTerminalLayer2.search.clearDecorations();
+  context.AndroidTerminalLayer2.search.clearActiveDecoration();
+  if (!searchInstance.decorationsCleared || !searchInstance.activeDecorationCleared) throw new Error('search clear capability missing');
+
+  if (!context.AndroidTerminalLayer2.unicode.versions.includes('11')) throw new Error('Unicode 11 provider was not registered');
+  context.AndroidTerminalLayer2.unicode.setActiveVersion('11');
+  if (terminalInstance.unicode.activeVersion !== '11') throw new Error('Unicode version capability failed');
+  await context.AndroidTerminalLayer2.webFonts.loadFonts();
+  await context.AndroidTerminalLayer2.webFonts.loadFonts(['Example']);
+  await context.AndroidTerminalLayer2.webFonts.relayout();
+  if (!webFontsInstance.fonts || !webFontsInstance.relayoutCalled) throw new Error('web-font capability failed');
+  if (context.AndroidTerminalLayer2.ligatures.enabled) throw new Error('ligatures were enabled by default');
+  if (!await context.AndroidTerminalLayer2.ligatures.enable({fallbackLigatures: ['===']})) throw new Error('ligature capability did not enable');
+  if (!ligaturesInstance || !loadedAddons.includes(ligaturesInstance) || !context.AndroidTerminalLayer2.ligatures.enabled) throw new Error('ligature addon not loaded');
+  if (context.AndroidTerminalLayer2.images.storageLimit !== 128 || context.AndroidTerminalLayer2.images.getImageAtBufferCell(1, 2).kind !== 'image') throw new Error('image capability missing');
+
   const directLinkPromise = context.AndroidTerminalPlatform.openExternalUri('https://example.com/path');
   const directLinkRequest = latestRequest('open-external-uri');
   completeRequest(directLinkRequest);
@@ -524,7 +636,7 @@ const paths = process.argv.slice(2);
   if (windowHandler.callback([18]) !== false) throw new Error('upstream-owned window report was intercepted');
   titleSubscription.dispose();
 
-  console.log('PASS web-terminal-channel contract=6 serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,documents layer3=optional-theme geometry=deduplicated');
+  console.log('PASS web-terminal-channel contract=6 stable-addons=clipboard,image,progress,search,unicode11,web-fonts,ligatures serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,documents layer3=optional-theme geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -567,8 +679,16 @@ required = {
         "configureWindowOperations",
     ),
     bridge_path: (
-        "new window.Terminal()",
+        "new window.Terminal({allowProposedApi: true})",
         "new window.SerializeAddon.SerializeAddon()",
+        "new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider)",
+        "new window.ImageAddon.ImageAddon()",
+        "new window.ProgressAddon.ProgressAddon()",
+        "new window.SearchAddon.SearchAddon()",
+        "new window.Unicode11Addon.Unicode11Addon()",
+        "new window.WebFontsAddon.WebFontsAddon()",
+        "new module.LigaturesAddon(options)",
+        "resolveLigaturesModule()",
         "serializeAddon.serialize()",
         "new window.WebLinksAddon.WebLinksAddon(",
         "platform.openExternalUri(uri)",
@@ -581,7 +701,7 @@ required = {
         "terminal.options.linkHandler",
         "terminal.onBell(",
         "terminal.onTitleChange(",
-        "contractVersion: 2",
+        "contractVersion: 3",
         "getTitleState()",
         "getWindowReportState()",
         "window.AndroidTerminalPlatform = platform",
@@ -601,15 +721,16 @@ for path, tokens in required.items():
 
 bridge = bridge_path.read_text(encoding="utf-8")
 contract = contract_path.read_text(encoding="utf-8")
-for forbidden in ("ClipboardAddon", "osc52-clipboard"):
-    if forbidden in bridge or forbidden in contract:
-        raise SystemExit(f"unselected upstream addon leaked into platform bridge: {forbidden}")
+if bridge.count("allowProposedApi") != 1:
+    raise SystemExit("proposed API opt-in is not isolated")
+if "new window.ImageAddon.ImageAddon({" in bridge:
+    raise SystemExit("ImageAddon defaults were overridden in Layer 2")
 
 for length in (0, 1, 2, 3, 255, 32768, 65537):
     payload = bytes((index * 131 + 17) & 0xFF for index in range(length))
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon web-links=official-addon platform=bounded-documents,font-scale,title,localized-strings,safe-window-reports geometry=deduplicated")
+print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon stable-addons=official web-links=official-addon platform=bounded-documents,font-scale,title,localized-strings,safe-window-reports geometry=deduplicated")
 PY
 fi

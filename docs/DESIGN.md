@@ -82,7 +82,7 @@ No `LD_LIBRARY_PATH`, Termux prefix, copied shell, or package manager is introdu
 
 ## External-input boundary
 
-Repository source pins `@xterm/xterm` 6.0.0, `@xterm/addon-fit` 0.11.0, and `@xterm/addon-serialize` 0.13.0 and `@xterm/addon-webgl` 0.19.0, but does not
+Repository source pins `@xterm/xterm` 6.0.0 and the approved official addon set: fit 0.11.0, serialize 0.13.0, clipboard 0.2.0, image 0.9.0, progress 0.2.0, search 0.16.0, Unicode 11 0.9.0, web-fonts 0.1.0, ligatures 0.10.0 through its unmodified ESM entry and a Layer 2 module adapter, web-links 0.12.0, and WebGL 0.19.0, but does not
 pretend to contain bytes the assistant could not acquire through the project authority
 path. The owner-side acquisition script fetches official npm tarballs, validates fixed
 npm SHA-512 integrity values and safe members, then freezes extracted file SHA-256 and
@@ -104,3 +104,7 @@ The initial native-to-page channel transfer is target-origin restricted on Andro
 ## Core host state and window reports
 
 Layer 2 retains OSC 0/2 title state with the service-owned PTY and exposes it through the stable Layer 2 capability; presentation remains Layer 3. Android locale resources populate xterm's public accessibility strings. Window reports are limited to truthful cell/terminal geometry, rows/columns, title stack, refresh, and current-title behavior through public xterm APIs. Desktop position, stacking, iconify, maximize, screen metrics, fullscreen, and terminal-driven host resizing are not mapped.
+
+## Login-shell adaptation
+
+Layer 2 launches the Android-provided `/system/bin/sh` with `-sh` as `argv[0]`. This is the complete login-shell adaptation: the executable path, environment, direct `execve`, PTY ownership, and Android-provided startup-file semantics remain unchanged. No `-l` wrapper, command string, alternate loader, profile injection, or bundled shell is introduced.

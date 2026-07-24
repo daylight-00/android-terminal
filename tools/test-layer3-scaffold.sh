@@ -22,7 +22,7 @@ let geometryRequests = 0;
 let disposed = false;
 const terminal = {options: {theme: {background: 'upstream-default'}}};
 const layer2 = Object.freeze({
-  contractVersion: 2,
+  contractVersion: 3,
   terminal,
   onPlatformState(listener) {
     listeners.push(listener);

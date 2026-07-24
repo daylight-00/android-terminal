@@ -23,7 +23,7 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 
 - minimum/native API 29, compatibility target API 28, NDK r27d, and arm64-only declarations;
 - Kotlin/WebView/WebMessagePort frontend and absence of the removed custom parser;
-- direct `/system/bin/sh` execution and `TERM=xterm-256color`;
+- direct login-shell `/system/bin/sh` execution through `argv[0] = -sh` and `TERM=xterm-256color`;
 - no AndroidX, Compose, Rust, network permission, or bundled shell/userland;
 - local asset allowlist and restrictive WebView policy;
 - success, expected-negative, and missing-input verifier fixtures, including Android font-scale, service-owned title, localized-string, and safe-window-report authorities.
@@ -31,8 +31,9 @@ The product is class **T** in intent. Assistant-side evidence is limited to clas
 ## External asset gate
 
 `tools/acquire-web-terminal-assets.sh` is the only normal asset acquisition path. It
-pins official npm URLs and fixed npm SHA-512 integrity values, checks archive safety,
-extracts only the required production files and license texts, and freezes the acquired
+pins exact official npm URLs. Existing packages retain fixed npm SHA-512 values; newly connected
+stable addons resolve the exact-version registry record and require its exact tarball URL and SHA-512
+integrity before archive validation. The provisioner extracts only required production files and freezes the acquired
 archive and installed-file SHA-256/size values in the owner-side receipt. The repository
 does not claim pre-acquisition tarball SHA-256/size values that were unavailable to the
 assistant; the authoritative npm SHA-512 integrity is the fail-closed pre-acquisition pin. Repository verification distinguishes an intentionally unprovisioned
@@ -134,3 +135,7 @@ Repository verification compiles and executes the API 29 runtime-permission and 
 ## WebView renderer recovery
 
 Repository verification checks that `onRenderProcessGone` destroys the failed WebView frontend, invalidates its attachment generation, and installs a replacement against the existing service-owned PTY. A pure Kotlin recovery coordinator rejects duplicate and stale callbacks. Real renderer termination remains an ADB/device gate.
+
+## Stable official addon wave
+
+Repository verification loads the official Clipboard, Image, Progress, Search, Unicode 11, Web Fonts, and Ligatures addons through `Terminal.loadAddon`. Clipboard uses the official addon's default Base64 implementation and a bounded plain-text Android provider. Image uses upstream constructor defaults. Progress exposes neutral state, while Search, Unicode selection, web-font loading/relayout, and ligature activation are UI-free Layer 2 capabilities for Layer 3. Unicode 11 registration is the sole reason for the explicit `allowProposedApi` opt-in and Layer 2 does not change the active Unicode provider. The acquisition fixture rejects the obsolete CommonJS filename and requires the official `lib/addon-ligatures.mjs` entry plus package `module` metadata. Ligature activation reactivates an active WebGL addon as required by the upstream contract. Expected-negative fixtures reject a wrong ClipboardAddon constructor boundary, missing addon assets, and loss of login-shell `argv[0]` semantics. Real OSC 52, inline-image protocols, WebView font access, ligature rendering, and shell startup-file behavior remain device evidence.

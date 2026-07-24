@@ -63,16 +63,20 @@ function fakeEnvironment({throwOnLoad = false} = {}) {
   const state = env.controller.activate();
   if (state.mode !== 'webgl' || state.reason !== 'active') throw new Error('WebGL activation state mismatch');
   if (env.loaded.length !== 1) throw new Error('WebGL addon was not loaded exactly once');
+  const reactivated = env.controller.reactivate();
+  if (reactivated.mode !== 'webgl' || env.loaded.length !== 2) throw new Error('WebGL reactivation mismatch');
+  const afterReactivation = env.counts();
+  if (afterReactivation.subscriptionDisposed !== 1 || afterReactivation.addonDisposed !== 1) throw new Error('WebGL reactivation cleanup mismatch');
   env.loseContext();
   const fallback = env.controller.getState();
   if (fallback.mode !== 'dom' || fallback.reason !== 'context-loss') throw new Error('context-loss fallback mismatch');
   const counts = env.counts();
-  if (counts.subscriptionDisposed !== 1 || counts.addonDisposed !== 1) throw new Error('context-loss cleanup mismatch');
+  if (counts.subscriptionDisposed !== 2 || counts.addonDisposed !== 2) throw new Error('context-loss cleanup mismatch');
   env.controller.activate();
-  if (env.loaded.length !== 1) throw new Error('context-loss frontend retried WebGL');
+  if (env.loaded.length !== 2) throw new Error('context-loss frontend retried WebGL');
   env.loseContext();
   const repeated = env.counts();
-  if (repeated.subscriptionDisposed !== 1 || repeated.addonDisposed !== 1) throw new Error('duplicate context loss changed cleanup');
+  if (repeated.subscriptionDisposed !== 2 || repeated.addonDisposed !== 2) throw new Error('duplicate context loss changed cleanup');
 }
 
 {
