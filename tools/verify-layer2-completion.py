@@ -108,8 +108,15 @@ def verify(root: Path) -> list[str]:
         failures.append("shared-storage startup permission policy mismatch")
     if storage.get("home_link") != "none" or storage.get("child_environment_synthesis") != "none":
         failures.append("shared storage must not alter HOME or child environment")
-    if account.get("saf") != "explicit Android document import/export; no virtual mount":
-        failures.append("SAF policy mismatch")
+    saf = account.get("saf") if isinstance(account.get("saf"), dict) else {}
+    if saf != {
+        "mode": "explicit Android document import/export",
+        "import_destination": "caller-selected HOME-relative directory; empty means HOME root",
+        "fixed_home_inbox": "none",
+        "collision_policy": "preserve existing files with a unique provider-derived name",
+        "virtual_mount": "none",
+    }:
+        failures.append("SAF destination policy mismatch")
 
     upstream = completion.get("upstream") if isinstance(completion.get("upstream"), dict) else {}
     if upstream.get("core") != "@xterm/xterm@6.0.0":
@@ -206,7 +213,7 @@ def verify(root: Path) -> list[str]:
     if "BuildConfig.DEBUG" not in main_activity or "WebView.setWebContentsDebuggingEnabled(true)" not in main_activity:
         failures.append("debug-only WebView device evidence surface is missing")
 
-    for token in ("versionCode 19", "versionName '0.21.0'", "minSdk 29", "targetSdk 28"):
+    for token in ("versionCode 20", "versionName '0.22.0'", "minSdk 29", "targetSdk 28"):
         if token not in gradle:
             failures.append(f"closure version/policy mismatch: {token}")
     for token in (
@@ -216,6 +223,8 @@ def verify(root: Path) -> list[str]:
         "inline image",
         "wasm-unsafe-eval",
         'argv0=<%s>',
+        "destinationDirectory: 'incoming'",
+        'must never create `HOME/imports`',
     ):
         if token not in device_doc:
             failures.append(f"device validation document lacks token: {token}")

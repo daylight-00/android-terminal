@@ -53,7 +53,8 @@
     "inherited Android process environment with only HOME, TMPDIR, and TERM replaced",
     "fresh HOME remains unpopulated before explicit user action",
     "TMPDIR maps to cacheDir/tmp and is recreated after cache eviction",
-    "startup shared-storage system permission flow without HOME symlink or child environment synthesis"
+    "startup shared-storage system permission flow without HOME symlink or child environment synthesis",
+    "SAF import to HOME root and caller-selected HOME-relative destination without a fixed inbox"
   ],
   "nonclaims": [
     "release-quality Layer 3 UX",
@@ -85,6 +86,12 @@
       "child_environment_synthesis": "none",
       "denial_effect": "terminal and SAF remain available; direct path follows Android permission result"
     },
-    "saf": "explicit Android document import/export; no virtual mount"
+    "saf": {
+      "mode": "explicit Android document import/export",
+      "import_destination": "caller-selected HOME-relative directory; empty means HOME root",
+      "fixed_home_inbox": "none",
+      "collision_policy": "preserve existing files with a unique provider-derived name",
+      "virtual_mount": "none"
+    }
   }
 }

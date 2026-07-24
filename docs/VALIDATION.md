@@ -90,7 +90,7 @@ deduplicates unchanged sizes, and verifies changed WebView/IME viewport geometry
 `TIOCSWINSZ`. It also compiles the pure URI/clipboard policy and the Android platform adapter
 against an API-shape stub, then executes the clipboard, OSC 8 link, bell, Layer 3 palette, accessibility,
 Android-localized xterm strings, service-owned title restore/update, safe window reports, document import/export request-result, and stale-attachment paths in Node. Pure Kotlin tests verify
-private-HOME path confinement, name sanitation, MIME bounding, collision handling, and the document
+private-HOME path confinement, caller-selected import destinations, absence of a fixed HOME inbox, name sanitation, MIME bounding, collision handling, and the document
 size limit. The API-shape compile covers `ACTION_OPEN_DOCUMENT`, `ACTION_CREATE_DOCUMENT`,
 `OpenableColumns`, and streaming `ContentResolver` access. The owner APK build remains the authority
 for compiling the real Android framework integration.

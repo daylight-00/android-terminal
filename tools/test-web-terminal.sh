@@ -359,7 +359,7 @@ const paths = process.argv.slice(2);
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v1', 'serialize-state-v1', 'webgl-renderer-fallback-v1', 'session-title-state-v1', 'localized-xterm-strings-v1', 'safe-window-reports-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v2', 'serialize-state-v1', 'webgl-renderer-fallback-v1', 'session-title-state-v1', 'localized-xterm-strings-v1', 'safe-window-reports-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard']) {
@@ -544,30 +544,37 @@ const paths = process.argv.slice(2);
   completeRequest(bellRequest, {performed: false});
   await Promise.resolve();
 
-  const importPromise = context.AndroidTerminalPlatform.importDocument({mimeType: 'text/plain'});
+  const importPromise = context.AndroidTerminalPlatform.importDocument({
+    mimeType: 'text/plain',
+    destinationDirectory: 'incoming'
+  });
   const importRequest = latestRequest('document-import');
-  if (importRequest.payload.mimeType !== 'text/plain') throw new Error('document import MIME type missing');
+  if (importRequest.payload.mimeType !== 'text/plain' ||
+      importRequest.payload.destinationDirectory !== 'incoming') {
+    throw new Error('document import payload is incomplete');
+  }
   completeRequest(importRequest, {
-    path: '/data/user/0/app/files/imports/input.txt',
-    relativePath: 'imports/input.txt',
+    path: '/data/user/0/app/files/incoming/input.txt',
+    relativePath: 'incoming/input.txt',
+    destinationDirectory: 'incoming',
     name: 'input.txt',
     mimeType: 'text/plain',
     bytes: 12
   });
   const imported = await importPromise;
-  if (imported.relativePath !== 'imports/input.txt') throw new Error('document import result missing');
+  if (imported.relativePath !== 'incoming/input.txt') throw new Error('document import result missing');
 
-  const exportPromise = context.AndroidTerminalPlatform.exportDocument('imports/input.txt', {
+  const exportPromise = context.AndroidTerminalPlatform.exportDocument('incoming/input.txt', {
     suggestedName: 'output.txt',
     mimeType: 'text/plain'
   });
   const exportRequest = latestRequest('document-export');
-  if (exportRequest.payload.path !== 'imports/input.txt' ||
+  if (exportRequest.payload.path !== 'incoming/input.txt' ||
       exportRequest.payload.suggestedName !== 'output.txt' ||
       exportRequest.payload.mimeType !== 'text/plain') {
     throw new Error('document export payload is incomplete');
   }
-  completeRequest(exportRequest, {relativePath: 'imports/input.txt', bytes: 12});
+  completeRequest(exportRequest, {relativePath: 'incoming/input.txt', bytes: 12});
   await exportPromise;
 
   port.onmessage({data: JSON.stringify({
@@ -679,7 +686,7 @@ required = {
         "localized-xterm-strings-v1",
         "safe-window-reports-v1",
         "web-links-v1",
-        "document-transport-v1",
+        "document-transport-v2",
         "serialize-state-v1",
         "platformRequest: 'platform-request'",
         "platformState: 'platform-state'",

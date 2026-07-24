@@ -59,7 +59,7 @@
       'platform-bridge-v2',
       'android-font-scale-v1',
       'web-links-v1',
-      'document-transport-v1',
+      'document-transport-v2',
       'serialize-state-v1',
       'webgl-renderer-fallback-v1',
       'layer3-scaffold-v1',

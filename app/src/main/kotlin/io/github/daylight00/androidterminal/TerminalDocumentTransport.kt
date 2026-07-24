@@ -12,8 +12,9 @@ import java.nio.file.Files
 import java.util.UUID
 
 /**
- * Layer 2 stream transport between Android SAF URIs and real files under the app-private HOME.
- * It does not infer formats, expose content URIs to the shell, or emulate a filesystem mount.
+ * Layer 2 stream transport between Android SAF URIs and real files under app-private HOME.
+ * It does not infer formats, impose a fixed HOME inbox, expose content URIs to the shell,
+ * or emulate a filesystem mount.
  */
 internal class TerminalDocumentTransport(private val activity: Activity) {
     data class ExportSource(
@@ -47,17 +48,22 @@ internal class TerminalDocumentTransport(private val activity: Activity) {
         putExtra(Intent.EXTRA_TITLE, source.suggestedName)
     }
 
-    fun importDocument(uri: Uri): TerminalPlatformResult {
+    fun importDocument(uri: Uri, destinationDirectory: String): TerminalPlatformResult {
         val resolver = activity.contentResolver
         val metadata = queryMetadata(uri)
         if (metadata.size != null && metadata.size > TerminalDocumentPolicy.MAX_DOCUMENT_BYTES) {
             return TerminalPlatformResult.failure("selected document exceeds the bounded transport limit")
         }
 
-        val importDirectory = File(activity.filesDir, TerminalDocumentPolicy.IMPORT_DIRECTORY_NAME)
-        if (!importDirectory.isDirectory && !importDirectory.mkdirs()) {
-            return TerminalPlatformResult.failure("cannot create the private import directory")
-        }
+        val importDirectory = TerminalDocumentPolicy.resolvePrivateImportDirectory(
+            activity.filesDir,
+            destinationDirectory,
+        ) ?: return TerminalPlatformResult.failure(
+            "import destination must be a writable HOME-relative directory",
+        )
+        val validatedDestination = TerminalDocumentPolicy.validatedRelativeHomeDirectory(
+            destinationDirectory,
+        ) ?: return TerminalPlatformResult.failure("invalid HOME-relative import destination")
         val displayName = TerminalDocumentPolicy.sanitizedDisplayName(
             metadata.displayName ?: uri.lastPathSegment,
             "document",
@@ -73,11 +79,16 @@ internal class TerminalDocumentTransport(private val activity: Activity) {
                 }
             }
             Files.move(temporary.toPath(), target.toPath())
-            val relativePath = "${TerminalDocumentPolicy.IMPORT_DIRECTORY_NAME}/${target.name}"
+            val relativePath = if (validatedDestination.isEmpty()) {
+                target.name
+            } else {
+                "$validatedDestination/${target.name}"
+            }
             TerminalPlatformResult.success(
                 JSONObject()
                     .put("path", target.absolutePath)
                     .put("relativePath", relativePath)
+                    .put("destinationDirectory", validatedDestination)
                     .put("name", target.name)
                     .put("mimeType", TerminalDocumentPolicy.boundedMimeType(metadata.mimeType))
                     .put("bytes", bytes),

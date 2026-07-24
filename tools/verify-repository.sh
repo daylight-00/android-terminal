@@ -88,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 19' app/build.gradle
-check version-name grep -Fxq "        versionName '0.21.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 20' app/build.gradle
+check version-name grep -Fxq "        versionName '0.22.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -181,6 +181,11 @@ check safe-window-report grep -Fq 'getWinSizePixels: true' \
 check manifest-font-scale-config grep -Fq 'android:configChanges="fontScale|' app/src/main/AndroidManifest.xml
 check android-document-capability grep -Fq 'android-document-transport' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check page-document-capability grep -Fq 'document-transport-v2' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check saf-import-destination grep -Fq 'destinationDirectory' \
+  app/src/main/assets/terminal/bridge/terminal-bridge.js
+check no-fixed-saf-inbox sh -c '! grep -Eq "IMPORT_DIRECTORY_NAME|File\(activity\.filesDir, \"imports\"\)" app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentPolicy.kt app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentTransport.kt'
 check android-shared-storage-capability grep -Fq 'android-shared-storage-direct-path' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check native-account-capability grep -Fq 'android-native-account-session' app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt

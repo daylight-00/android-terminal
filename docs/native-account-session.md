@@ -48,7 +48,7 @@ cacheDir/
 └── tmp/           TMPDIR
 ```
 
-It does not create profiles, rc files, XDG directories, `.local`, `storage`, or `imports` during account initialization. A document import may create `HOME/imports` only as the direct result of that explicit user operation.
+It does not create profiles, rc files, XDG directories, `.local`, `storage`, `imports`, or any other HOME entry during account initialization. An explicit SAF import writes into HOME itself or into a caller-selected validated HOME-relative directory; only that user-initiated transfer may create its requested destination.
 
 ## Shared storage
 
@@ -66,7 +66,7 @@ The Android-reported shared-storage path and grant state remain available as neu
 
 ## SAF
 
-SAF remains an independent Android-native document capability. Explicit import/export transfers data between a selected document provider and ordinary private files. No `content://` URI is exposed as a POSIX path or virtual mount.
+SAF remains an independent Android-native document capability. Explicit import/export transfers data between a selected document provider and ordinary private files. Import has no fixed inbox: an empty destination places the provider-named file in HOME, and a caller may supply a validated HOME-relative destination directory. Collision handling preserves existing files. No `content://` URI is exposed as a POSIX path or virtual mount.
 
 ## User-owned layer
 

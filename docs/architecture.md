@@ -78,7 +78,7 @@ The child inherits the Android application environment and Layer 2 replaces only
 
 Direct POSIX shared-storage access is Layer 2 because Android permission is required before the app UID can use ordinary paths such as `/storage/emulated/0/Download`. The app declares `MANAGE_EXTERNAL_STORAGE`, uses the API 28 compatibility target with API 29 read/write runtime permissions, and immediately enters the official Android system grant flow when needed. Grant status remains a device/user decision; denial does not block the private shell or SAF.
 
-Layer 2 does not create `HOME/storage`, pass a shared-storage coordinate through JNI, or synthesize `EXTERNAL_STORAGE`. The shell uses real Android paths under the app UID's actual grant. SAF remains available for explicit document import/export and does not become a virtual mount. See `docs/native-account-session.md`.
+Layer 2 does not create `HOME/storage`, pass a shared-storage coordinate through JNI, or synthesize `EXTERNAL_STORAGE`. The shell uses real Android paths under the app UID's actual grant. SAF remains available for explicit document import/export, imposes no fixed HOME inbox, accepts a caller-selected HOME-relative import destination, and does not become a virtual mount. See `docs/native-account-session.md`.
 
 ### Plain-text web-link mapping
 

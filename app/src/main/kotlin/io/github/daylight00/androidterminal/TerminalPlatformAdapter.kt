@@ -122,7 +122,10 @@ internal class TerminalPlatformAdapter(
 
         Thread {
             val result = when (pending) {
-                is PendingDocumentRequest.Import -> documentTransport.importDocument(uri)
+                is PendingDocumentRequest.Import -> documentTransport.importDocument(
+                    uri,
+                    pending.destinationDirectory,
+                )
                 is PendingDocumentRequest.Export -> documentTransport.exportDocument(uri, pending.source)
             }
             activity.runOnUiThread {
@@ -142,11 +145,23 @@ internal class TerminalPlatformAdapter(
             completion(TerminalPlatformResult.failure("another document operation is already active"))
             return
         }
+        val destinationDirectory = TerminalDocumentPolicy.validatedRelativeHomeDirectory(
+            payload.optString("destinationDirectory"),
+        )
+        if (destinationDirectory == null) {
+            completion(
+                TerminalPlatformResult.failure(
+                    "import destination must be a HOME-relative directory",
+                ),
+            )
+            return
+        }
         val token = nextDocumentToken++
         pendingDocumentRequest = PendingDocumentRequest.Import(
             token = token,
             requestCode = REQUEST_IMPORT_DOCUMENT,
             completion = completion,
+            destinationDirectory = destinationDirectory,
         )
         try {
             activity.startActivityForResult(
@@ -262,6 +277,7 @@ internal class TerminalPlatformAdapter(
             token: Long,
             requestCode: Int,
             completion: (TerminalPlatformResult) -> Unit,
+            val destinationDirectory: String,
         ) : PendingDocumentRequest(token, requestCode, completion)
 
         class Export(

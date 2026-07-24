@@ -397,3 +397,18 @@ if python3 "$ROOT/tools/verify_policy.py" "$LOGIN_SHELL_NEGATIVE" >/dev/null 2>&
   exit 1
 fi
 printf 'PASS verifier-login-shell-negative\n'
+
+SAF_INBOX_POLICY_NEGATIVE=$TMP/saf-inbox-policy-negative
+copy_fixture "$SAF_INBOX_POLICY_NEGATIVE"
+python3 - "$SAF_INBOX_POLICY_NEGATIVE/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalDocumentPolicy.kt" <<'PYNEG'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1])
+s=p.read_text(encoding='utf-8')
+p.write_text(s.replace('internal object TerminalDocumentPolicy {', 'internal object TerminalDocumentPolicy {\n    const val IMPORT_DIRECTORY_NAME = "imports"', 1), encoding='utf-8')
+PYNEG
+if python3 "$ROOT/tools/verify_policy.py" "$SAF_INBOX_POLICY_NEGATIVE" >/dev/null 2>&1; then
+  echo 'FAIL verifier-saf-inbox-policy-negative unexpectedly passed' >&2
+  exit 1
+fi
+echo 'PASS verifier-saf-inbox-policy-negative'

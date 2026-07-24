@@ -229,9 +229,11 @@
     },
     importDocument(options = {}) {
       const mimeType = options && typeof options.mimeType === 'string' ? options.mimeType : '*/*';
+      const destinationDirectory = options && typeof options.destinationDirectory === 'string'
+        ? options.destinationDirectory : '';
       return requestPlatform(
         contract.platformOperations.documentImport,
-        {mimeType},
+        {mimeType, destinationDirectory},
         10 * 60 * 1000
       );
     },

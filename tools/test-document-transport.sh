@@ -12,7 +12,8 @@ for token in (
     "Intent.ACTION_OPEN_DOCUMENT",
     "Intent.ACTION_CREATE_DOCUMENT",
     "OpenableColumns.DISPLAY_NAME",
-    "File(activity.filesDir",
+    "resolvePrivateImportDirectory",
+    "destinationDirectory",
     "openInputStream",
     "openOutputStream",
     "Files.move",
@@ -191,20 +192,28 @@ fun main() {
         check(importIntent.action == android.content.Intent.ACTION_OPEN_DOCUMENT)
         check(importIntent.type == "text/plain")
 
-        val first = transport.importDocument(Uri.parse("content://provider/document/1"))
+        val first = transport.importDocument(Uri.parse("content://provider/document/1"), "")
         check(first.ok)
         val firstPath = File(first.data.string("path"))
-        check(firstPath.canonicalPath.startsWith(root.canonicalPath + File.separator))
+        check(firstPath.parentFile.canonicalFile == root.canonicalFile)
         check(firstPath.readText() == "payload")
-        check(first.data.string("relativePath") == "imports/input.txt")
+        check(first.data.string("relativePath") == "input.txt")
+        check(first.data.string("destinationDirectory") == "")
         check(first.data.long("bytes") == 7L)
+        check(!File(root, "imports").exists())
 
-        val second = transport.importDocument(Uri.parse("content://provider/document/2"))
+        val second = transport.importDocument(Uri.parse("content://provider/document/2"), "")
         check(second.ok)
-        check(second.data.string("relativePath") == "imports/input (1).txt")
+        check(second.data.string("relativePath") == "input (1).txt")
+
+        val nested = transport.importDocument(Uri.parse("content://provider/document/3"), "incoming")
+        check(nested.ok)
+        check(nested.data.string("relativePath") == "incoming/input.txt")
+        check(nested.data.string("destinationDirectory") == "incoming")
+        check(File(root, "incoming/input.txt").readText() == "payload")
 
         val exportPayload = JSONObject()
-            .put("path", "imports/input.txt")
+            .put("path", "input.txt")
             .put("suggestedName", "output.txt")
             .put("mimeType", "text/plain")
         val source = checkNotNull(transport.prepareExport(exportPayload))
@@ -214,11 +223,12 @@ fun main() {
         check(exported.ok)
         check(resolver.outputBytes.contentEquals("payload".toByteArray()))
 
+        check(!transport.importDocument(Uri.parse("content://provider/document/escape"), "../escape").ok)
         check(transport.prepareExport(JSONObject().put("path", "../escape")) == null)
         resolver.declaredSize = TerminalDocumentPolicy.MAX_DOCUMENT_BYTES + 1L
-        check(!transport.importDocument(Uri.parse("content://provider/document/large")).ok)
+        check(!transport.importDocument(Uri.parse("content://provider/document/large"), "").ok)
 
-        println("PASS terminal-document-transport runtime=kotlinc import=private-file export=streamed")
+        println("PASS terminal-document-transport runtime=kotlinc import=caller-home-destination export=streamed")
     } finally {
         root.deleteRecursively()
     }

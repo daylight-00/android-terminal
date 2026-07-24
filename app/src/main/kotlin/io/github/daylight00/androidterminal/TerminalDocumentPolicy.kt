@@ -2,9 +2,8 @@ package io.github.daylight00.androidterminal
 
 import java.io.File
 
-/** Pure Layer 2 bounds for SAF-to-private-file transport. */
+/** Pure Layer 2 bounds for explicit SAF-to-private-file transport. */
 internal object TerminalDocumentPolicy {
-    const val IMPORT_DIRECTORY_NAME = "imports"
     const val MAX_DOCUMENT_BYTES = 1024L * 1024L * 1024L
     const val MAX_DISPLAY_NAME_CHARACTERS = 160
     const val MAX_RELATIVE_PATH_CHARACTERS = 4096
@@ -47,27 +46,32 @@ internal object TerminalDocumentPolicy {
         }
     }
 
-    fun validatedRelativeHomePath(value: String): String? {
-        if (value.isBlank() || value.length > MAX_RELATIVE_PATH_CHARACTERS) return null
-        if (value.startsWith('/') || value.startsWith('\\')) return null
-        if ('\u0000' in value || '\\' in value) return null
-        val parts = value.split('/')
-        if (parts.any { part ->
-                part.isEmpty() || part == "." || part == ".." ||
-                    part.any { it.code in 0..31 || it.code == 127 }
-            }
-        ) {
-            return null
-        }
-        return parts.joinToString("/")
+    fun validatedRelativeHomePath(value: String): String? =
+        validatedRelativePath(value, allowEmpty = false)
+
+    fun validatedRelativeHomeDirectory(value: String?): String? =
+        validatedRelativePath(value.orEmpty(), allowEmpty = true)
+
+    fun resolvePrivateImportDirectory(homeDirectory: File, relativeDirectory: String): File? {
+        val validated = validatedRelativeHomeDirectory(relativeDirectory) ?: return null
+        val root = runCatching { homeDirectory.canonicalFile }.getOrNull() ?: return null
+        if (!root.isDirectory || !root.canWrite()) return null
+        val candidate = runCatching {
+            if (validated.isEmpty()) root else File(root, validated).canonicalFile
+        }.getOrNull() ?: return null
+        if (!isWithinRoot(root, candidate)) return null
+        if (!candidate.exists() && !candidate.mkdirs()) return null
+        if (!candidate.isDirectory || !candidate.canWrite()) return null
+        return runCatching { candidate.canonicalFile }
+            .getOrNull()
+            ?.takeIf { isWithinRoot(root, it) && it.isDirectory && it.canWrite() }
     }
 
     fun resolvePrivateExportSource(homeDirectory: File, relativePath: String): File? {
         val validated = validatedRelativeHomePath(relativePath) ?: return null
         val root = runCatching { homeDirectory.canonicalFile }.getOrNull() ?: return null
         val candidate = runCatching { File(root, validated).canonicalFile }.getOrNull() ?: return null
-        val rootPrefix = root.path + File.separator
-        if (candidate.path != root.path && !candidate.path.startsWith(rootPrefix)) return null
+        if (!isWithinRoot(root, candidate)) return null
         if (!candidate.isFile || !candidate.canRead()) return null
         if (candidate.length() < 0L || candidate.length() > MAX_DOCUMENT_BYTES) return null
         return candidate
@@ -88,5 +92,26 @@ internal object TerminalDocumentPolicy {
             if (!candidate.exists()) return candidate
         }
         return File(directory, "document-${System.nanoTime()}")
+    }
+
+    private fun validatedRelativePath(value: String, allowEmpty: Boolean): String? {
+        if (value.isEmpty()) return if (allowEmpty) "" else null
+        if (value.length > MAX_RELATIVE_PATH_CHARACTERS) return null
+        if (value.startsWith('/') || value.startsWith('\\')) return null
+        if ('\u0000' in value || '\\' in value) return null
+        val parts = value.split('/')
+        if (parts.any { part ->
+                part.isEmpty() || part == "." || part == ".." ||
+                    part.any { it.code in 0..31 || it.code == 127 }
+            }
+        ) {
+            return null
+        }
+        return parts.joinToString("/")
+    }
+
+    private fun isWithinRoot(root: File, candidate: File): Boolean {
+        val rootPrefix = root.path + File.separator
+        return candidate.path == root.path || candidate.path.startsWith(rootPrefix)
     }
 }

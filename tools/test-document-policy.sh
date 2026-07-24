@@ -19,7 +19,10 @@ fun main() {
     check(TerminalDocumentPolicy.boundedMimeType("bad value") == "application/octet-stream")
     check(TerminalDocumentPolicy.boundedMimeType("*/*", "*/*") == "*/*")
 
-    check(TerminalDocumentPolicy.validatedRelativeHomePath("imports/a.txt") == "imports/a.txt")
+    check(TerminalDocumentPolicy.validatedRelativeHomePath("incoming/a.txt") == "incoming/a.txt")
+    check(TerminalDocumentPolicy.validatedRelativeHomeDirectory("") == "")
+    check(TerminalDocumentPolicy.validatedRelativeHomeDirectory("incoming") == "incoming")
+    check(TerminalDocumentPolicy.validatedRelativeHomeDirectory("../escape") == null)
     check(TerminalDocumentPolicy.validatedRelativeHomePath("/absolute") == null)
     check(TerminalDocumentPolicy.validatedRelativeHomePath("../escape") == null)
     check(TerminalDocumentPolicy.validatedRelativeHomePath("a//b") == null)
@@ -28,11 +31,12 @@ fun main() {
     val root = File(System.getProperty("java.io.tmpdir"), "terminal-document-policy-${System.nanoTime()}")
     check(root.mkdirs())
     try {
-        val nested = File(root, "imports")
-        check(nested.mkdirs())
+        check(TerminalDocumentPolicy.resolvePrivateImportDirectory(root, "") == root.canonicalFile)
+        val nested = checkNotNull(TerminalDocumentPolicy.resolvePrivateImportDirectory(root, "incoming"))
+        check(nested == File(root, "incoming").canonicalFile)
         val file = File(nested, "value.txt")
         file.writeText("value")
-        check(TerminalDocumentPolicy.resolvePrivateExportSource(root, "imports/value.txt") == file.canonicalFile)
+        check(TerminalDocumentPolicy.resolvePrivateExportSource(root, "incoming/value.txt") == file.canonicalFile)
         check(TerminalDocumentPolicy.resolvePrivateExportSource(root, "../value.txt") == null)
         check(TerminalDocumentPolicy.uniqueImportTarget(nested, "value.txt").name == "value (1).txt")
     } finally {
@@ -53,6 +57,8 @@ for token in (
     "sanitizedDisplayName",
     "boundedMimeType",
     "validatedRelativeHomePath",
+    "validatedRelativeHomeDirectory",
+    "resolvePrivateImportDirectory",
     "resolvePrivateExportSource",
     "uniqueImportTarget",
 ):

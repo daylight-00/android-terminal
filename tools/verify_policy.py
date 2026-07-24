@@ -162,8 +162,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 19" in build, "versionCode must identify the native account/session policy release", failures)
-    require("versionName '0.21.0'" in build, "versionName must identify the native account/session policy release", failures)
+    require("versionCode 20" in build, "versionCode must identify the native account/session policy release", failures)
+    require("versionName '0.22.0'" in build, "versionName must identify the native account/session policy release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -283,13 +283,17 @@ def verify(root: Path) -> list[str]:
     require("terminal.onBell(" in javascript, "terminal bell must use the public xterm event", failures)
     require("importDocument(options = {})" in javascript, "Layer 2 must expose SAF import", failures)
     require("exportDocument(path, options = {})" in javascript, "Layer 2 must expose SAF export", failures)
-    require("document-transport-v1" in terminal_contract and "document-transport-v1" in contract_js, "document transport capability must match", failures)
+    require("document-transport-v2" in terminal_contract and "document-transport-v2" in contract_js, "document transport capability must match", failures)
     for token in ("Intent.ACTION_OPEN_DOCUMENT", "Intent.ACTION_CREATE_DOCUMENT", "OpenableColumns.DISPLAY_NAME", "openInputStream", "openOutputStream", "activity.filesDir"):
         require(token in document_transport, f"SAF private-file transport token is required: {token}", failures)
-    for token in ("validatedRelativeHomePath", "resolvePrivateExportSource", "MAX_DOCUMENT_BYTES", "uniqueImportTarget"):
+    for token in ("validatedRelativeHomePath", "validatedRelativeHomeDirectory", "resolvePrivateImportDirectory", "resolvePrivateExportSource", "MAX_DOCUMENT_BYTES", "uniqueImportTarget"):
         require(token in document_policy, f"document policy token is required: {token}", failures)
     for forbidden in ("ACTION_OPEN_DOCUMENT_TREE", "takePersistableUriPermission", "DocumentsContract", "FUSE"):
         require(forbidden not in document_transport and forbidden not in document_policy and forbidden not in activity, f"SAF virtual mount behavior is forbidden: {forbidden}", failures)
+    require("IMPORT_DIRECTORY_NAME" not in document_policy, "Layer 2 must not impose a fixed HOME import directory", failures)
+    require('File(activity.filesDir, "imports")' not in document_transport, "SAF import must not impose HOME/imports", failures)
+    require('payload.optString("destinationDirectory")' in platform_adapter, "SAF import destination must be caller-selected or HOME root", failures)
+    require('destinationDirectory' in javascript, "Layer 2 SAF facade must expose the HOME-relative destination coordinate", failures)
     require("applyPlatformState" in platform_js, "Layer 2 must map Android platform state", failures)
     require("isExternalUriAllowed" in platform_js, "Layer 2 must define bounded URI activation mapping", failures)
     require("new window.Terminal({allowProposedApi: true})" in javascript, "Layer 2 must preserve upstream defaults except the official Unicode provider opt-in", failures)
