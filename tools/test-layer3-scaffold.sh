@@ -21,6 +21,7 @@ const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 
+let dispatchObserver = null;
 class FakeTarget {
   constructor() {
     this.events = [];
@@ -28,6 +29,7 @@ class FakeTarget {
   closest() { return null; }
   dispatchEvent(event) {
     this.events.push(event);
+    if (dispatchObserver) dispatchObserver(this, event);
     return !event.defaultPrevented;
   }
 }
@@ -42,7 +44,7 @@ class FakeMouseEvent {
 }
 
 class FakeScreen {
-  getBoundingClientRect() { return {height: 240}; }
+  getBoundingClientRect() { return {left: 0, top: 0, right: 800, bottom: 240, width: 800, height: 240}; }
 }
 
 class FakeElement {
@@ -95,31 +97,66 @@ const listeners = [];
 const scrollCalls = [];
 const frames = new Map();
 let nextFrameId = 1;
+const timers = new Map();
+let nextTimerId = 1;
 let geometryRequests = 0;
 let disposed = false;
 let focusCalls = 0;
 let blurCalls = 0;
 let softInputCalls = 0;
+let selectionActionModeShows = [];
+let selectionActionModeHides = 0;
+let copySelectionCalls = 0;
+let pasteClipboardCalls = 0;
+let selection = '';
+let selectionPosition = null;
+const selectionActionListeners = [];
 const terminal = {
   rows: 12,
+  cols: 80,
   options: {theme: {background: 'upstream-default'}, fontSize: 15, lineHeight: 1},
-  buffer: {active: {type: 'normal'}},
+  buffer: {active: {type: 'normal', viewportY: 0}},
   modes: {mouseTrackingMode: 'none'},
   scrollLines(rows) { scrollCalls.push(rows); },
   focus() { focusCalls += 1; },
-  blur() { blurCalls += 1; }
+  blur() { blurCalls += 1; },
+  hasSelection() { return selection !== ''; },
+  getSelection() { return selection; },
+  getSelectionPosition() { return selectionPosition; },
+  clearSelection() { selection = ''; selectionPosition = null; },
+  selectAll() {
+    selection = 'all terminal text';
+    selectionPosition = {start: {x: 0, y: 0}, end: {x: 80, y: 11}};
+  }
+};
+dispatchObserver = (_target, event) => {
+  if (event.type === 'mousedown' && event.detail === 2) {
+    selection = 'selected word';
+    selectionPosition = {start: {x: 4, y: 5}, end: {x: 17, y: 5}};
+  } else if (event.type === 'mousemove' && selection !== '') {
+    selection = 'selected word range';
+    selectionPosition = {start: {x: 4, y: 5}, end: {x: 24, y: 6}};
+  }
 };
 const layer2 = Object.freeze({
   contractVersion: 4,
   terminal,
   platform: Object.freeze({
-    showSoftInput() { softInputCalls += 1; return {catch() {}}; }
+    showSoftInput() { softInputCalls += 1; return {catch() {}}; },
+    copySelection() { copySelectionCalls += 1; return {catch() {}}; },
+    pasteClipboard() { pasteClipboardCalls += 1; return {catch() {}}; },
+    showSelectionActionMode(rect) { selectionActionModeShows.push(rect); return {catch() {}}; },
+    hideSelectionActionMode() { selectionActionModeHides += 1; return {catch() {}}; }
   }),
   completion: Object.freeze({manifest: Object.freeze({schemaVersion: 1})}),
   getPlatformState() { return {softInputVisible: false}; },
   onPlatformState(listener) {
     listeners.push(listener);
     return Object.freeze({dispose() { disposed = true; }});
+  },
+  onSelectionAction(listener) {
+    selectionActionListeners.push(listener);
+    return Object.freeze({dispose() {}});
   },
   requestGeometrySync() { geometryRequests += 1; }
 });
@@ -135,8 +172,12 @@ const windowObject = {
     return id;
   },
   cancelAnimationFrame(id) { frames.delete(id); },
-  setTimeout,
-  clearTimeout
+  setTimeout(callback) {
+    const id = nextTimerId++;
+    timers.set(id, callback);
+    return id;
+  },
+  clearTimeout(id) { timers.delete(id); }
 };
 const context = vm.createContext({
   window: windowObject,
@@ -148,16 +189,23 @@ const context = vm.createContext({
   Number,
   Math,
   Date,
-  setTimeout,
-  clearTimeout
+  setTimeout: windowObject.setTimeout,
+  clearTimeout: windowObject.clearTimeout
 });
 vm.runInContext(source, context, {filename: 'customization.js'});
 const customization = context.window.AndroidTerminalCustomization;
-if (!customization || customization.contractVersion !== 2) {
+if (!customization || customization.contractVersion !== 3) {
   throw new Error('Layer 3 JavaScript contract is unavailable');
 }
 if (listeners.length !== 1) throw new Error('Layer 3 did not use the public Layer 2 state capability');
+if (selectionActionListeners.length !== 1) throw new Error('Layer 3 did not subscribe to native selection actions');
 if (terminalElement.listenerCount() !== 4) throw new Error('Layer 3 touch listeners are incomplete');
+
+function runPendingTimers() {
+  const pending = [...timers.entries()];
+  timers.clear();
+  for (const [, callback] of pending) callback();
+}
 
 listeners[0]({colorScheme: 'light', fontScale: 1.2, softInputVisible: false});
 if (terminal.options.theme.background !== '#fafafa') throw new Error('light palette was not applied');
@@ -235,6 +283,75 @@ if (customization.getInteractionState().touchActivationAuthority !== 'layer3-ime
   throw new Error('touch activation authority is not reported correctly');
 }
 
+const selectionBlurBaseline = blurCalls;
+const selectionFocusBaseline = focusCalls;
+const selectionSoftInputBaseline = softInputCalls;
+const selectionTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(10, 40, 100)], 101, selectionTarget));
+if (timers.size !== 1) throw new Error('long-press selection timer was not armed');
+runPendingTimers();
+if (!customization.getInteractionState().selectionConsumesGesture) {
+  throw new Error('long press did not enter selection state');
+}
+if (selectionTarget.events.length !== 1 || selectionTarget.events[0].type !== 'mousedown' ||
+    selectionTarget.events[0].detail !== 2) {
+  throw new Error('long press did not delegate word selection to xterm mouse selection');
+}
+if (frames.size !== 1) throw new Error('long press did not schedule the native action mode');
+for (const [id, callback] of [...frames.entries()]) { frames.delete(id); callback(600); }
+if (selectionActionModeShows.length !== 1 || selectionActionModeShows[0].hasSelection !== true) {
+  throw new Error('long press did not immediately expose the selected word to Android ActionMode');
+}
+terminalElement.dispatch('touchmove', touchEvent([point(10, 100, 120)], 620, selectionTarget));
+if (selectionTarget.events.map((event) => event.type).join(',') !== 'mousedown,mousemove') {
+  throw new Error('selection drag did not delegate range extension to xterm');
+}
+terminalElement.dispatch('touchend', touchEvent([], 650, selectionTarget));
+if (selectionTarget.events.map((event) => event.type).join(',') !== 'mousedown,mousemove,mouseup') {
+  throw new Error('selection release did not complete xterm selection');
+}
+if (selectionActionModeShows.length !== 2 || selectionActionModeShows[1].hasSelection !== true) {
+  throw new Error('completed selection did not update Android floating action mode');
+}
+if (focusCalls !== selectionFocusBaseline || softInputCalls !== selectionSoftInputBaseline ||
+    blurCalls !== selectionBlurBaseline + 1) {
+  throw new Error('long-press selection was misclassified as terminal tap activation');
+}
+if (customization.getInteractionState().selectionAuthority !== 'xterm-public-selection-via-native-floating-action-mode') {
+  throw new Error('selection authority is not reported correctly');
+}
+selectionActionListeners[0]('copy');
+selectionActionListeners[0]('paste');
+if (copySelectionCalls !== 1 || pasteClipboardCalls !== 1) {
+  throw new Error('native selection actions did not reuse Layer 2 clipboard capabilities');
+}
+selectionActionListeners[0]('select-all');
+if (selection !== 'all terminal text' || frames.size === 0) {
+  throw new Error('select-all did not remain under xterm authority');
+}
+for (const [id, callback] of [...frames.entries()]) { frames.delete(id); callback(700); }
+if (selectionActionModeShows.length !== 3 || selectionActionModeShows[2].hasSelection !== true) {
+  throw new Error('select-all did not update the floating action-mode anchor');
+}
+selectionActionListeners[0]('clear');
+if (selection !== '' || customization.getInteractionState().selectionActionModeVisible) {
+  throw new Error('selection clear did not release xterm selection and native menu state');
+}
+
+const blankTarget = new FakeTarget();
+dispatchObserver = null;
+terminalElement.dispatch('touchstart', touchEvent([point(11, 200, 240)], 710, blankTarget));
+runPendingTimers();
+for (const [id, callback] of [...frames.entries()]) { frames.delete(id); callback(1210); }
+if (selectionActionModeShows.length !== 4 || selectionActionModeShows[3].hasSelection !== false) {
+  throw new Error('blank-area long press did not expose paste/select-all ActionMode without copy');
+}
+terminalElement.dispatch('touchend', touchEvent([], 1220, blankTarget));
+if (selectionActionModeShows.length !== 5 || selectionActionModeShows[4].hasSelection !== false) {
+  throw new Error('blank-area long press did not preserve the native action-mode anchor');
+}
+selectionActionListeners[0]('clear');
+
 terminal.buffer.active.type = 'alternate';
 const altTarget = new FakeTarget();
 const altStart = touchEvent([point(5, 0, 100)], 110, altTarget);
@@ -257,7 +374,7 @@ if (geometryRequests !== 3) throw new Error('second platform update did not requ
 if (!customization.getInteractionState().softInputVisible) {
   throw new Error('Layer 3 did not retain Android IME visibility state');
 }
-if (customization.getInteractionState().gestureFocusPolicy !== 'preserve-visible-ime-blur-hidden-ime') {
+if (customization.getInteractionState().gestureFocusPolicy !== 'blur-only-when-platform-reports-ime-hidden') {
   throw new Error('gesture focus policy is not reported correctly');
 }
 
@@ -308,7 +425,7 @@ if (customization.getInteractionState().ownedTouchFocusActive) {
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-visibility-aware selection-ready=generic-owned-touch-policy');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-visibility-aware selection=xterm-native-action-mode');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -319,6 +436,7 @@ css = Path(sys.argv[2]).read_text(encoding='utf-8')
 for token in (
     'window.AndroidTerminalCustomization',
     'layer2.onPlatformState',
+    'layer2.onSelectionAction',
     'layer2.terminal.options.theme',
     'layer2.terminal.options.fontSize',
     "addEventListener('touchstart'",
@@ -327,8 +445,12 @@ for token in (
     'replayTap(tapTarget, tapX, tapY, !startedWithSoftInput)',
     'layer2.terminal.blur()',
     'layer2.platform.showSoftInput()',
+    'layer2.platform.showSelectionActionMode(Object.freeze({',
+    "dispatchMouseEvent(selectionMouseTarget, 'mousedown'",
+    "dispatchMouseEvent(selectionMouseTarget, 'mousemove'",
+    "selectionAuthority: 'xterm-public-selection-via-native-floating-action-mode'",
     "touchActivationAuthority: 'layer3-ime-visibility-aware-deferred-tap-native-ime'",
-    "gestureFocusPolicy: 'preserve-visible-ime-blur-hidden-ime'",
+    "gestureFocusPolicy: 'blur-only-when-platform-reports-ime-hidden'",
     'softInputVisible = Boolean(state.softInputVisible)',
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',

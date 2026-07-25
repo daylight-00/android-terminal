@@ -4,7 +4,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 PACKAGE_ROOT="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal"
 
 if ! command -v kotlinc >/dev/null 2>&1; then
-  python3 - "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" "$PACKAGE_ROOT/TerminalDocumentTransport.kt" <<'PY'
+  python3 - "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" "$PACKAGE_ROOT/TerminalDocumentTransport.kt" "$PACKAGE_ROOT/TerminalContract.kt" <<'PY'
 from pathlib import Path
 import sys
 source = "\n".join(Path(value).read_text(encoding="utf-8") for value in sys.argv[1:])
@@ -19,6 +19,9 @@ for token in (
     "openInputStream",
     "openOutputStream",
     "performHapticFeedback",
+    "ActionMode.TYPE_FLOATING",
+    "selection-action-mode-show",
+    "HapticFeedbackConstants.LONG_PRESS",
     "InputMethodManager",
     "WindowInsets.Type.ime()",
     "systemWindowInsetBottom > insets.stableInsetBottom",
@@ -175,6 +178,19 @@ object Color {
     const val BLACK: Int = 0xff000000.toInt()
     fun rgb(red: Int, green: Int, blue: Int): Int = 0
 }
+class Rect(
+    var left: Int = 0,
+    var top: Int = 0,
+    var right: Int = 0,
+    var bottom: Int = 0,
+) {
+    fun set(other: Rect) {
+        left = other.left
+        top = other.top
+        right = other.right
+        bottom = other.bottom
+    }
+}
 KT
 
 cat > "$WORK/android/net/Uri.kt" <<'KT'
@@ -208,7 +224,50 @@ KT
 
 cat > "$WORK/android/view/HapticFeedbackConstants.kt" <<'KT'
 package android.view
-object HapticFeedbackConstants { const val CLOCK_TICK: Int = 4 }
+object HapticFeedbackConstants {
+    const val CLOCK_TICK: Int = 4
+    const val LONG_PRESS: Int = 0
+}
+KT
+
+cat > "$WORK/android/view/ActionMode.kt" <<'KT'
+package android.view
+
+import android.graphics.Rect
+
+open class View
+
+interface MenuItem {
+    val itemId: Int
+    var isEnabled: Boolean
+    fun setShowAsAction(actionEnum: Int)
+
+    companion object {
+        const val SHOW_AS_ACTION_IF_ROOM: Int = 1
+    }
+}
+
+interface Menu {
+    fun add(groupId: Int, itemId: Int, order: Int, titleRes: Int): MenuItem
+    fun findItem(id: Int): MenuItem?
+    companion object { const val NONE: Int = 0 }
+}
+
+open class ActionMode {
+    open fun finish() {}
+    open fun invalidate() {}
+    open fun invalidateContentRect() {}
+
+    abstract class Callback2 {
+        abstract fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean
+        abstract fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean
+        abstract fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean
+        abstract fun onDestroyActionMode(mode: ActionMode)
+        open fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {}
+    }
+
+    companion object { const val TYPE_FLOATING: Int = 1 }
+}
 KT
 
 cat > "$WORK/android/view/WindowInsets.kt" <<'KT'
@@ -256,15 +315,20 @@ KT
 cat > "$WORK/android/webkit/WebView.kt" <<'KT'
 package android.webkit
 
+import android.view.ActionMode
+import android.view.View
 import android.view.WindowInsets
 
-open class WebView {
+open class WebView : View() {
     val rootWindowInsets: WindowInsets? = WindowInsets()
     val isAttachedToWindow: Boolean = true
+    val width: Int = 1080
+    val height: Int = 1920
     fun hasWindowFocus(): Boolean = true
     fun performHapticFeedback(feedbackConstant: Int): Boolean = true
     fun requestFocusFromTouch(): Boolean = true
     fun post(action: () -> Unit): Boolean { action(); return true }
+    fun startActionMode(callback: ActionMode.Callback2, type: Int): ActionMode? = ActionMode()
 }
 KT
 
@@ -276,6 +340,9 @@ object R {
     object string {
         const val xterm_prompt_label: Int = 1
         const val xterm_too_much_output: Int = 2
+        const val selection_copy: Int = 3
+        const val selection_paste: Int = 4
+        const val selection_select_all: Int = 5
     }
 }
 KT
@@ -293,6 +360,8 @@ package org.json
 class JSONObject {
     fun put(name: String, value: Any?): JSONObject = this
     fun optString(name: String): String = ""
+    fun optInt(name: String, fallback: Int): Int = fallback
+    fun optBoolean(name: String, fallback: Boolean): Boolean = fallback
 }
 KT
 
@@ -307,6 +376,7 @@ kotlinc -nowarn \
   "$WORK/android/os/Build.kt" \
   "$WORK/android/provider/OpenableColumns.kt" \
   "$WORK/android/view/HapticFeedbackConstants.kt" \
+  "$WORK/android/view/ActionMode.kt" \
   "$WORK/android/view/WindowInsets.kt" \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \
   "$WORK/android/view/inputmethod/InputMethodManager.kt" \
@@ -322,4 +392,4 @@ kotlinc -nowarn \
   "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" \
   -d "$WORK/platform-adapter.jar"
 
-echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path soft-input=explicit visibility=window-insets"
+echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path soft-input=explicit visibility=window-insets selection=floating-action-mode"

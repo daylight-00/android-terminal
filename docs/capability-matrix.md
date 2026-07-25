@@ -34,8 +34,8 @@ A WebView feature that turns the application into a general browser is outside t
 | PTY input | `onData`, `onBinary` | Layer 2 runtime | Connected | Byte-preserving transport to the service-owned PTY | Special keys, modifier bars, and macros |
 | PTY output and flow control | `write(data, callback)`, `onWriteParsed` | Layer 2 runtime | Connected with bounds | Ordered sequence ACK, one in-flight batch, bounded recovery state | None |
 | Geometry | `resize`, `@xterm/addon-fit` | Layer 2 runtime | Connected | Android layout/insets/rotation/IME viewport converge on deduplicated `TIOCSWINSZ` | Optional layout chrome must request refit through Layer 2 |
-| Focus, IME, hardware keyboard | xterm DOM input and System WebView | Layer 2 runtime | Connected with bounds | WebView/xterm remain DOM-input authority; Android reports hardware-keyboard state and provides an explicit show-only IME request used after a Layer 3 ordinary tap | Optional key UI and gesture policy; scroll/pinch do not request or hide IME |
-| Explicit clipboard actions | selection APIs and `paste()` | Layer 2 runtime | Connected | Bounded Android `ClipboardManager` read/write | Buttons, gestures, and preference policy |
+| Focus, IME, hardware keyboard | xterm DOM input and System WebView | Layer 2 runtime | Connected with bounds | WebView/xterm remain DOM-input authority; Android reports hardware-keyboard and IME-visibility state and provides an explicit show-only request for a Layer 3 ordinary tap | Optional key UI and gesture policy; non-tap gestures issue no show request; visible-IME preservation is not yet a device claim |
+| Explicit clipboard actions | xterm selection APIs and `paste()` | Layer 2 runtime | Connected | Bounded Android `ClipboardManager` read/write plus a neutral floating `ActionMode` command surface | Layer 3 long-press selects through xterm and decides when to present Copy/Paste/Select all |
 | OSC 52 clipboard | xterm OSC 52 + official ClipboardAddon provider | Layer 2 runtime | **Connected with bounds** | Official addon backed by bounded Android `ClipboardManager` operations | Clipboard UX and policy |
 | OSC 8 links | core `linkHandler` | Layer 2 runtime | Connected | Validated HTTP/HTTPS URI to `ACTION_VIEW` | Menus, previews, history, browser UI |
 | Bell | `onBell` | Layer 2 runtime | Connected with bounds | Neutral rate-limited Android haptic signal | Sound, pattern, and enablement preferences |
@@ -110,7 +110,7 @@ These exclusions are product boundaries, not incomplete Layer 2 terminal adaptat
 
 Layer 3 exists as an optional scaffold and is loaded after Layer 2. Layer 2 must operate when the scaffold is empty or omitted. Layer 3 may consume only the stable `AndroidTerminalLayer2` capability and public xterm.js APIs exposed through it.
 
-The current scaffold owns the project palette used to present Android light/dark state. It does not own PTY transport, WebMessagePort, JNI, lifecycle recovery, renderer fallback, clipboard transport, link validation, font-scale adaptation, or any xterm private object.
+The current scaffold owns project palettes and optional touch arbitration for scroll, pinch, tap, and long-press selection. Selection remains xterm-owned and the floating command surface remains Android-owned. Layer 3 does not own PTY transport, WebMessagePort, JNI, lifecycle recovery, renderer fallback, clipboard transport, link validation, Android font-scale adaptation, or any xterm private object.
 
 ## Completion rule
 

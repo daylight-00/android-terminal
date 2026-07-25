@@ -80,9 +80,9 @@ def verify(root: Path) -> list[str]:
         failures.append("repository/device completion gates are invalid")
     runtime = completion.get("runtime_contract") if isinstance(completion.get("runtime_contract"), dict) else {}
     if runtime != {
-        "wire_protocol": 6,
+        "wire_protocol": 7,
         "layer2_extension": 4,
-        "layer3_scaffold": 2,
+        "layer3_scaffold": 3,
         "page_capability": "layer2-completion-v1",
     }:
         failures.append("runtime contract authority mismatch")
@@ -196,12 +196,18 @@ def verify(root: Path) -> list[str]:
         failures.append("native account/session page capability must match JavaScript and Kotlin")
     if "'android-native-account-session'" not in contract_js or '"android-native-account-session"' not in contract_kt:
         failures.append("native account/session host capability must match JavaScript and Kotlin")
+    runtime_contract = completion.get("runtime_contract", {})
+    if runtime_contract.get("wire_protocol") != 7:
+        failures.append("Layer 2 completion authority must record wire protocol 7")
+    if runtime_contract.get("layer3_scaffold") != 3:
+        failures.append("Layer 2 completion authority must record Layer 3 interaction contract 3")
+
     if "layer2.contractVersion !== 4" not in customization_js:
         failures.append("Layer 3 does not bind Layer 2 extension contract 4")
     if "layer2.completion.manifest.schemaVersion !== 1" not in customization_js:
         failures.append("Layer 3 does not bind the completion manifest schema")
-    if "contractVersion: 2" not in customization_js or "CONTRACT_VERSION = 2" not in customization_kt:
-        failures.append("Layer 3 scaffold contract 2 is incomplete")
+    if "contractVersion: 3" not in customization_js or "CONTRACT_VERSION = 2" not in customization_kt:
+        failures.append("Layer 3 JavaScript interaction contract 3 or native marker contract 2 is incomplete")
 
     expected_csp = "script-src 'self' 'wasm-unsafe-eval';"
     if expected_csp not in web_client:
@@ -213,7 +219,7 @@ def verify(root: Path) -> list[str]:
     if "BuildConfig.DEBUG" not in main_activity or "WebView.setWebContentsDebuggingEnabled(true)" not in main_activity:
         failures.append("debug-only WebView device evidence surface is missing")
 
-    for token in ("versionCode 25", "versionName '0.23.4'", "minSdk 29", "targetSdk 28"):
+    for token in ("versionCode 26", "versionName '0.24.0'", "minSdk 29", "targetSdk 28"):
         if token not in gradle:
             failures.append(f"closure version/policy mismatch: {token}")
     for token in (

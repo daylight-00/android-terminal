@@ -88,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 25' app/build.gradle
-check version-name grep -Fxq "        versionName '0.23.4'" app/build.gradle
+check version-code grep -Fxq '        versionCode 26' app/build.gradle
+check version-name grep -Fxq "        versionName '0.24.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -132,7 +132,7 @@ check webgl-fallback grep -Fq "fallback('context-loss')" app/src/main/assets/ter
 check service-owns-session grep -Fq 'TerminalSession(' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalSessionService.kt
 check controller-does-not-own-session sh -c '! grep -Fq "TerminalSession(" app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalController.kt'
-check platform-contract-v6 grep -Fq 'const val PROTOCOL_VERSION = 6' \
+check platform-contract-v7 grep -Fq 'const val PROTOCOL_VERSION = 7' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check geometry-state grep -Fq 'class TerminalGeometryState' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalGeometry.kt
@@ -164,11 +164,19 @@ check android-soft-input-visibility-capability grep -Fq 'android-soft-input-visi
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check page-ime-aware-gesture-capability grep -Fq 'ime-aware-layer3-gesture-focus-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check page-long-press-selection-capability grep -Fq 'layer3-long-press-selection-v1' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check native-floating-selection-capability grep -Fq 'android-floating-selection-action-mode' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
+check floating-selection-action-mode grep -Fq 'ActionMode.TYPE_FLOATING' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
+check layer3-long-press-selection grep -Fq "dispatchMouseEvent(selectionMouseTarget, 'mousedown'" \
+  app/src/main/assets/terminal/customization/customization.js
 check platform-state-soft-input grep -Fq 'softInputVisible' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt
 check platform-insets-ime grep -Fq 'WindowInsets.Type.ime()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
-check layer3-ime-preservation grep -Fq 'preserve-visible-ime-blur-hidden-ime' \
+check layer3-ime-policy grep -Fq 'blur-only-when-platform-reports-ime-hidden' \
   app/src/main/assets/terminal/customization/customization.js
 check page-font-scale-capability grep -Fq 'android-font-scale-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt

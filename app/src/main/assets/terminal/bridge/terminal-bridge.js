@@ -38,7 +38,7 @@
 
   status.textContent = message('loading', 'Loading terminal…');
 
-  if (!contract || contract.protocolVersion !== 6 || !contract.messages || !contract.platformOperations) {
+  if (!contract || contract.protocolVersion !== 7 || !contract.messages || !contract.platformOperations) {
     fail(message('missingContract', 'Terminal bridge contract is unavailable.'));
     return;
   }
@@ -111,6 +111,7 @@
   let restoringSnapshot = false;
   const pendingPlatformRequests = new Map();
   const platformStateListeners = new Set();
+  const selectionActionListeners = new Set();
   const titleStateListeners = new Set();
   const progressStateListeners = new Set();
   let lastTitleState = '';
@@ -230,6 +231,24 @@
     showSoftInput() {
       return requestPlatform(contract.platformOperations.softInputShow);
     },
+    showSelectionActionMode(contentRect) {
+      if (!contentRect || typeof contentRect !== 'object') {
+        return Promise.reject(new TypeError('A selection content rectangle is required.'));
+      }
+      const payload = {};
+      for (const key of ['left', 'top', 'right', 'bottom']) {
+        const value = Number(contentRect[key]);
+        if (!Number.isFinite(value)) {
+          return Promise.reject(new TypeError(`Selection rectangle ${key} is invalid.`));
+        }
+        payload[key] = Math.trunc(value);
+      }
+      payload.hasSelection = Boolean(contentRect.hasSelection);
+      return requestPlatform(contract.platformOperations.selectionActionModeShow, payload);
+    },
+    hideSelectionActionMode() {
+      return requestPlatform(contract.platformOperations.selectionActionModeHide);
+    },
     importDocument(options = {}) {
       const mimeType = options && typeof options.mimeType === 'string' ? options.mimeType : '*/*';
       const destinationDirectory = options && typeof options.destinationDirectory === 'string'
@@ -275,6 +294,21 @@
         if (!active) return;
         active = false;
         platformStateListeners.delete(listener);
+      }
+    });
+  }
+
+  function onSelectionAction(listener) {
+    if (typeof listener !== 'function') {
+      throw new TypeError('A Layer 3 selection-action listener must be a function.');
+    }
+    selectionActionListeners.add(listener);
+    let active = true;
+    return Object.freeze({
+      dispose() {
+        if (!active) return;
+        active = false;
+        selectionActionListeners.delete(listener);
       }
     });
   }
@@ -510,6 +544,7 @@
     images,
     completion,
     onPlatformState,
+    onSelectionAction,
     onTitleState,
     onProgressState,
     getTitleState() {
@@ -686,6 +721,18 @@
     }
   }
 
+  function handleSelectionAction(nativeMessage) {
+    const action = String(nativeMessage.action || '');
+    if (!['copy', 'paste', 'select-all', 'clear'].includes(action)) return;
+    for (const listener of [...selectionActionListeners]) {
+      try {
+        listener(action);
+      } catch (error) {
+        console.error('Layer 3 selection-action listener failed.', error);
+      }
+    }
+  }
+
   function handleNativeChannel(event) {
     if (event.data !== contract.channelMarker || !event.ports || !event.ports[0]) return;
     window.removeEventListener('message', handleNativeChannel);
@@ -781,6 +828,9 @@
           break;
         case contract.messages.platformResult:
           handlePlatformResult(nativeMessage);
+          break;
+        case contract.messages.selectionAction:
+          handleSelectionAction(nativeMessage);
           break;
         case contract.messages.error:
           terminal.write(`\r\n[native error: ${nativeMessage.message}]\r\n`);
