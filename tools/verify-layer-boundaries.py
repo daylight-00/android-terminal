@@ -519,8 +519,8 @@ def verify(root: Path) -> list[str]:
         fail("controller does not transport soft-input visibility", failures)
     if "softInputVisible: Boolean(nativeMessage.softInputVisible)" not in bridge_js:
         fail("Layer 2 JavaScript does not expose soft-input visibility", failures)
-    if "blur-only-when-platform-reports-ime-hidden" not in customization_js:
-        fail("Layer 3 owned-touch focus policy is not tied to reported IME visibility", failures)
+    if "touchActivationAuthority: 'webview-default-unconsumed-tap'" not in customization_js:
+        fail("Layer 3 native-selection POC does not leave unclaimed taps to WebView/xterm", failures)
     if "controller?.requestPlatformStateSync()" not in activity:
         fail("window-inset changes do not republish platform state", failures)
     if 'android:configChanges="fontScale|' not in manifest:
@@ -543,21 +543,28 @@ def verify(root: Path) -> list[str]:
             fail(f"native platform capability is missing: {capability}", failures)
     if "TerminalPlatformAdapter(" not in controller or "onSelectionAction =" not in controller:
         fail("WebView controller must delegate Android capabilities and selection actions to TerminalPlatformAdapter", failures)
-    for capability in ("layer3-long-press-selection-v1", "ime-aware-layer3-gesture-focus-v1"):
+    for capability in ("webview-native-touch-selection-poc-v1", "webview-default-touch-activation-poc-v1"):
         if capability not in contract_js or capability not in contract_kt:
             fail(f"Layer 3 touch capability must match across JavaScript and Kotlin: {capability}", failures)
     for token in (
-        "LONG_PRESS_DELAY_MILLIS = 500",
-        "dispatchMouseEvent(selectionMouseTarget, 'mousedown'",
-        "dispatchMouseEvent(selectionMouseTarget, 'mousemove'",
-        "layer2.terminal.getSelectionPosition()",
-        "layer2.terminal.selectAll()",
-        "layer2.platform.showSelectionActionMode",
-        "layer2.onSelectionAction",
-        "xterm-public-selection-via-native-floating-action-mode",
+        "layer2.useDomRenderer('native-touch-selection')",
+        "xtermElement.classList.add('xterm-native-touch-selection')",
+        "selectionAuthority: 'webview-native-dom-selection-poc'",
+        "selectionHandles: 'webview-native'",
+        "copyAuthority: 'webview-native-action-mode'",
+        "pasteAuthority: 'xterm-helper-textarea-native-paste'",
     ):
         if token not in customization_js:
-            fail(f"Layer 3 long-press selection lacks token: {token}", failures)
+            fail(f"Layer 3 native touch-selection POC lacks token: {token}", failures)
+    for forbidden in ("showSelectionActionMode", "onSelectionAction", "dispatchMouseEvent"):
+        if forbidden in customization_js:
+            fail(f"custom selection ownership remains active in native-selection POC: {forbidden}", failures)
+    for token in ("user-select: text !important", "pointer-events: auto !important", "xterm-helper-textarea"):
+        if token not in customization_css:
+            fail(f"native-selection CSS lacks token: {token}", failures)
+    for token in ("syncNativePasteTarget", "Math.max(cellWidth, 80)", "Math.max(cellHeight, 32)", "suppressXtermTouchSelection", "handleNativePaste", "layer2.terminal.paste(event.clipboardData.getData('text/plain'))"):
+        if token not in customization_js:
+            fail(f"public xterm/WebView native-selection adapter lacks token: {token}", failures)
     for token in (
         "ActionMode.Callback2()",
         "ActionMode.TYPE_FLOATING",

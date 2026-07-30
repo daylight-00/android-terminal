@@ -69,7 +69,32 @@ const paths = process.argv.slice(2);
       remove(value) { statusClasses.delete(value); }
     }
   };
-  const container = {clientWidth: 0, clientHeight: 0};
+  const terminalTouchListeners = new Map();
+  const terminalClassValues = new Set();
+  const terminalClassList = {
+    add(value) { terminalClassValues.add(value); },
+    remove(value) { terminalClassValues.delete(value); },
+    contains(value) { return terminalClassValues.has(value); }
+  };
+  const fakeScreen = {
+    getBoundingClientRect() {
+      return {left: 0, top: 0, right: 1080, bottom: 1920, width: 1080, height: 1920};
+    }
+  };
+  const container = {
+    clientWidth: 0,
+    clientHeight: 0,
+    addEventListener(type, callback) {
+      const values = terminalTouchListeners.get(type) || [];
+      values.push(callback);
+      terminalTouchListeners.set(type, values);
+    },
+    removeEventListener(type, callback) {
+      const values = terminalTouchListeners.get(type) || [];
+      terminalTouchListeners.set(type, values.filter((value) => value !== callback));
+    },
+    querySelector(selector) { return selector === '.xterm-screen' ? fakeScreen : null; }
+  };
   const posted = [];
   let portStarted = false;
   let resizeObserverCallback = null;
@@ -102,6 +127,9 @@ const paths = process.argv.slice(2);
       this.unicode = {activeVersion: '6', versions: ['6']};
       this.strings = {promptLabel: 'upstream prompt', tooMuchOutput: 'upstream output'};
       this.selection = '';
+      this.element = null;
+      this.buffer = {active: {type: 'normal'}};
+      this.modes = {mouseTrackingMode: 'none'};
       this.parser = {
         registerCsiHandler(identifier, callback) {
           const registration = {identifier, callback, dispose() {}};
@@ -115,7 +143,7 @@ const paths = process.argv.slice(2);
       loadedAddons.push(addon);
       if (addon && typeof addon.activate === 'function') addon.activate(this);
     }
-    open() {}
+    open() { this.element = {classList: terminalClassList, addEventListener() {}, removeEventListener() {}}; }
     onData(callback) { this.dataCallback = callback; return {dispose() {}}; }
     onBinary(callback) { this.binaryCallback = callback; return {dispose() {}}; }
     onBell(callback) { this.bellCallback = callback; return {dispose() {}}; }
@@ -127,6 +155,7 @@ const paths = process.argv.slice(2);
     paste(value) { pastes.push(value); }
     input(value, wasUserInput) { terminalInputs.push({value, wasUserInput}); }
     refresh(start, end) { refreshes.push({start, end}); }
+    scrollLines(value) { this.lastScrollLines = value; }
   }
 
   class SerializeAddon {
@@ -330,8 +359,11 @@ const paths = process.argv.slice(2);
     throw new Error('renderer state facade missing');
   }
   const rendererState = context.AndroidTerminalBridge.getRendererState();
-  if (rendererState.mode !== 'webgl' || rendererState.reason !== 'active') {
-    throw new Error('Layer 2 WebGL activation state mismatch');
+  if (rendererState.mode !== 'dom' || rendererState.reason !== 'native-touch-selection') {
+    throw new Error('Layer 3 native-selection DOM renderer state mismatch');
+  }
+  if (!terminalClassValues.has('xterm-native-touch-selection')) {
+    throw new Error('native touch-selection class missing');
   }
   if (!clipboardInstance || !loadedAddons.includes(clipboardInstance)) throw new Error('official ClipboardAddon was not loaded');
   for (const instance of [imageInstance, progressInstance, searchInstance, unicodeInstance, webFontsInstance]) {
@@ -359,7 +391,7 @@ const paths = process.argv.slice(2);
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v2', 'serialize-state-v1', 'webgl-renderer-fallback-v1', 'layer3-long-press-selection-v1', 'session-title-state-v1', 'localized-xterm-strings-v1', 'safe-window-reports-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v2', 'serialize-state-v1', 'webgl-renderer-fallback-v1', 'webview-native-touch-selection-poc-v1', 'session-title-state-v1', 'localized-xterm-strings-v1', 'safe-window-reports-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard']) {
@@ -731,7 +763,7 @@ required = {
         "platformState: 'platform-state'",
         "android-soft-input-visibility-state",
         "android-floating-selection-action-mode",
-        "layer3-long-press-selection-v1",
+        "webview-native-touch-selection-poc-v1",
         "selectionAction: 'selection-action'",
         "platformResult: 'platform-result'",
     ),

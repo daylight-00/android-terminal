@@ -559,6 +559,11 @@
     requestGeometrySync() {
       scheduleGeometry();
     },
+    useDomRenderer(reason = 'layer3-request') {
+      const state = rendererController.useDom(reason);
+      scheduleGeometry();
+      return state;
+    },
     getWindowReportState() {
       return Object.freeze({
         title: lastTitleState,

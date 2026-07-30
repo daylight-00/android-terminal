@@ -289,7 +289,7 @@ from pathlib import Path
 import sys
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
-path.write_text(text.replace("      'layer3-long-press-selection-v1',\n", "", 1), encoding="utf-8")
+path.write_text(text.replace("      'webview-native-touch-selection-poc-v1',\n", "", 1), encoding="utf-8")
 PYNEG
 if python3 "$ROOT/tools/verify-layer-boundaries.py" "$SELECTION_INCOMPLETE" >/dev/null 2>&1; then
   printf 'FAIL verifier-selection-incomplete unexpectedly passed\n' >&2

@@ -57,11 +57,11 @@
     },
     {
       "id": "clipboard-selection-paste",
-      "authority": "Terminal selection APIs and Terminal.paste",
+      "authority": "Terminal selection APIs, DOM selection, and Terminal.paste",
       "classification": "layer2-runtime",
       "status": "connected",
       "android_boundary": "Bounded explicit copy/paste operations use Android ClipboardManager; Android also exposes a neutral floating ActionMode command surface.",
-      "layer3_boundary": "Long-press delegates selection to xterm and presents Copy, Paste, and Select all. Movable selection handles remain a later Layer 3 feature."
+      "layer3_boundary": "The current native-selection POC leaves long-press DOM selection, Android handles, and Copy UI to WebView; the public helper textarea and Terminal.paste provide the native Paste target. The neutral Layer 2 floating ActionMode remains dormant."
     },
     {
       "id": "osc52-clipboard",

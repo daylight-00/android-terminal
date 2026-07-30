@@ -76,6 +76,13 @@
       return activate();
     }
 
+    function useDom(reason = 'requested') {
+      if (disposed) return publish('dom', 'disposed');
+      permanentlyFellBack = true;
+      releaseActiveAddon();
+      return publish('dom', String(reason || 'requested'));
+    }
+
     function dispose() {
       if (disposed) return;
       disposed = true;
@@ -86,6 +93,7 @@
     return Object.freeze({
       activate,
       reactivate,
+      useDom,
       dispose,
       getState() { return state; }
     });

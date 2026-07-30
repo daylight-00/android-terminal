@@ -155,7 +155,7 @@ Layer 3 customization
 
 Layer 2 never imports or names the Layer 3 implementation. Layer 3 may use only the stable Layer 2 capability and public xterm.js APIs exposed through it; it may not access WebMessagePort, JNI, PTY/session internals, or xterm.js private objects. Extension contract 4 adds an immutable completion manifest and a read-only runtime snapshot; Layer 3 JavaScript interaction contract 3 binds that schema and the optional touch-selection surface without becoming required by Layer 2; the native customization marker remains contract 2.
 
-The current scaffold owns the project light/dark terminal palettes, public xterm font-size pinch, public xterm scrollback gestures, and long-press xterm selection presented through Android floating `ActionMode`. Layer 2 supplies only neutral Android state and bounded platform operations. Movable selection handles, special keys, modifier bars, user themes, font selection, search UI, progress presentation, userland, and workspace features remain separate Layer 3 decisions.
+The current scaffold owns the project light/dark terminal palettes, public xterm font-size pinch, and the movement threshold for the public `scrollLines()` fallback. Its native-selection POC requests xterm's built-in DOM renderer, leaves stationary long presses to WebView/Chromium, and exposes the public helper textarea at the cursor as the native Paste target. The previous neutral Android floating `ActionMode` remains available in Layer 2 but is not requested by this POC. Special keys, modifier bars, user themes, font selection, search UI, progress presentation, userland, and workspace features remain separate Layer 3 decisions.
 
 ## Upgrade and change boundary
 
