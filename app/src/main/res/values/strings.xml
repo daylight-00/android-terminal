@@ -2,7 +2,4 @@
 <resources>
     <string name="xterm_prompt_label">Terminal input</string>
     <string name="xterm_too_much_output">Too much terminal output to announce.</string>
-    <string name="selection_copy">Copy</string>
-    <string name="selection_paste">Paste</string>
-    <string name="selection_select_all">Select all</string>
 </resources>

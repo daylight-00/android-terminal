@@ -162,8 +162,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 28" in build, "versionCode must identify the native touch-selection POC release", failures)
-    require("versionName '0.25.1'" in build, "versionName must identify the native touch-selection POC release", failures)
+    require("versionCode 29" in build, "versionCode must identify the restored Layer 3 touch baseline release", failures)
+    require("versionName '0.25.2'" in build, "versionName must identify the restored Layer 3 touch baseline release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -243,8 +243,8 @@ def verify(root: Path) -> list[str]:
     ):
         require(asset_path in web_client, f"local asset allowlist is missing: {asset_path}", failures)
     require('ORIGIN = "https://app.local"' in terminal_contract, "synthetic local HTTPS origin must remain pinned", failures)
-    require("PROTOCOL_VERSION = 7" in terminal_contract, "terminal contract version 7 must be explicit", failures)
-    require("protocolVersion: 7" in contract_js, "web terminal contract version 7 must be explicit", failures)
+    require("PROTOCOL_VERSION = 6" in terminal_contract, "terminal contract version 6 must be explicit", failures)
+    require("protocolVersion: 6" in contract_js, "web terminal contract version 6 must be explicit", failures)
     require("session-attach-v2" in terminal_contract and "session-attach-v2" in contract_js, "session attach v2 capability must match", failures)
     require("geometry-dedup-v1" in terminal_contract and "geometry-dedup-v1" in contract_js, "geometry dedupe capability must match", failures)
     require("android-window-geometry" in terminal_contract, "native Android window geometry capability is required", failures)
@@ -257,7 +257,6 @@ def verify(root: Path) -> list[str]:
         "android-system-theme",
         "android-accessibility-state",
         "android-hardware-keyboard-state",
-        "android-floating-selection-action-mode",
         "android-document-transport",
         "android-shared-storage-direct-path",
         "android-native-account-session",
@@ -283,10 +282,6 @@ def verify(root: Path) -> list[str]:
     require("terminal.options.linkHandler" in javascript, "OSC 8 links must use xterm linkHandler", failures)
     require("terminal.onBell(" in javascript, "terminal bell must use the public xterm event", failures)
     require("showSoftInput()" in javascript and "softInputShow" in contract_js, "Layer 2 must expose explicit Android soft-input activation", failures)
-    require("selectionAction: 'selection-action'" in contract_js and 'SELECTION_ACTION = "selection-action"' in terminal_contract, "selection action message must match", failures)
-    require("selectionActionModeShow: 'selection-action-mode-show'" in contract_js and "SELECTION_ACTION_MODE_SHOW" in terminal_contract, "selection action-mode show operation must match", failures)
-    require("selectionActionModeHide: 'selection-action-mode-hide'" in contract_js and "SELECTION_ACTION_MODE_HIDE" in terminal_contract, "selection action-mode hide operation must match", failures)
-    require("onSelectionAction" in javascript and "showSelectionActionMode(contentRect)" in javascript, "Layer 2 must expose bounded native selection actions", failures)
     require("importDocument(options = {})" in javascript, "Layer 2 must expose SAF import", failures)
     require("exportDocument(path, options = {})" in javascript, "Layer 2 must expose SAF export", failures)
     require("document-transport-v2" in terminal_contract and "document-transport-v2" in contract_js, "document transport capability must match", failures)
@@ -307,16 +302,12 @@ def verify(root: Path) -> list[str]:
         require(option not in javascript and option not in platform_js, f"product option must not leak into Layer 2: {option}", failures)
     require("fontSize" not in javascript, "font size adaptation must remain isolated in the Android platform mapping", failures)
     require("TerminalHostAppearance.backgroundColor" in controller, "native host appearance mapping must stay in Layer 2", failures)
-    require("TerminalPlatformAdapter(" in controller and "onSelectionAction =" in controller, "controller must delegate Android capabilities and selection actions to the platform adapter", failures)
+    require("TerminalPlatformAdapter(activity, view)" in controller, "controller must delegate Android capabilities to the platform adapter", failures)
     require("TerminalContract.MessageType.PLATFORM_REQUEST" in controller, "controller must accept bounded platform requests", failures)
     require("ClipboardManager" in platform_adapter and "ClipData.newPlainText" in platform_adapter, "platform adapter must use Android text clipboard APIs", failures)
     require("Intent.ACTION_VIEW" in platform_adapter, "platform adapter must route validated external URIs through ACTION_VIEW", failures)
     require("performHapticFeedback" in platform_adapter, "platform adapter must expose Android haptic bell capability", failures)
     require("InputMethodManager" in platform_adapter and "showSoftInput" in platform_adapter and "restartInput" in platform_adapter, "platform adapter must explicitly activate Android soft input after a trusted Layer 3 tap", failures)
-    require("ActionMode.Callback2()" in platform_adapter and "ActionMode.TYPE_FLOATING" in platform_adapter, "platform adapter must use Android floating ActionMode for selection commands", failures)
-    require("HapticFeedbackConstants.LONG_PRESS" in platform_adapter, "long-press selection must use Android haptic feedback", failures)
-    require("MenuItem.SHOW_AS_ACTION_IF_ROOM" in platform_adapter, "selection commands must be visible in the floating toolbar when room permits", failures)
-    require("sendSelectionAction" in controller and "TerminalContract.MessageType.SELECTION_ACTION" in controller, "controller must transport selection actions", failures)
     require("AccessibilityStateChangeListener" in platform_adapter, "platform adapter must observe Android accessibility state", failures)
     require("TouchExplorationStateChangeListener" in platform_adapter, "platform adapter must observe touch exploration state", failures)
     require("data class TerminalPlatformState" in platform_state, "platform state contract must be explicit", failures)
@@ -351,7 +342,7 @@ def verify(root: Path) -> list[str]:
     require("WindowInsets.Type.ime()" in platform_adapter and "systemWindowInsetBottom > insets.stableInsetBottom" in platform_adapter, "soft-input visibility must use platform WindowInsets with an API 29 fallback", failures)
     require("requestPlatformStateSync()" in activity, "window-inset changes must republish platform state", failures)
     require("softInputVisible: Boolean(nativeMessage.softInputVisible)" in javascript, "Layer 2 must expose soft-input visibility to Layer 3", failures)
-    require("touchActivationAuthority: 'webview-default-one-finger-complete-ownership'" in customization_js, "native touch-selection POC must leave unclaimed taps to WebView/xterm", failures)
+    require("preserve-visible-ime-blur-hidden-ime" in customization_js, "Layer 3 gesture focus must preserve an already-visible IME", failures)
     require("const upstreamFontSizes = new WeakMap()" in platform_js, "font-scale mapping must capture each upstream terminal default", failures)
     require("Number(terminal.options.fontSize)" in platform_js, "font-scale mapping must consume the upstream font size", failures)
     require("upstreamFontSizes.get(terminal) * boundedFontScale(value)" in platform_js, "font-scale mapping must scale from the upstream baseline without compounding", failures)
@@ -437,20 +428,6 @@ def verify(root: Path) -> list[str]:
     require("AndroidTerminalCustomization" not in javascript and "/terminal/customization/" not in javascript, "Layer 2 must not depend on Layer 3", failures)
     require("terminal.options.theme" not in platform_js and "darkTheme" not in platform_js and "lightTheme" not in platform_js, "project palettes must not remain in Layer 2", failures)
     require("window.AndroidTerminalCustomization" in customization_js and "layer2.onPlatformState" in customization_js, "Layer 3 JavaScript scaffold must consume the public Layer 2 capability", failures)
-    require("contractVersion: 3" in customization_js, "Layer 3 touch interaction contract must be version 3", failures)
-    require("webview-native-touch-selection-poc-v1" in terminal_contract and "webview-native-touch-selection-poc-v1" in contract_js, "native touch-selection POC capability must match", failures)
-    require("layer2.useDomRenderer('native-touch-selection-isolation')" in customization_js, "Layer 3 must select xterm's official DOM renderer", failures)
-    require("xtermElement.classList.add('xterm-native-touch-selection')" in customization_js, "Layer 3 must activate the bounded native-selection class", failures)
-    require("webview-native-dom-row-selection-isolation-poc" in customization_js and "webview-native-if-row-selection-succeeds" in customization_js, "native selection authority declaration is missing", failures)
-    require("showSelectionActionMode" not in customization_js and "onSelectionAction" not in customization_js and "dispatchMouseEvent" not in customization_js, "custom selection/action-mode ownership must be inactive in the POC", failures)
-    require("user-select: text !important" in customization_css and "touch-action: auto !important" in customization_css and "pointer-events: auto !important" in customization_css, "DOM rows must be fully delegated to WebView native selection and pan", failures)
-    require("suppressXtermTouchSelection" in customization_js and "stopImmediatePropagation" in customization_js, "xterm internal touch selection must yield without cancelling browser default selection", failures)
-    for forbidden in ("scrollLines(", "syncNativePasteTarget", "handleNativePaste", "xterm-helper-textarea", "touch-action: none"):
-        require(forbidden not in customization_js and forbidden not in customization_css, f"row-selection isolation must not contain competing touch or paste path: {forbidden}", failures)
-    require("webview-native-overflow-isolation" in customization_js and "none-in-row-selection-isolation" in customization_js, "row-selection isolation authority declaration is incomplete", failures)
-    require("._core" not in customization_js, "Layer 3 selection must not use xterm private APIs", failures)
-    for token in ('name="selection_copy"', 'name="selection_paste"', 'name="selection_select_all"'):
-        require(token in strings_default and token in strings_ko, f"selection action string is required in both locales: {token}", failures)
     require("layer2.terminal.options.theme" in customization_js, "project palette must be owned by Layer 3", failures)
     require("CONTRACT_VERSION = 2" in customization_kt, "Layer 3 native scaffold contract is required", failures)
     require("nativePort" not in customization_js and "NativePty" not in customization_kt, "Layer 3 must not bypass Layer 2 internals", failures)
@@ -516,7 +493,7 @@ def verify(root: Path) -> list[str]:
     require("TerminalSessionDirectories.prepareTemporaryDirectory(temporaryDirectory)" in session, "session must prepare the distinct TMPDIR", failures)
     require("directory.mkdirs()" in session_directories and "directory.canWrite()" in session_directories, "TMPDIR creation and writability checks are required", failures)
     require("layer3-scaffold-v1" in terminal_contract and "layer3-scaffold-v1" in contract_js, "Layer 3 scaffold capability must match", failures)
-    require("webview-default-touch-activation-poc-v1" in terminal_contract and "webview-default-touch-activation-poc-v1" in contract_js, "WebView-default touch activation POC capability must match", failures)
+    require("ime-aware-layer3-gesture-focus-v1" in terminal_contract and "ime-aware-layer3-gesture-focus-v1" in contract_js, "IME-aware Layer 3 gesture capability must match", failures)
     require("android-soft-input-visibility-state" in terminal_contract and "android-soft-input-visibility-state" in contract_js, "native soft-input visibility capability must match", failures)
     require("stable-addon-wave-v1" in terminal_contract and "stable-addon-wave-v1" in contract_js, "stable addon wave capability must match", failures)
     require("login-shell-v1" in terminal_contract and "login-shell-v1" in contract_js, "login-shell capability must match", failures)

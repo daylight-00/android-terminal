@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "observed_at": "2026-07-25",
+  "observed_at": "2026-07-24",
   "status": "repository-complete-device-validation-pending",
   "repository_gate": "complete",
   "device_gate": "pending",
   "runtime_contract": {
-    "wire_protocol": 7,
+    "wire_protocol": 6,
     "layer2_extension": 4,
-    "layer3_scaffold": 3,
+    "layer3_scaffold": 2,
     "page_capability": "layer2-completion-v1"
   },
   "upstream": {
@@ -54,16 +54,13 @@
     "fresh HOME remains unpopulated before explicit user action",
     "TMPDIR maps to cacheDir/tmp and is recreated after cache eviction",
     "startup shared-storage system permission flow without HOME symlink or child environment synthesis",
-    "SAF import to HOME root and caller-selected HOME-relative destination without a fixed inbox",
-    "long-press xterm selection and Android floating action mode"
+    "SAF import to HOME root and caller-selected HOME-relative destination without a fixed inbox"
   ],
   "nonclaims": [
     "release-quality Layer 3 UX",
     "bundled userland or package manager",
     "generic browser behavior",
-    "experimental Unicode grapheme addon",
-    "movable Android-style text selection handles",
-    "preservation of an already-visible IME during Layer 3 gestures"
+    "experimental Unicode grapheme addon"
   ],
   "account_session": {
     "status": "repository-complete-device-validation-pending",

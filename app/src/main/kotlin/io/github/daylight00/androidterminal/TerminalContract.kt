@@ -1,7 +1,7 @@
 package io.github.daylight00.androidterminal
 
 internal object TerminalContract {
-    const val PROTOCOL_VERSION = 7
+    const val PROTOCOL_VERSION = 6
     const val ORIGIN = "https://app.local"
     const val HOST = "app.local"
     const val DOCUMENT_PATH = "/terminal/index.html"
@@ -26,7 +26,6 @@ internal object TerminalContract {
         const val GEOMETRY = "geometry"
         const val PLATFORM_STATE = "platform-state"
         const val PLATFORM_RESULT = "platform-result"
-        const val SELECTION_ACTION = "selection-action"
         const val ERROR = "error"
     }
 
@@ -36,17 +35,8 @@ internal object TerminalContract {
         const val OPEN_EXTERNAL_URI = "open-external-uri"
         const val BELL = "bell"
         const val SOFT_INPUT_SHOW = "soft-input-show"
-        const val SELECTION_ACTION_MODE_SHOW = "selection-action-mode-show"
-        const val SELECTION_ACTION_MODE_HIDE = "selection-action-mode-hide"
         const val DOCUMENT_IMPORT = "document-import"
         const val DOCUMENT_EXPORT = "document-export"
-    }
-
-    object SelectionAction {
-        const val COPY = "copy"
-        const val PASTE = "paste"
-        const val SELECT_ALL = "select-all"
-        const val CLEAR = "clear"
     }
 
     val REQUIRED_PAGE_CAPABILITIES = setOf(
@@ -63,8 +53,7 @@ internal object TerminalContract {
         "serialize-state-v1",
         "webgl-renderer-fallback-v1",
         "layer3-scaffold-v1",
-        "webview-default-touch-activation-poc-v1",
-        "webview-native-touch-selection-poc-v1",
+        "ime-aware-layer3-gesture-focus-v1",
         "session-title-state-v1",
         "localized-xterm-strings-v1",
         "safe-window-reports-v1",
@@ -90,7 +79,6 @@ internal object TerminalContract {
         "android-localized-xterm-strings",
         "android-hardware-keyboard-state",
         "android-soft-input-visibility-state",
-        "android-floating-selection-action-mode",
         "android-font-scale-state",
         "android-document-transport",
         "android-shared-storage-direct-path",

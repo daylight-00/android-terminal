@@ -26,7 +26,7 @@ The runtime is divided into unmodified upstream, required Android integration, a
 ### Web terminal frontend
 
 Pinned xterm.js production files provide the terminal parser, screen model, Unicode and
-IME behavior, scrollback, selection, cursor, and core DOM renderer. The official WebGL addon is a Layer 1 renderer automatically attempted by Layer 2; Layer 2 disposes it on its public context-loss event and falls back to the core renderer without touching terminal state. `addon-fit` computes rows and columns from the WebView geometry. Protocol v7 treats Android root
+IME behavior, scrollback, selection, cursor, and core DOM renderer. The official WebGL addon is a Layer 1 renderer automatically attempted by Layer 2; Layer 2 disposes it on its public context-loss event and falls back to the core renderer without touching terminal state. `addon-fit` computes rows and columns from the WebView geometry. Protocol v6 treats Android root
 layout, window-inset, configuration, focus, `ResizeObserver`, and `visualViewport` changes as
 geometry invalidations. Only positive, changed row/column and pixel dimensions are forwarded to the
 service and then to `TIOCSWINSZ`; transient zero layouts and duplicates are discarded without

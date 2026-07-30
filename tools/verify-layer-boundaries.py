@@ -190,13 +190,13 @@ def verify(root: Path) -> list[str]:
         fail("Layer 2 must expose the stable optional-customization capability", failures)
     if "AndroidTerminalCustomization" in bridge_js or "/terminal/customization/" in bridge_js:
         fail("Layer 2 must not depend on the Layer 3 implementation", failures)
-    if "contractVersion: 3" not in customization_js or "window.AndroidTerminalCustomization" not in customization_js:
-        fail("Layer 3 JavaScript interaction contract is incomplete", failures)
+    if "contractVersion: 2" not in customization_js or "window.AndroidTerminalCustomization" not in customization_js:
+        fail("Layer 3 JavaScript scaffold contract is incomplete", failures)
     if "CONTRACT_VERSION = 2" not in customization_kt:
         fail("Layer 3 native scaffold contract is incomplete", failures)
 
-    if "protocolVersion: 7" not in contract_js or "PROTOCOL_VERSION = 7" not in contract_kt:
-        fail("JavaScript and Kotlin protocol version 7 must match", failures)
+    if "protocolVersion: 6" not in contract_js or "PROTOCOL_VERSION = 6" not in contract_kt:
+        fail("JavaScript and Kotlin protocol version 6 must match", failures)
     if "channelMarker: 'native-shell'" not in contract_js or 'CHANNEL_MARKER = "native-shell"' not in contract_kt:
         fail("JavaScript and Kotlin channel marker must match", failures)
     message_types = {
@@ -214,7 +214,6 @@ def verify(root: Path) -> list[str]:
         "geometry": "geometry",
         "platformState": "platform-state",
         "platformResult": "platform-result",
-        "selectionAction": "selection-action",
         "error": "error",
     }
     for key, wire in message_types.items():
@@ -263,16 +262,11 @@ def verify(root: Path) -> list[str]:
         "contract.messages.platformResult",
         "importDocument(options = {})",
         "exportDocument(path, options = {})",
-        "contract.platformOperations.selectionActionModeShow",
-        "contract.platformOperations.selectionActionModeHide",
         "contract.platformOperations.documentImport",
         "contract.platformOperations.documentExport",
         "platformIntegration.applyPlatformState",
         "window.AndroidTerminalLayer2 = Object.freeze",
         "onPlatformState",
-        "onSelectionAction",
-        "showSelectionActionMode(contentRect)",
-        "hideSelectionActionMode()",
         "requestGeometrySync()",
         "contractVersion: 4",
     ):
@@ -519,8 +513,8 @@ def verify(root: Path) -> list[str]:
         fail("controller does not transport soft-input visibility", failures)
     if "softInputVisible: Boolean(nativeMessage.softInputVisible)" not in bridge_js:
         fail("Layer 2 JavaScript does not expose soft-input visibility", failures)
-    if "touchActivationAuthority: 'webview-default-one-finger-complete-ownership'" not in customization_js:
-        fail("Layer 3 native-selection POC does not leave unclaimed taps to WebView/xterm", failures)
+    if "preserve-visible-ime-blur-hidden-ime" not in customization_js:
+        fail("Layer 3 does not preserve an already-visible IME during owned touch", failures)
     if "controller?.requestPlatformStateSync()" not in activity:
         fail("window-inset changes do not republish platform state", failures)
     if 'android:configChanges="fontScale|' not in manifest:
@@ -534,56 +528,14 @@ def verify(root: Path) -> list[str]:
         "android-system-theme",
         "android-accessibility-state",
         "android-hardware-keyboard-state",
-        "android-floating-selection-action-mode",
         "android-document-transport",
         "android-shared-storage-direct-path",
         "android-native-account-session",
     ):
         if capability not in contract_kt:
             fail(f"native platform capability is missing: {capability}", failures)
-    if "TerminalPlatformAdapter(" not in controller or "onSelectionAction =" not in controller:
-        fail("WebView controller must delegate Android capabilities and selection actions to TerminalPlatformAdapter", failures)
-    for capability in ("webview-native-touch-selection-poc-v1", "webview-default-touch-activation-poc-v1"):
-        if capability not in contract_js or capability not in contract_kt:
-            fail(f"Layer 3 touch capability must match across JavaScript and Kotlin: {capability}", failures)
-    for token in (
-        "layer2.useDomRenderer('native-touch-selection-isolation')",
-        "xtermElement.classList.add('xterm-native-touch-selection')",
-        "selectionAuthority: 'webview-native-dom-row-selection-isolation-poc'",
-        "selectionHandles: 'webview-native-if-supported'",
-        "copyAuthority: 'webview-native-if-row-selection-succeeds'",
-        "pasteAuthority: 'none-in-row-selection-isolation'",
-    ):
-        if token not in customization_js:
-            fail(f"Layer 3 native touch-selection POC lacks token: {token}", failures)
-    for forbidden in ("showSelectionActionMode", "onSelectionAction", "dispatchMouseEvent"):
-        if forbidden in customization_js:
-            fail(f"custom selection ownership remains active in native-selection POC: {forbidden}", failures)
-    for token in ("user-select: text !important", "touch-action: auto !important", "pointer-events: auto !important"):
-        if token not in customization_css:
-            fail(f"native-selection isolation CSS lacks token: {token}", failures)
-    for token in ("suppressXtermTouchSelection", "webview-native-overflow-isolation"):
-        if token not in customization_js:
-            fail(f"public xterm/WebView row-selection isolation lacks token: {token}", failures)
-    for forbidden in ("scrollLines(", "syncNativePasteTarget", "handleNativePaste", "xterm-helper-textarea", "touch-action: none"):
-        if forbidden in customization_js or forbidden in customization_css:
-            fail(f"row-selection isolation contains competing touch or paste token: {forbidden}", failures)
-    for token in (
-        "ActionMode.Callback2()",
-        "ActionMode.TYPE_FLOATING",
-        "HapticFeedbackConstants.LONG_PRESS",
-        "TerminalContract.SelectionAction.COPY",
-        "TerminalContract.SelectionAction.PASTE",
-        "TerminalContract.SelectionAction.SELECT_ALL",
-    ):
-        if token not in platform_adapter:
-            fail(f"Android floating selection action mode lacks token: {token}", failures)
-    for token in ('name="selection_copy"', 'name="selection_paste"', 'name="selection_select_all"'):
-        if token not in strings_default or token not in strings_ko:
-            fail(f"Android selection action resources lack token: {token}", failures)
-    if "sendSelectionAction" not in controller or "TerminalContract.MessageType.SELECTION_ACTION" not in controller:
-        fail("controller does not transport native selection actions to Layer 3", failures)
-
+    if "TerminalPlatformAdapter(activity, view)" not in controller:
+        fail("WebView controller must delegate Android capabilities to TerminalPlatformAdapter", failures)
     if "TerminalContract.MessageType.PLATFORM_REQUEST" not in controller:
         fail("Kotlin controller does not accept bounded platform requests", failures)
     for token in (

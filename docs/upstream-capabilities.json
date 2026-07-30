@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "observed_at": "2026-07-25",
+  "observed_at": "2026-07-24",
   "upstream": {
     "project": "xtermjs/xterm.js",
     "maintained_addon_source": "https://github.com/xtermjs/xterm.js#addons",
@@ -52,16 +52,16 @@
       "authority": "xterm DOM input and WebView",
       "classification": "native-already",
       "status": "connected",
-      "android_boundary": "WebView/xterm remain DOM-input authority; Android reports hardware-keyboard and IME-visibility state and exposes an explicit show-only request for an ordinary Layer 3 tap.",
-      "layer3_boundary": "Optional modifier bars, special keys, and gesture policy are Layer 3. Non-tap gestures issue no show request; preserving an already-visible IME is not yet a device claim."
+      "android_boundary": "WebView remains IME and key authority; Android reports physical-keyboard state without duplicate key translation.",
+      "layer3_boundary": "Optional modifier bars and special keys are Layer 3."
     },
     {
       "id": "clipboard-selection-paste",
-      "authority": "Terminal selection APIs, DOM selection, and Terminal.paste",
+      "authority": "Terminal selection APIs and Terminal.paste",
       "classification": "layer2-runtime",
       "status": "connected",
-      "android_boundary": "Bounded explicit copy/paste operations use Android ClipboardManager; Android also exposes a neutral floating ActionMode command surface.",
-      "layer3_boundary": "The current row-selection isolation POC leaves all one-finger gestures, DOM row selection, Android handles, Copy UI, and overflow pan to WebView. The helper-textarea Paste experiment and JavaScript scroll fallback are deliberately absent; the neutral Layer 2 floating ActionMode remains dormant."
+      "android_boundary": "Bounded explicit copy/paste operations use Android ClipboardManager.",
+      "layer3_boundary": "Clipboard buttons or gestures are Layer 3."
     },
     {
       "id": "osc52-clipboard",

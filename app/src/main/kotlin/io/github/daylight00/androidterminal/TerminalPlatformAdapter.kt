@@ -6,15 +6,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
-import android.view.ActionMode
 import android.view.HapticFeedbackConstants
-import android.view.Menu
-import android.view.MenuItem
-import android.view.View
 import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityManager
@@ -29,7 +24,6 @@ internal class TerminalPlatformAdapter(
     private val activity: Activity,
     private val terminalView: WebView,
     private val onStateChanged: (TerminalPlatformState) -> Unit,
-    private val onSelectionAction: (String) -> Unit,
 ) : AutoCloseable {
     private val clipboardManager = activity.getSystemService(ClipboardManager::class.java)
     private val accessibilityManager = activity.getSystemService(AccessibilityManager::class.java)
@@ -45,55 +39,6 @@ internal class TerminalPlatformAdapter(
     private var lastBellMillis = Long.MIN_VALUE
     private var nextDocumentToken = 1L
     private var pendingDocumentRequest: PendingDocumentRequest? = null
-    private var selectionActionMode: ActionMode? = null
-    private val selectionContentRect = Rect()
-    private var selectionHasSelection = false
-
-    private val selectionActionModeCallback = object : ActionMode.Callback2() {
-        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-            menu.add(Menu.NONE, MENU_COPY, 0, R.string.selection_copy)
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            menu.add(Menu.NONE, MENU_PASTE, 1, R.string.selection_paste)
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            menu.add(Menu.NONE, MENU_SELECT_ALL, 2, R.string.selection_select_all)
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            return true
-        }
-
-        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
-            menu.findItem(MENU_COPY)?.isEnabled = selectionHasSelection
-            menu.findItem(MENU_PASTE)?.isEnabled = hasClipboardText()
-            return true
-        }
-
-        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean = when (item.itemId) {
-            MENU_COPY -> {
-                onSelectionAction(TerminalContract.SelectionAction.COPY)
-                mode.finish()
-                true
-            }
-            MENU_PASTE -> {
-                onSelectionAction(TerminalContract.SelectionAction.PASTE)
-                mode.finish()
-                true
-            }
-            MENU_SELECT_ALL -> {
-                onSelectionAction(TerminalContract.SelectionAction.SELECT_ALL)
-                mode.invalidateContentRect()
-                true
-            }
-            else -> false
-        }
-
-        override fun onDestroyActionMode(mode: ActionMode) {
-            if (selectionActionMode === mode) selectionActionMode = null
-            if (!closed) onSelectionAction(TerminalContract.SelectionAction.CLEAR)
-        }
-
-        override fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {
-            outRect.set(selectionContentRect)
-        }
-    }
 
     init {
         accessibilityManager?.addAccessibilityStateChangeListener(accessibilityStateListener)
@@ -104,8 +49,6 @@ internal class TerminalPlatformAdapter(
         if (closed) return
         closed = true
         pendingDocumentRequest = null
-        selectionActionMode?.finish()
-        selectionActionMode = null
         accessibilityManager?.removeAccessibilityStateChangeListener(accessibilityStateListener)
         accessibilityManager?.removeTouchExplorationStateChangeListener(touchExplorationStateListener)
     }
@@ -164,12 +107,6 @@ internal class TerminalPlatformAdapter(
             }
             TerminalContract.PlatformOperation.BELL -> completion(performBell())
             TerminalContract.PlatformOperation.SOFT_INPUT_SHOW -> completion(requestSoftInput())
-            TerminalContract.PlatformOperation.SELECTION_ACTION_MODE_SHOW -> {
-                completion(showSelectionActionMode(payload))
-            }
-            TerminalContract.PlatformOperation.SELECTION_ACTION_MODE_HIDE -> {
-                completion(hideSelectionActionMode())
-            }
             TerminalContract.PlatformOperation.DOCUMENT_IMPORT -> {
                 beginDocumentImport(payload, completion)
             }
@@ -294,61 +231,6 @@ internal class TerminalPlatformAdapter(
         }
     }
 
-    private fun showSelectionActionMode(payload: JSONObject): TerminalPlatformResult {
-        val contentRect = validatedSelectionContentRect(payload)
-            ?: return TerminalPlatformResult.failure("selection content rectangle is invalid")
-        selectionContentRect.set(contentRect)
-        selectionHasSelection = payload.optBoolean("hasSelection", false)
-        val activeMode = selectionActionMode
-        if (activeMode != null) {
-            activeMode.invalidate()
-            activeMode.invalidateContentRect()
-            return TerminalPlatformResult.success(JSONObject().put("shown", true).put("updated", true))
-        }
-        val mode = terminalView.startActionMode(
-            selectionActionModeCallback,
-            ActionMode.TYPE_FLOATING,
-        ) ?: return TerminalPlatformResult.failure("Android selection action mode is unavailable")
-        selectionActionMode = mode
-        terminalView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        return TerminalPlatformResult.success(JSONObject().put("shown", true).put("updated", false))
-    }
-
-    private fun hideSelectionActionMode(): TerminalPlatformResult {
-        val mode = selectionActionMode
-        if (mode == null) {
-            return TerminalPlatformResult.success(JSONObject().put("hidden", false))
-        }
-        mode.finish()
-        return TerminalPlatformResult.success(JSONObject().put("hidden", true))
-    }
-
-    private fun validatedSelectionContentRect(payload: JSONObject): Rect? {
-        val left = payload.optInt("left", Int.MIN_VALUE)
-        val top = payload.optInt("top", Int.MIN_VALUE)
-        val right = payload.optInt("right", Int.MIN_VALUE)
-        val bottom = payload.optInt("bottom", Int.MIN_VALUE)
-        if (left == Int.MIN_VALUE || top == Int.MIN_VALUE ||
-            right == Int.MIN_VALUE || bottom == Int.MIN_VALUE ||
-            right <= left || bottom <= top
-        ) {
-            return null
-        }
-        val width = terminalView.width.coerceAtLeast(1)
-        val height = terminalView.height.coerceAtLeast(1)
-        val boundedLeft = left.coerceIn(0, width - 1)
-        val boundedTop = top.coerceIn(0, height - 1)
-        val boundedRight = right.coerceIn(boundedLeft + 1, width)
-        val boundedBottom = bottom.coerceIn(boundedTop + 1, height)
-        return Rect(boundedLeft, boundedTop, boundedRight, boundedBottom)
-    }
-
-    private fun hasClipboardText(): Boolean {
-        val clip = clipboardManager?.primaryClip ?: return false
-        if (clip.itemCount <= 0) return false
-        return clip.getItemAt(0).text != null
-    }
-
     private fun readClipboard(): TerminalPlatformResult {
         if (!terminalView.hasWindowFocus()) {
             return TerminalPlatformResult.failure("clipboard read requires application focus")
@@ -438,9 +320,6 @@ internal class TerminalPlatformAdapter(
     }
 
     private companion object {
-        const val MENU_COPY = 1
-        const val MENU_PASTE = 2
-        const val MENU_SELECT_ALL = 3
         const val REQUEST_IMPORT_DOCUMENT = 0x5401
         const val REQUEST_EXPORT_DOCUMENT = 0x5402
     }

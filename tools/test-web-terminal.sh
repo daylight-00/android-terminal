@@ -69,32 +69,7 @@ const paths = process.argv.slice(2);
       remove(value) { statusClasses.delete(value); }
     }
   };
-  const terminalTouchListeners = new Map();
-  const terminalClassValues = new Set();
-  const terminalClassList = {
-    add(value) { terminalClassValues.add(value); },
-    remove(value) { terminalClassValues.delete(value); },
-    contains(value) { return terminalClassValues.has(value); }
-  };
-  const fakeScreen = {
-    getBoundingClientRect() {
-      return {left: 0, top: 0, right: 1080, bottom: 1920, width: 1080, height: 1920};
-    }
-  };
-  const container = {
-    clientWidth: 0,
-    clientHeight: 0,
-    addEventListener(type, callback) {
-      const values = terminalTouchListeners.get(type) || [];
-      values.push(callback);
-      terminalTouchListeners.set(type, values);
-    },
-    removeEventListener(type, callback) {
-      const values = terminalTouchListeners.get(type) || [];
-      terminalTouchListeners.set(type, values.filter((value) => value !== callback));
-    },
-    querySelector(selector) { return selector === '.xterm-screen' ? fakeScreen : null; }
-  };
+  const container = {clientWidth: 0, clientHeight: 0};
   const posted = [];
   let portStarted = false;
   let resizeObserverCallback = null;
@@ -127,9 +102,6 @@ const paths = process.argv.slice(2);
       this.unicode = {activeVersion: '6', versions: ['6']};
       this.strings = {promptLabel: 'upstream prompt', tooMuchOutput: 'upstream output'};
       this.selection = '';
-      this.element = null;
-      this.buffer = {active: {type: 'normal'}};
-      this.modes = {mouseTrackingMode: 'none'};
       this.parser = {
         registerCsiHandler(identifier, callback) {
           const registration = {identifier, callback, dispose() {}};
@@ -143,7 +115,7 @@ const paths = process.argv.slice(2);
       loadedAddons.push(addon);
       if (addon && typeof addon.activate === 'function') addon.activate(this);
     }
-    open() { this.element = {classList: terminalClassList, addEventListener() {}, removeEventListener() {}}; }
+    open() {}
     onData(callback) { this.dataCallback = callback; return {dispose() {}}; }
     onBinary(callback) { this.binaryCallback = callback; return {dispose() {}}; }
     onBell(callback) { this.bellCallback = callback; return {dispose() {}}; }
@@ -155,7 +127,6 @@ const paths = process.argv.slice(2);
     paste(value) { pastes.push(value); }
     input(value, wasUserInput) { terminalInputs.push({value, wasUserInput}); }
     refresh(start, end) { refreshes.push({start, end}); }
-    scrollLines(value) { this.lastScrollLines = value; }
   }
 
   class SerializeAddon {
@@ -240,7 +211,7 @@ const paths = process.argv.slice(2);
 
   function sendNative(payload) {
     port.onmessage({data: JSON.stringify({
-      contractVersion: 7,
+      contractVersion: 6,
       connectionGeneration: 3,
       sessionId: 'session-a',
       ...payload
@@ -329,7 +300,7 @@ const paths = process.argv.slice(2);
   }
 
   if (!context.AndroidTerminalContract) throw new Error('contract export missing');
-  if (context.AndroidTerminalContract.protocolVersion !== 7) throw new Error('protocol v7 missing');
+  if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
   if (!context.AndroidTerminalPlatformIntegration) throw new Error('platform integration export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
   if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 4) {
@@ -352,18 +323,15 @@ const paths = process.argv.slice(2);
       completionSnapshot.unicodeVersions.join(',') !== '6,11') {
     throw new Error('Layer 2 completion snapshot mismatch');
   }
-  if (!context.AndroidTerminalCustomization || context.AndroidTerminalCustomization.contractVersion !== 3) {
+  if (!context.AndroidTerminalCustomization || context.AndroidTerminalCustomization.contractVersion !== 2) {
     throw new Error('Layer 3 scaffold missing');
   }
   if (!context.AndroidTerminalBridge || typeof context.AndroidTerminalBridge.getRendererState !== 'function') {
     throw new Error('renderer state facade missing');
   }
   const rendererState = context.AndroidTerminalBridge.getRendererState();
-  if (rendererState.mode !== 'dom' || rendererState.reason !== 'native-touch-selection-isolation') {
-    throw new Error('Layer 3 native-selection DOM renderer state mismatch');
-  }
-  if (!terminalClassValues.has('xterm-native-touch-selection')) {
-    throw new Error('native touch-selection class missing');
+  if (rendererState.mode !== 'webgl' || rendererState.reason !== 'active') {
+    throw new Error('Layer 2 WebGL activation state mismatch');
   }
   if (!clipboardInstance || !loadedAddons.includes(clipboardInstance)) throw new Error('official ClipboardAddon was not loaded');
   for (const instance of [imageInstance, progressInstance, searchInstance, unicodeInstance, webFontsInstance]) {
@@ -387,11 +355,11 @@ const paths = process.argv.slice(2);
   resizeObserverCallback();
   flushFrames();
   if (posted.length !== 1 || posted[0].type !== 'ready') throw new Error('ready message missing');
-  if (posted[0].contractVersion !== 7) throw new Error('ready contract version missing');
+  if (posted[0].contractVersion !== 6) throw new Error('ready contract version missing');
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
-  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v2', 'serialize-state-v1', 'webgl-renderer-fallback-v1', 'webview-native-touch-selection-poc-v1', 'session-title-state-v1', 'localized-xterm-strings-v1', 'safe-window-reports-v1']) {
+  for (const capability of ['geometry-dedup-v1', 'platform-bridge-v2', 'android-font-scale-v1', 'web-links-v1', 'document-transport-v2', 'serialize-state-v1', 'webgl-renderer-fallback-v1', 'session-title-state-v1', 'localized-xterm-strings-v1', 'safe-window-reports-v1']) {
     if (!posted[0].capabilities.includes(capability)) throw new Error(`ready capability missing: ${capability}`);
   }
   for (const forbidden of ['osc52-clipboard']) {
@@ -400,7 +368,7 @@ const paths = process.argv.slice(2);
 
   const requiredNative = context.AndroidTerminalContract.requiredNativeCapabilities;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 7,
+    contractVersion: 6,
     type: 'attached',
     connectionGeneration: 3,
     sessionId: 'session-a',
@@ -466,7 +434,7 @@ const paths = process.argv.slice(2);
   if (posted.length !== 2) throw new Error('transient zero geometry emitted resize');
 
   port.onmessage({data: JSON.stringify({
-    contractVersion: 7,
+    contractVersion: 6,
     type: 'output',
     connectionGeneration: 2,
     sessionId: 'stale-session',
@@ -512,38 +480,6 @@ const paths = process.argv.slice(2);
   const softInputRequest = latestRequest('soft-input-show');
   completeRequest(softInputRequest, {requested: true});
   if (!(await softInputPromise).requested) throw new Error('soft-input request result mismatch');
-
-  const selectionModePromise = context.AndroidTerminalPlatform.showSelectionActionMode({
-    left: 10,
-    top: 20,
-    right: 110,
-    bottom: 60,
-    hasSelection: true
-  });
-  const selectionModeRequest = latestRequest('selection-action-mode-show');
-  if (selectionModeRequest.payload.left !== 10 || selectionModeRequest.payload.bottom !== 60 ||
-      selectionModeRequest.payload.hasSelection !== true) {
-    throw new Error('selection action-mode state was not transported');
-  }
-  completeRequest(selectionModeRequest, {shown: true});
-  if (!(await selectionModePromise).shown) throw new Error('selection action-mode result mismatch');
-
-  const hideSelectionModePromise = context.AndroidTerminalPlatform.hideSelectionActionMode();
-  const hideSelectionModeRequest = latestRequest('selection-action-mode-hide');
-  completeRequest(hideSelectionModeRequest, {hidden: true});
-  if (!(await hideSelectionModePromise).hidden) throw new Error('selection action-mode hide mismatch');
-
-  const selectionActions = [];
-  const selectionActionSubscription = context.AndroidTerminalLayer2.onSelectionAction(
-    (action) => selectionActions.push(action)
-  );
-  sendNative({type: 'selection-action', action: 'copy'});
-  sendNative({type: 'selection-action', action: 'select-all'});
-  sendNative({type: 'selection-action', action: 'invalid'});
-  if (selectionActions.join(',') !== 'copy,select-all') {
-    throw new Error('native selection actions were not bounded and published to Layer 3');
-  }
-  selectionActionSubscription.dispose();
 
   const countBeforeBlockedUri = posted.length;
   let blocked = false;
@@ -649,7 +585,7 @@ const paths = process.argv.slice(2);
   await exportPromise;
 
   port.onmessage({data: JSON.stringify({
-    contractVersion: 7,
+    contractVersion: 6,
     type: 'attached',
     connectionGeneration: 4,
     sessionId: 'session-gap',
@@ -663,7 +599,7 @@ const paths = process.argv.slice(2);
   })});
   const gapCount = posted.length;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 7,
+    contractVersion: 6,
     type: 'output',
     connectionGeneration: 4,
     sessionId: 'session-gap',
@@ -677,7 +613,7 @@ const paths = process.argv.slice(2);
 
   const countBeforeRestore = posted.length;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 7,
+    contractVersion: 6,
     type: 'attached',
     connectionGeneration: 5,
     sessionId: 'session-b',
@@ -731,7 +667,7 @@ const paths = process.argv.slice(2);
   if (windowHandler.callback([18]) !== false) throw new Error('upstream-owned window report was intercepted');
   titleSubscription.dispose();
 
-  console.log('PASS web-terminal-channel contract=7 stable-addons=clipboard,image,progress,search,unicode11,web-fonts,ligatures serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,soft-input,documents layer3=optional-theme geometry=deduplicated');
+  console.log('PASS web-terminal-channel contract=6 stable-addons=clipboard,image,progress,search,unicode11,web-fonts,ligatures serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,soft-input,documents layer3=optional-theme geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -748,7 +684,7 @@ import sys
 contract_path, codec_path, platform_path, bridge_path = map(pathlib.Path, sys.argv[1:])
 required = {
     contract_path: (
-        "protocolVersion: 7",
+        "protocolVersion: 6",
         "channelMarker: 'native-shell'",
         "session-attach-v2",
         "geometry-dedup-v1",
@@ -762,9 +698,6 @@ required = {
         "platformRequest: 'platform-request'",
         "platformState: 'platform-state'",
         "android-soft-input-visibility-state",
-        "android-floating-selection-action-mode",
-        "webview-native-touch-selection-poc-v1",
-        "selectionAction: 'selection-action'",
         "platformResult: 'platform-result'",
     ),
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
@@ -783,8 +716,6 @@ required = {
         "new window.ClipboardAddon.ClipboardAddon(undefined, clipboardProvider)",
         "showSoftInput()",
         "softInputShow: 'soft-input-show'",
-        "selectionActionModeShow: 'selection-action-mode-show'",
-        "selectionActionModeHide: 'selection-action-mode-hide'",
         "new window.ImageAddon.ImageAddon()",
         "new window.ProgressAddon.ProgressAddon()",
         "new window.SearchAddon.SearchAddon()",
@@ -807,8 +738,6 @@ required = {
         "contractVersion: 4",
         "getTitleState()",
         "getWindowReportState()",
-        "onSelectionAction",
-        "showSelectionActionMode(contentRect)",
         "window.AndroidTerminalPlatform = platform",
         "importDocument(options = {})",
         "exportDocument(path, options = {})",

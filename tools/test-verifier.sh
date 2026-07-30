@@ -267,36 +267,6 @@ if python3 "$ROOT/tools/verify_policy.py" "$LAYER3_INCOMPLETE" >/dev/null 2>&1; 
 fi
 printf 'PASS verifier-layer3-incomplete\n'
 
-SELECTION_NEGATIVE=$TMP/selection-negative
-copy_fixture "$SELECTION_NEGATIVE"
-python3 - "$SELECTION_NEGATIVE/app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt" <<'PYNEG'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-path.write_text(text.replace("ActionMode.TYPE_FLOATING", "ActionMode.TYPE_PRIMARY", 1), encoding="utf-8")
-PYNEG
-if python3 "$ROOT/tools/verify_policy.py" "$SELECTION_NEGATIVE" >/dev/null 2>&1; then
-  printf 'FAIL verifier-selection-negative unexpectedly passed\n' >&2
-  exit 1
-fi
-printf 'PASS verifier-selection-negative\n'
-
-SELECTION_INCOMPLETE=$TMP/selection-incomplete
-copy_fixture "$SELECTION_INCOMPLETE"
-python3 - "$SELECTION_INCOMPLETE/app/src/main/assets/terminal/bridge/terminal-contract.js" <<'PYNEG'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-path.write_text(text.replace("      'webview-native-touch-selection-poc-v1',\n", "", 1), encoding="utf-8")
-PYNEG
-if python3 "$ROOT/tools/verify-layer-boundaries.py" "$SELECTION_INCOMPLETE" >/dev/null 2>&1; then
-  printf 'FAIL verifier-selection-incomplete unexpectedly passed\n' >&2
-  exit 1
-fi
-printf 'PASS verifier-selection-incomplete\n'
-
 LAYER2_DEPENDENCY_NEGATIVE=$TMP/layer2-dependency-negative
 copy_fixture "$LAYER2_DEPENDENCY_NEGATIVE"
 printf '\nvoid window.AndroidTerminalCustomization;\n' >> "$LAYER2_DEPENDENCY_NEGATIVE/app/src/main/assets/terminal/bridge/terminal-bridge.js"

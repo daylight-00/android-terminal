@@ -1,53 +1,73 @@
 # Layer 3 touch interactions
 
-This policy sits above the completed Layer 2 terminal surface. It does not change the PTY, shell, pinned xterm.js assets, Android account/session contract, or byte transport.
+This policy sits above the completed Layer 2 terminal surface. It does not change the PTY, shell, xterm.js vendor assets, Android account/session contract, or terminal transport.
 
-## Current isolation proof of concept
+## Device finding
 
-The current experiment answers one question only: can Android System WebView select the real terminal row DOM produced by xterm's built-in DOM renderer?
+The initial device wave confirmed that pinch font zoom worked but one-finger scrolling did not. The earlier assumption that the pinned xterm.js `6.0.0` browser runtime connected its internal touch recognizer to the terminal viewport was incorrect.
 
-Layer 3 requests the DOM renderer through the public Layer 2 `useDomRenderer()` capability, marks the rendered rows as browser-selectable, and leaves every one-finger touch unconsumed from `touchstart` through completion. WebView therefore owns ordinary taps, long-press recognition, native DOM selection, Android selection handles, contextual Copy UI, and overflow panning. Layer 3 claims only a proven two-finger font-size pinch.
+The pinned public runtime provides `Terminal.scrollLines()` and a scrollback viewport, but its `MouseService` only converts pointer coordinates and its `Viewport` connects the scroll model to the browser scrollbar and wheel path. The later upstream touch-to-viewport integration must not be attributed retroactively to the pinned release.
 
-The pinned xterm 6.0.0 asset is unchanged. The adaptation uses only public surfaces:
+## Authority
 
-- `terminal.element` identifies the xterm DOM surface;
-- `terminal.options.fontSize` plus the existing geometry sync remain the pinch authority;
-- `useDomRenderer()` disposes the active WebGL addon and leaves xterm's built-in DOM renderer active.
+The terminal page remains fixed. Browser page scrolling and WebView page zoom are not enabled. xterm remains the sole owner of the terminal buffer and viewport position.
 
-The previous helper-textarea Paste experiment and the one-finger `scrollLines()` fallback are intentionally absent. Their removal prevents an editable textarea or a mid-gesture JavaScript handoff from contaminating the row-selection result.
-
-## Touch ownership
+Layer 3 owns only touch interpretation:
 
 ```text
-one finger
-  → WebView owns the complete gesture
-     tap / long press / native row selection / native overflow pan
-
-two fingers
-  → Layer 3 owns xterm font-size pinch
+one-finger CSS-pixel movement
+→ measured xterm cell height
+→ integer row delta
+→ public Terminal.scrollLines()
 ```
 
-Layer 3 never calls `preventDefault()` for a one-finger touch. A touch-generated compatibility `mousedown` is stopped before xterm's separate mouse-selection handler, without cancelling the browser default action. Hardware mouse input and active terminal mouse tracking remain outside that suppression.
+This is not a second scrollback model. Layer 3 stores only sub-row pixel remainder and short-lived gesture velocity; xterm still clamps and applies the authoritative viewport position.
 
-The CSS boundary explicitly restores `user-select: text`, `pointer-events: auto`, and `touch-action: auto` on the xterm root, viewport, screen, rendered rows, and row descendants.
+The existing xterm scrollbar remains browser-owned. Gestures that begin on the scrollbar are not intercepted.
 
-## Deliberate non-claims
+## One-finger scrolling
 
-This isolation POC does not claim that:
+A drag starts only after a six-pixel threshold, preserving ordinary taps. Motion is accumulated in CSS pixels and converted to rows using the rendered `.xterm-screen` height divided by `terminal.rows`. A font-size fallback is used only when rendered geometry is unavailable.
 
-- Android WebView will actually recognize xterm DOM rows as selectable text;
-- native selection handles or Copy UI will appear on every WebView/OEM version;
-- WebView overflow panning will synchronize correctly with xterm scrollback;
-- selection can extend beyond the currently rendered viewport;
-- selection survives output churn, resize, font-size changes, or renderer refresh;
-- native Paste is available;
-- an already-visible IME remains visible during pinch.
+The direction follows normal touch content semantics:
 
-A failure to select rows in this isolated configuration is meaningful evidence: CSS-level exposure of the current xterm 6.0.0 DOM renderer is insufficient on the target WebView, and another selection authority is required.
+- dragging down requests negative rows, revealing older scrollback;
+- dragging up requests positive rows, returning toward the live bottom.
+
+On release, recent motion samples drive a bounded `requestAnimationFrame` deceleration. Starting a new touch or pinch cancels the previous fling.
+
+The current policy is deliberately limited to the normal buffer when terminal mouse tracking is inactive. It does not synthesize mouse-wheel protocol messages or alternate-buffer arrow keys.
+
+
+## Soft-keyboard focus preservation
+
+The first device attempt suppressed `mousedown`, `mouseup`, and `click` only after a drag or pinch had already committed. That was too late on Android WebView: the initial `touchstart` could already arm xterm/WebView focus activation, with the soft keyboard appearing when the fingers were released.
+
+Layer 3 now owns a normal-buffer terminal-screen touch from the first `touchstart`. It prevents the browser compatibility activation for the entire candidate gesture and decides the outcome itself:
+
+```text
+movement crosses threshold or a second finger joins
+→ scroll or pinch
+→ no focus replay
+
+release below threshold
+→ ordinary tap
+→ replay mousedown, mouseup, click
+→ focus xterm input
+→ request Android InputMethodManager activation through the existing Layer 2 platform bridge
+```
+
+Synthetic JavaScript mouse events are not trusted Android input events, so `terminal.focus()` alone can focus the hidden xterm textarea without causing WebView to reopen the IME. The ordinary-tap path therefore follows DOM focus with an explicit native `soft-input-show` platform request. Scroll and pinch never send that request.
+
+xterm can retain focus on its hidden textarea after the Android keyboard has been dismissed. Android WebView can then reopen the IME for the next native touch even if JavaScript later consumes that touch as a scroll or pinch. Layer 3 therefore calls the public `terminal.blur()` operation at the beginning of every gesture it owns. A completed tap restores terminal focus and sends the explicit native `soft-input-show` request; committed scroll and pinch gestures remain unfocused and never send that request.
+
+This intentionally means that beginning a Layer 3-owned gesture ends the terminal editing focus. The xterm scrollbar and unsupported alternate-buffer/mouse-tracking paths remain outside this touch owner and retain their existing behavior.
 
 ## Pinch font zoom
 
-Two-finger pinch changes public `terminal.options.fontSize` in one-pixel steps whenever distance crosses a ten-percent threshold, then requests the existing Layer 2 geometry synchronization.
+Two-finger pinch changes the public `Terminal.options.fontSize` value in one-pixel steps whenever the pinch distance crosses a ten-percent threshold, then requests the existing Layer 2 geometry synchronization.
+
+The effective font size is:
 
 ```text
 upstream xterm font size
@@ -57,21 +77,37 @@ upstream xterm font size
 
 The user scale is bounded to `0.5–3.0` and remains session-local. Pinch does not use WebView page scaling.
 
+## Deliberate nonclaims
+
+This policy does not add:
+
+- Android-style movable text-selection handles;
+- a Layer 3 key toolbar;
+- persistent zoom preferences;
+- browser page scrolling or page zoom;
+- touch wheel-protocol synthesis for mouse-tracking applications;
+- alternate-buffer swipe-to-arrow translation.
+
+Mobile text selection remains a separate interaction wave.
+
 ## Bounded device check
 
-Generate visible terminal text and scrollback:
+Generate scrollback:
 
 ```sh
-printf 'alpha beta gamma\n'
 seq 1 1000
 ```
 
-Verify in this order:
+Verify that dragging down reveals older output, dragging up returns toward the prompt, and a faster release continues briefly as a fling. Then confirm that pinch zoom still changes glyph size and terminal geometry without replacing the shell session.
 
-1. long-press the middle of a rendered terminal word, away from the cursor;
-2. record whether the word is highlighted and native selection handles appear;
-3. record the exact contextual menu items;
-4. drag one handle and record whether the selected row text changes;
-5. drag one finger vertically and record whether WebView scrolls smoothly, does nothing, or moves the page incorrectly;
-6. pinch and confirm xterm font size and PTY geometry still change together;
-7. confirm no cursor-local helper-textarea Paste menu appears merely because the cursor was touched.
+## Android WebView native-selection experiment outcome
+
+Device trials of versions 0.25.0 and 0.25.1 rejected the browser-native path for this app:
+
+- xterm DOM rows did not become selectable through Android WebView long press,
+- Android selection handles did not appear,
+- exposing the xterm helper textarea produced only an editor Paste menu,
+- WebView native overflow did not scroll xterm scrollback,
+- handing one-finger touch from WebView to Layer 3 after a movement threshold caused interrupted scrolling.
+
+The production baseline therefore keeps xterm as the viewport authority and restores the proven public `scrollLines()` drag/inertia path. Pinch continues to change public `terminal.options.fontSize` and synchronize PTY geometry. Long-press selection remains intentionally unavailable until a separate xterm-selection implementation is accepted; browser DOM selection and custom Android ActionMode are not active production authorities.

@@ -2,7 +2,4 @@
 <resources>
     <string name="xterm_prompt_label">터미널 입력</string>
     <string name="xterm_too_much_output">터미널 출력이 너무 많아 화면 읽기 안내를 중지했습니다.</string>
-    <string name="selection_copy">복사</string>
-    <string name="selection_paste">붙여넣기</string>
-    <string name="selection_select_all">모두 선택</string>
 </resources>
