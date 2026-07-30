@@ -519,7 +519,7 @@ def verify(root: Path) -> list[str]:
         fail("controller does not transport soft-input visibility", failures)
     if "softInputVisible: Boolean(nativeMessage.softInputVisible)" not in bridge_js:
         fail("Layer 2 JavaScript does not expose soft-input visibility", failures)
-    if "touchActivationAuthority: 'webview-default-unconsumed-tap'" not in customization_js:
+    if "touchActivationAuthority: 'webview-default-one-finger-complete-ownership'" not in customization_js:
         fail("Layer 3 native-selection POC does not leave unclaimed taps to WebView/xterm", failures)
     if "controller?.requestPlatformStateSync()" not in activity:
         fail("window-inset changes do not republish platform state", failures)
@@ -547,24 +547,27 @@ def verify(root: Path) -> list[str]:
         if capability not in contract_js or capability not in contract_kt:
             fail(f"Layer 3 touch capability must match across JavaScript and Kotlin: {capability}", failures)
     for token in (
-        "layer2.useDomRenderer('native-touch-selection')",
+        "layer2.useDomRenderer('native-touch-selection-isolation')",
         "xtermElement.classList.add('xterm-native-touch-selection')",
-        "selectionAuthority: 'webview-native-dom-selection-poc'",
-        "selectionHandles: 'webview-native'",
-        "copyAuthority: 'webview-native-action-mode'",
-        "pasteAuthority: 'xterm-helper-textarea-native-paste'",
+        "selectionAuthority: 'webview-native-dom-row-selection-isolation-poc'",
+        "selectionHandles: 'webview-native-if-supported'",
+        "copyAuthority: 'webview-native-if-row-selection-succeeds'",
+        "pasteAuthority: 'none-in-row-selection-isolation'",
     ):
         if token not in customization_js:
             fail(f"Layer 3 native touch-selection POC lacks token: {token}", failures)
     for forbidden in ("showSelectionActionMode", "onSelectionAction", "dispatchMouseEvent"):
         if forbidden in customization_js:
             fail(f"custom selection ownership remains active in native-selection POC: {forbidden}", failures)
-    for token in ("user-select: text !important", "pointer-events: auto !important", "xterm-helper-textarea"):
+    for token in ("user-select: text !important", "touch-action: auto !important", "pointer-events: auto !important"):
         if token not in customization_css:
-            fail(f"native-selection CSS lacks token: {token}", failures)
-    for token in ("syncNativePasteTarget", "Math.max(cellWidth, 80)", "Math.max(cellHeight, 32)", "suppressXtermTouchSelection", "handleNativePaste", "layer2.terminal.paste(event.clipboardData.getData('text/plain'))"):
+            fail(f"native-selection isolation CSS lacks token: {token}", failures)
+    for token in ("suppressXtermTouchSelection", "webview-native-overflow-isolation"):
         if token not in customization_js:
-            fail(f"public xterm/WebView native-selection adapter lacks token: {token}", failures)
+            fail(f"public xterm/WebView row-selection isolation lacks token: {token}", failures)
+    for forbidden in ("scrollLines(", "syncNativePasteTarget", "handleNativePaste", "xterm-helper-textarea", "touch-action: none"):
+        if forbidden in customization_js or forbidden in customization_css:
+            fail(f"row-selection isolation contains competing touch or paste token: {forbidden}", failures)
     for token in (
         "ActionMode.Callback2()",
         "ActionMode.TYPE_FLOATING",

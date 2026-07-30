@@ -359,7 +359,7 @@ const paths = process.argv.slice(2);
     throw new Error('renderer state facade missing');
   }
   const rendererState = context.AndroidTerminalBridge.getRendererState();
-  if (rendererState.mode !== 'dom' || rendererState.reason !== 'native-touch-selection') {
+  if (rendererState.mode !== 'dom' || rendererState.reason !== 'native-touch-selection-isolation') {
     throw new Error('Layer 3 native-selection DOM renderer state mismatch');
   }
   if (!terminalClassValues.has('xterm-native-touch-selection')) {

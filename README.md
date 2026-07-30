@@ -94,11 +94,11 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
   `'wasm-unsafe-eval'` source expression because the pinned official ImageAddon compiles embedded
   WebAssembly; JavaScript `'unsafe-eval'` remains forbidden. The optional Layer 3 script is local,
   loads after Layer 2, and may consume only the stable customization capability.
-- Layer 3 touch interaction uses public xterm APIs inside the WebView: one-finger drag and fling
-  translate CSS-pixel motion into `Terminal.scrollLines()`, while two-finger pinch changes the
-  public font size and reuses the existing geometry bridge. Layer 3 owns a terminal-screen touch from
-  `touchstart`, suppresses WebView compatibility activation for committed gestures, and replays the
-  normal mouse/focus sequence only for an actual tap. See `docs/layer3-touch-interactions.md`.
+- The current Layer 3 row-selection isolation POC switches xterm to its built-in DOM renderer and
+  gives WebView complete ownership of every one-finger gesture so native row selection and overflow
+  pan can be tested without a helper-textarea target or JavaScript `scrollLines()` handoff. Two-finger
+  pinch still changes the public xterm font size and reuses the existing geometry bridge. See
+  `docs/layer3-touch-interactions.md`.
 
 ## Upstream asset provisioning
 

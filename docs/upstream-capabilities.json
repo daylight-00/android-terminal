@@ -61,7 +61,7 @@
       "classification": "layer2-runtime",
       "status": "connected",
       "android_boundary": "Bounded explicit copy/paste operations use Android ClipboardManager; Android also exposes a neutral floating ActionMode command surface.",
-      "layer3_boundary": "The current native-selection POC leaves long-press DOM selection, Android handles, and Copy UI to WebView; the public helper textarea and Terminal.paste provide the native Paste target. The neutral Layer 2 floating ActionMode remains dormant."
+      "layer3_boundary": "The current row-selection isolation POC leaves all one-finger gestures, DOM row selection, Android handles, Copy UI, and overflow pan to WebView. The helper-textarea Paste experiment and JavaScript scroll fallback are deliberately absent; the neutral Layer 2 floating ActionMode remains dormant."
     },
     {
       "id": "osc52-clipboard",

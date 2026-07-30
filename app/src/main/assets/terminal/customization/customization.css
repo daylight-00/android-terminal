@@ -1,45 +1,25 @@
 /*
- * Layer 3 native touch-selection proof of concept.
+ * Layer 3 WebView-native row-selection isolation proof of concept.
  *
- * xterm's official DOM renderer exposes real row text. WebView owns native
- * long-press selection, handles, copy callout, and the editable helper textarea
- * paste target. Layer 3 only claims a touch after scroll or pinch is proven.
+ * xterm's built-in DOM renderer exposes terminal rows as real DOM text.
+ * WebView owns all one-finger defaults from touchstart through completion:
+ * tap activation, long-press selection, selection handles, and native pan.
+ * Layer 3 claims only a proven two-finger font-size pinch.
  */
-#terminal .xterm-screen,
-#terminal .xterm-screen canvas,
-#terminal .xterm-rows {
-  touch-action: none;
-}
-
 .xterm.xterm-native-touch-selection,
+.xterm.xterm-native-touch-selection .xterm-viewport,
 .xterm.xterm-native-touch-selection .xterm-screen,
 .xterm.xterm-native-touch-selection .xterm-rows,
+.xterm.xterm-native-touch-selection .xterm-rows > div,
 .xterm.xterm-native-touch-selection .xterm-rows * {
   -webkit-user-select: text !important;
   user-select: text !important;
-  -webkit-touch-callout: default;
+  -webkit-touch-callout: default !important;
+  touch-action: auto !important;
 }
 
-.xterm.xterm-native-touch-selection .xterm-rows {
+.xterm.xterm-native-touch-selection .xterm-rows,
+.xterm.xterm-native-touch-selection .xterm-rows > div,
+.xterm.xterm-native-touch-selection .xterm-rows * {
   pointer-events: auto !important;
-}
-
-.xterm.xterm-native-touch-selection .xterm-rows span {
-  display: inline !important;
-}
-
-.xterm.xterm-native-touch-selection .xterm-helper-textarea {
-  opacity: 1;
-  background: transparent;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  caret-color: transparent;
-  outline: none;
-  text-shadow: none;
-  -webkit-appearance: none;
-  appearance: none;
-  -webkit-user-select: text;
-  user-select: text;
-  -webkit-touch-callout: default;
-  pointer-events: auto;
 }

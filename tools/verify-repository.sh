@@ -88,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 27' app/build.gradle
-check version-name grep -Fxq "        versionName '0.25.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 28' app/build.gradle
+check version-name grep -Fxq "        versionName '0.25.1'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -170,13 +170,13 @@ check native-floating-selection-capability grep -Fq 'android-floating-selection-
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check floating-selection-action-mode grep -Fq 'ActionMode.TYPE_FLOATING' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
-check layer3-native-touch-selection grep -Fq "selectionAuthority: 'webview-native-dom-selection-poc'" \
+check layer3-native-touch-selection grep -Fq "selectionAuthority: 'webview-native-dom-row-selection-isolation-poc'" \
   app/src/main/assets/terminal/customization/customization.js
 check platform-state-soft-input grep -Fq 'softInputVisible' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt
 check platform-insets-ime grep -Fq 'WindowInsets.Type.ime()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
-check layer3-touch-activation-policy grep -Fq "touchActivationAuthority: 'webview-default-unconsumed-tap'" \
+check layer3-touch-activation-policy grep -Fq "touchActivationAuthority: 'webview-default-one-finger-complete-ownership'" \
   app/src/main/assets/terminal/customization/customization.js
 check page-font-scale-capability grep -Fq 'android-font-scale-v1' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
