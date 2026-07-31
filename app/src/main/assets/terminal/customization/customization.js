@@ -24,6 +24,7 @@
   const PINCH_STEP_RATIO = 0.1;
   const FONT_SIZE_STEP_PIXELS = 1;
   const SCROLL_START_THRESHOLD_PIXELS = 6;
+  const LONG_PRESS_DELAY_MILLIS = 500;
   const SCROLL_SAMPLE_WINDOW_MILLIS = 120;
   const SCROLL_MAX_FRAME_MILLIS = 32;
   const SCROLL_FRICTION_PER_MILLISECOND = 0.006;
@@ -117,6 +118,9 @@
     let scrollConsumesGesture = false;
     let scrollSamples = [];
     let scrollAnimationFrame = 0;
+    let longPressTimer = 0;
+    let selectionConsumesGesture = false;
+    let selectionMouseTarget = null;
     let disposed = false;
     const touchSurfaceAvailable =
       typeof terminalElement.addEventListener === 'function' &&
@@ -127,6 +131,26 @@
     const cancelFrame = typeof window.cancelAnimationFrame === 'function'
       ? (handle) => window.cancelAnimationFrame(handle)
       : (handle) => window.clearTimeout(handle);
+
+    function dispatchMouseEvent(target, type, clientX, clientY, buttons, detail) {
+      if (!target || typeof target.dispatchEvent !== 'function' ||
+          typeof window.MouseEvent !== 'function') {
+        return false;
+      }
+      return target.dispatchEvent(new window.MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX,
+        clientY,
+        screenX: clientX,
+        screenY: clientY,
+        button: 0,
+        buttons,
+        detail
+      }));
+    }
 
     function applyAppearance(state) {
       layer2.terminal.options.theme = state.colorScheme === 'light' ? lightTheme : darkTheme;
@@ -200,7 +224,14 @@
       scrollAnimationFrame = 0;
     }
 
+    function cancelLongPress() {
+      if (!longPressTimer) return;
+      window.clearTimeout(longPressTimer);
+      longPressTimer = 0;
+    }
+
     function resetScrollGesture(resetRemainder) {
+      cancelLongPress();
       scrollTouchIdentifier = null;
       scrollStartX = 0;
       scrollStartY = 0;
@@ -272,24 +303,9 @@
     }
 
     function replayTap(target, clientX, clientY, requestSoftInput) {
-      if (target && typeof target.dispatchEvent === 'function' &&
-          typeof window.MouseEvent === 'function') {
-        const common = {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          view: window,
-          clientX,
-          clientY,
-          screenX: clientX,
-          screenY: clientY,
-          button: 0,
-          detail: 1
-        };
-        target.dispatchEvent(new window.MouseEvent('mousedown', {...common, buttons: 1}));
-        target.dispatchEvent(new window.MouseEvent('mouseup', {...common, buttons: 0}));
-        target.dispatchEvent(new window.MouseEvent('click', {...common, buttons: 0}));
-      }
+      dispatchMouseEvent(target, 'mousedown', clientX, clientY, 1, 1);
+      dispatchMouseEvent(target, 'mouseup', clientX, clientY, 0, 1);
+      dispatchMouseEvent(target, 'click', clientX, clientY, 0, 1);
       if (typeof layer2.terminal.focus === 'function') {
         layer2.terminal.focus();
       }
@@ -299,6 +315,33 @@
           request.catch((error) => console.warn('Android soft-input request failed.', error));
         }
       }
+    }
+
+    function beginLongPressSelection() {
+      longPressTimer = 0;
+      if (disposed || pinchConsumesGesture || scrollConsumesGesture ||
+          scrollTouchIdentifier === null || selectionConsumesGesture || !scrollTapTarget) {
+        return;
+      }
+      selectionConsumesGesture = true;
+      selectionMouseTarget = scrollTapTarget;
+      // Delegate word selection and drag expansion to xterm's existing public
+      // mouse-selection surface. No terminal buffer or word-boundary model is
+      // reimplemented in Layer 3.
+      dispatchMouseEvent(selectionMouseTarget, 'mousedown', scrollLastX, scrollLastY, 1, 2);
+    }
+
+    function armLongPressSelection() {
+      cancelLongPress();
+      longPressTimer = window.setTimeout(beginLongPressSelection, LONG_PRESS_DELAY_MILLIS);
+    }
+
+    function finishSelectionGesture() {
+      if (!selectionConsumesGesture) return false;
+      dispatchMouseEvent(selectionMouseTarget, 'mouseup', scrollLastX, scrollLastY, 0, 2);
+      selectionConsumesGesture = false;
+      selectionMouseTarget = null;
+      return true;
     }
 
     function beginOneFingerScroll(event) {
@@ -319,12 +362,18 @@
       scrollConsumesGesture = false;
       scrollSamples = [];
       recordScrollSample(eventTime(event), scrollStartY);
+      armLongPressSelection();
       return true;
     }
 
     function beginPinch(event) {
       beginOwnedTouchFocusPolicy();
       cancelScrollInertia();
+      cancelLongPress();
+      finishSelectionGesture();
+      if (typeof layer2.terminal.clearSelection === 'function') {
+        layer2.terminal.clearSelection();
+      }
       resetScrollGesture(true);
       pinchConsumesGesture = true;
       pinchDistance = touchDistance(event.touches);
@@ -374,13 +423,22 @@
       scrollLastX = currentX;
       scrollLastY = currentY;
       recordScrollSample(eventTime(event), currentY);
+      if (selectionConsumesGesture) {
+        dispatchMouseEvent(selectionMouseTarget, 'mousemove', currentX, currentY, 1, 0);
+        consumeTouch(event);
+        return;
+      }
       if (!scrollConsumesGesture &&
           Math.hypot(currentX - scrollStartX, currentY - scrollStartY) <
             SCROLL_START_THRESHOLD_PIXELS) {
         consumeTouch(event);
         return;
       }
+      cancelLongPress();
       scrollConsumesGesture = true;
+      if (typeof layer2.terminal.clearSelection === 'function') {
+        layer2.terminal.clearSelection();
+      }
       scrollByPixels(deltaPixels);
       consumeTouch(event);
     }
@@ -400,6 +458,14 @@
 
       if (scrollTouchIdentifier === null) return;
       if (findTouch(event.touches, scrollTouchIdentifier)) return;
+      if (selectionConsumesGesture) {
+        finishOwnedTouchFocusPolicy();
+        finishSelectionGesture();
+        resetScrollGesture(false);
+        consumeTouch(event);
+        return;
+      }
+      cancelLongPress();
       const consumed = scrollConsumesGesture;
       const tapTarget = scrollTapTarget;
       const tapX = scrollLastX;
@@ -416,6 +482,8 @@
       pinchDistance = 0;
       pinchConsumesGesture = false;
       cancelScrollInertia();
+      cancelLongPress();
+      finishSelectionGesture();
       resetScrollGesture(true);
       if (owned) {
         finishOwnedTouchFocusPolicy();
@@ -438,6 +506,8 @@
         if (disposed) return;
         disposed = true;
         cancelScrollInertia();
+        cancelLongPress();
+        finishSelectionGesture();
         platformSubscription.dispose();
         if (touchSurfaceAvailable) {
           terminalElement.removeEventListener('touchstart', onTouchStart, touchOptions);
@@ -453,6 +523,9 @@
           effectiveFontSize: Number(layer2.terminal.options.fontSize),
           pinchConsumesGesture,
           scrollConsumesGesture,
+          selectionConsumesGesture,
+          selectionAuthority: 'xterm-public-mouse-selection-long-press',
+          selectionHandles: 'none',
           scrollAuthority: 'layer3-public-scroll-lines',
           touchActivationAuthority: 'layer3-ime-visibility-aware-deferred-tap-native-ime',
           gestureFocusPolicy: 'preserve-visible-ime-blur-hidden-ime',

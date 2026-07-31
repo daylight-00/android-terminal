@@ -73,6 +73,11 @@ def verify(root: Path) -> list[str]:
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt",
         failures,
     )
+    window_insets = read_required(
+        root,
+        "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalWindowInsets.kt",
+        failures,
+    )
     platform_policy = read_required(
         root,
         "app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformPolicy.kt",
@@ -162,8 +167,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 29" in build, "versionCode must identify the restored Layer 3 touch baseline release", failures)
-    require("versionName '0.25.2'" in build, "versionName must identify the restored Layer 3 touch baseline release", failures)
+    require("versionCode 30" in build, "versionCode must identify the IME-authoritative long-press selection release", failures)
+    require("versionName '0.25.3'" in build, "versionName must identify the IME-authoritative long-press selection release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -339,10 +344,11 @@ def verify(root: Path) -> list[str]:
     require("window.open(" not in javascript, "Web Links must not navigate the local WebView directly", failures)
     require("fontScale" in platform_state and "configuration.fontScale.toDouble().coerceIn(0.5, 3.0)" in platform_adapter, "Android font-scale state must be bounded and transported", failures)
     require("softInputVisible" in platform_state and "isSoftInputVisible()" in platform_adapter, "Android soft-input visibility must be transported as platform state", failures)
-    require("WindowInsets.Type.ime()" in platform_adapter and "systemWindowInsetBottom > insets.stableInsetBottom" in platform_adapter, "soft-input visibility must use platform WindowInsets with an API 29 fallback", failures)
-    require("requestPlatformStateSync()" in activity, "window-inset changes must republish platform state", failures)
+    require("WindowInsets.Type.ime()" in window_insets and "systemWindowInsetBottom > insets.stableInsetBottom" in window_insets, "soft-input visibility must use platform WindowInsets with an API 29 fallback", failures)
+    require("TerminalWindowInsets.isSoftInputVisible(insets)" in activity and "updateSoftInputVisibility(softInputVisible)" in activity, "window-inset changes must publish the listener-delivered IME state", failures)
     require("softInputVisible: Boolean(nativeMessage.softInputVisible)" in javascript, "Layer 2 must expose soft-input visibility to Layer 3", failures)
     require("preserve-visible-ime-blur-hidden-ime" in customization_js, "Layer 3 gesture focus must preserve an already-visible IME", failures)
+    require("LONG_PRESS_DELAY_MILLIS" in customization_js and "xterm-public-mouse-selection-long-press" in customization_js, "Layer 3 must expose xterm-owned long-press selection", failures)
     require("const upstreamFontSizes = new WeakMap()" in platform_js, "font-scale mapping must capture each upstream terminal default", failures)
     require("Number(terminal.options.fontSize)" in platform_js, "font-scale mapping must consume the upstream font size", failures)
     require("upstreamFontSizes.get(terminal) * boundedFontScale(value)" in platform_js, "font-scale mapping must scale from the upstream baseline without compounding", failures)

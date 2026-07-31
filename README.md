@@ -78,8 +78,8 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
   terminal parser or replacing WebView/xterm input semantics.
 - Layer 2 exposes the stable `AndroidTerminalLayer2` capability. It includes neutral title-state,
   platform-state, geometry-sync, and safe-window-report views. The Layer 3 scaffold loads after it,
-  currently owns only the project light/dark terminal palettes, and never accesses WebMessagePort,
-  JNI, PTY internals, or xterm.js private APIs.
+  owns the project light/dark terminal palettes and bounded touch arbitration, and never accesses
+  WebMessagePort, JNI, PTY internals, or xterm.js private APIs.
 - Android font scale multiplies the font size reported by each new upstream xterm.js instance. Layer 2
   captures that upstream default once, applies a bounded system scale through the public `fontSize`
   option, and refits geometry without defining a project-specific base font or preference.
@@ -94,11 +94,12 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
   `'wasm-unsafe-eval'` source expression because the pinned official ImageAddon compiles embedded
   WebAssembly; JavaScript `'unsafe-eval'` remains forbidden. The optional Layer 3 script is local,
   loads after Layer 2, and may consume only the stable customization capability.
-- Layer 3 touch interaction uses public xterm APIs inside the WebView: one-finger drag and fling
-  translate CSS-pixel motion into `Terminal.scrollLines()`, while two-finger pinch changes the
-  public font size and reuses the existing geometry bridge. Layer 3 owns a terminal-screen touch from
-  `touchstart`, suppresses WebView compatibility activation for committed gestures, and replays the
-  normal mouse/focus sequence only for an actual tap. See `docs/layer3-touch-interactions.md`.
+- Layer 3 touch interaction uses public xterm surfaces inside the WebView: one-finger drag and fling
+  translate CSS-pixel motion into `Terminal.scrollLines()`, two-finger pinch changes the public font
+  size and reuses the existing geometry bridge, and a stationary 500 ms hold delegates word selection
+  and drag expansion to xterm's existing mouse-selection path. Android root `WindowInsets` are cached
+  as the IME visibility authority so an already-visible keyboard is preserved; only a completed hidden-IME
+  tap requests the system keyboard. See `docs/layer3-touch-interactions.md`.
 
 ## Upstream asset provisioning
 

@@ -147,6 +147,10 @@ internal class TerminalController(
         }
     }
 
+    fun updateSoftInputVisibility(visible: Boolean) {
+        platformAdapter.updateSoftInputVisibility(visible)
+    }
+
     fun updateAppearance(configuration: Configuration) {
         view.setBackgroundColor(TerminalHostAppearance.backgroundColor(configuration))
     }

@@ -4,7 +4,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 PACKAGE_ROOT="$ROOT/app/src/main/kotlin/io/github/daylight00/androidterminal"
 
 if ! command -v kotlinc >/dev/null 2>&1; then
-  python3 - "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" "$PACKAGE_ROOT/TerminalDocumentTransport.kt" <<'PY'
+  python3 - "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" "$PACKAGE_ROOT/TerminalWindowInsets.kt" "$PACKAGE_ROOT/TerminalDocumentTransport.kt" <<'PY'
 from pathlib import Path
 import sys
 source = "\n".join(Path(value).read_text(encoding="utf-8") for value in sys.argv[1:])
@@ -316,6 +316,7 @@ kotlinc -nowarn \
   "$WORK/io/github/daylight00/androidterminal/TerminalSharedStorage.kt" \
   "$PACKAGE_ROOT/TerminalContract.kt" \
   "$PACKAGE_ROOT/TerminalPlatformState.kt" \
+  "$PACKAGE_ROOT/TerminalWindowInsets.kt" \
   "$PACKAGE_ROOT/TerminalPlatformPolicy.kt" \
   "$PACKAGE_ROOT/TerminalDocumentPolicy.kt" \
   "$PACKAGE_ROOT/TerminalDocumentTransport.kt" \

@@ -21,6 +21,8 @@ class MainActivity : Activity() {
     private var sessionHost: TerminalSessionService.LocalBinder? = null
     private var serviceBound = false
     private var sharedStorageRequestStarted = false
+    private var softInputVisibilityKnown = false
+    private var softInputVisible = false
     private val frontendRecovery = TerminalFrontendRecoveryState()
 
     private val serviceConnection = object : ServiceConnection {
@@ -47,8 +49,10 @@ class MainActivity : Activity() {
 
         root = FrameLayout(this).apply {
             setOnApplyWindowInsetsListener { _, insets ->
+                softInputVisible = TerminalWindowInsets.isSoftInputVisible(insets)
+                softInputVisibilityKnown = true
+                controller?.updateSoftInputVisibility(softInputVisible)
                 controller?.requestGeometrySync()
-                controller?.requestPlatformStateSync()
                 insets
             }
             addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
@@ -143,6 +147,9 @@ class MainActivity : Activity() {
             },
         )
         controller = terminal
+        if (softInputVisibilityKnown) {
+            terminal.updateSoftInputVisibility(softInputVisible)
+        }
         root.removeAllViews()
         root.addView(
             terminal.view,

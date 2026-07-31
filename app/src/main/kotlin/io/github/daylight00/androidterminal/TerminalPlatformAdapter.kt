@@ -7,10 +7,8 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
-import android.os.Build
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
-import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.WebView
@@ -39,6 +37,7 @@ internal class TerminalPlatformAdapter(
     private var lastBellMillis = Long.MIN_VALUE
     private var nextDocumentToken = 1L
     private var pendingDocumentRequest: PendingDocumentRequest? = null
+    private var observedSoftInputVisible: Boolean? = null
 
     init {
         accessibilityManager?.addAccessibilityStateChangeListener(accessibilityStateListener)
@@ -78,13 +77,15 @@ internal class TerminalPlatformAdapter(
     }
 
     private fun isSoftInputVisible(): Boolean {
+        observedSoftInputVisible?.let { return it }
         val insets = terminalView.rootWindowInsets ?: return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            insets.isVisible(WindowInsets.Type.ime())
-        } else {
-            @Suppress("DEPRECATION")
-            insets.systemWindowInsetBottom > insets.stableInsetBottom
-        }
+        return TerminalWindowInsets.isSoftInputVisible(insets)
+    }
+
+    fun updateSoftInputVisibility(visible: Boolean) {
+        val changed = observedSoftInputVisible != visible
+        observedSoftInputVisible = visible
+        if (changed) publishState()
     }
 
     fun publishState() {

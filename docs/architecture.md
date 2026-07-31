@@ -155,7 +155,7 @@ Layer 3 customization
 
 Layer 2 never imports or names the Layer 3 implementation. Layer 3 may use only the stable Layer 2 capability and public xterm.js APIs exposed through it; it may not access WebMessagePort, JNI, PTY/session internals, or xterm.js private objects. Extension contract 4 adds an immutable completion manifest and a read-only runtime snapshot; Layer 3 scaffold contract 2 binds that schema without becoming required by Layer 2.
 
-The current scaffold contains no custom UI. It owns the project light/dark terminal palettes because palette choice is product policy, while Layer 2 owns only the Android `uiMode` state and neutral notification. Future special keys, modifier bars, user themes, font selection, search UI, progress presentation, userland, and workspace features also belong here and require separate owner decisions.
+The current scaffold contains no persistent custom UI. It owns the project light/dark terminal palettes and touch arbitration because those are product policy, while Layer 2 owns only neutral Android state and operations. Long press delegates word selection and drag expansion to xterm's existing mouse-selection path; Layer 3 does not parse terminal text or own a second selection buffer. Future special keys, modifier bars, user themes, font selection, search UI, progress presentation, userland, and workspace features also belong here and require separate owner decisions.
 
 ## Upgrade and change boundary
 

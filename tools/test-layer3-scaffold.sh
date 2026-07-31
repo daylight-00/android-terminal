@@ -95,6 +95,19 @@ const listeners = [];
 const scrollCalls = [];
 const frames = new Map();
 let nextFrameId = 1;
+const timers = new Map();
+let nextTimerId = 1;
+function scheduleTimeout(callback) {
+  const id = nextTimerId++;
+  timers.set(id, callback);
+  return id;
+}
+function cancelTimeout(id) { timers.delete(id); }
+function runTimers() {
+  const pending = [...timers.entries()];
+  timers.clear();
+  for (const [, callback] of pending) callback();
+}
 let geometryRequests = 0;
 let disposed = false;
 let focusCalls = 0;
@@ -107,7 +120,9 @@ const terminal = {
   modes: {mouseTrackingMode: 'none'},
   scrollLines(rows) { scrollCalls.push(rows); },
   focus() { focusCalls += 1; },
-  blur() { blurCalls += 1; }
+  blur() { blurCalls += 1; },
+  clearSelection() {},
+  hasSelection() { return false; }
 };
 const layer2 = Object.freeze({
   contractVersion: 4,
@@ -135,8 +150,8 @@ const windowObject = {
     return id;
   },
   cancelAnimationFrame(id) { frames.delete(id); },
-  setTimeout,
-  clearTimeout
+  setTimeout: scheduleTimeout,
+  clearTimeout: cancelTimeout
 };
 const context = vm.createContext({
   window: windowObject,
@@ -148,8 +163,8 @@ const context = vm.createContext({
   Number,
   Math,
   Date,
-  setTimeout,
-  clearTimeout
+  setTimeout: scheduleTimeout,
+  clearTimeout: cancelTimeout
 });
 vm.runInContext(source, context, {filename: 'customization.js'});
 const customization = context.window.AndroidTerminalCustomization;
@@ -235,6 +250,40 @@ if (customization.getInteractionState().touchActivationAuthority !== 'layer3-ime
   throw new Error('touch activation authority is not reported correctly');
 }
 
+listeners[0]({colorScheme: 'dark', fontScale: 1.2, softInputVisible: true});
+const selectionBlurBaseline = blurCalls;
+const selectionFocusBaseline = focusCalls;
+const selectionSoftInputBaseline = softInputCalls;
+const selectionTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(10, 30, 80)], 105, selectionTarget));
+runTimers();
+if (!customization.getInteractionState().selectionConsumesGesture) {
+  throw new Error('long press did not enter xterm selection mode');
+}
+if (selectionTarget.events.length !== 1 || selectionTarget.events[0].type !== 'mousedown' ||
+    selectionTarget.events[0].detail !== 2) {
+  throw new Error('long press did not delegate word selection to xterm');
+}
+terminalElement.dispatch('touchmove', touchEvent([point(10, 70, 80)], 110, selectionTarget));
+if (selectionTarget.events.length !== 2 || selectionTarget.events[1].type !== 'mousemove' ||
+    selectionTarget.events[1].buttons !== 1) {
+  throw new Error('selection drag was not delegated to xterm');
+}
+terminalElement.dispatch('touchend', touchEvent([], 120, selectionTarget));
+if (selectionTarget.events.length !== 3 || selectionTarget.events[2].type !== 'mouseup') {
+  throw new Error('selection release was not delegated to xterm');
+}
+if (customization.getInteractionState().selectionConsumesGesture) {
+  throw new Error('selection ownership did not reset');
+}
+if (blurCalls !== selectionBlurBaseline || focusCalls !== selectionFocusBaseline ||
+    softInputCalls !== selectionSoftInputBaseline) {
+  throw new Error('visible-IME long press changed xterm focus or Android soft input');
+}
+if (customization.getInteractionState().selectionAuthority !== 'xterm-public-mouse-selection-long-press') {
+  throw new Error('selection authority is not reported correctly');
+}
+
 terminal.buffer.active.type = 'alternate';
 const altTarget = new FakeTarget();
 const altStart = touchEvent([point(5, 0, 100)], 110, altTarget);
@@ -253,7 +302,7 @@ const expectedScaledSize = 15 * 2 * (19 / 18);
 if (Math.abs(terminal.options.fontSize - expectedScaledSize) > 1e-9) {
   throw new Error('user font scale was not preserved across Android font-scale updates');
 }
-if (geometryRequests !== 3) throw new Error('second platform update did not request geometry refresh');
+if (geometryRequests !== 4) throw new Error('second platform update did not request geometry refresh');
 if (!customization.getInteractionState().softInputVisible) {
   throw new Error('Layer 3 did not retain Android IME visibility state');
 }
@@ -308,7 +357,7 @@ if (customization.getInteractionState().ownedTouchFocusActive) {
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-visibility-aware selection-ready=generic-owned-touch-policy');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-visibility-aware selection=xterm-long-press');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -333,6 +382,9 @@ for token in (
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',
     "scrollAuthority: 'layer3-public-scroll-lines'",
+    'LONG_PRESS_DELAY_MILLIS',
+    'beginLongPressSelection',
+    "selectionAuthority: 'xterm-public-mouse-selection-long-press'",
 ):
     if token not in source:
         raise SystemExit(f'missing Layer 3 interaction token: {token}')

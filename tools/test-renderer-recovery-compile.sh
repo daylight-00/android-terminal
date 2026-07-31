@@ -179,6 +179,9 @@ object TerminalContract {
     const val DOCUMENT_PATH: String = "/terminal/index.html"
     const val HOST: String = "app.local"
 }
+object TerminalWindowInsets {
+    fun isSoftInputVisible(insets: android.view.WindowInsets): Boolean = false
+}
 object TerminalHostAppearance {
     fun backgroundColor(configuration: android.content.res.Configuration): Int = 0
     fun usesLightSystemBars(configuration: android.content.res.Configuration): Boolean = false
@@ -200,6 +203,7 @@ class TerminalController(
     fun close() {}
     fun requestGeometrySync() {}
     fun requestPlatformStateSync() {}
+    fun updateSoftInputVisibility(visible: Boolean) {}
     fun updateAppearance(configuration: android.content.res.Configuration) {}
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?): Boolean = false
 }
