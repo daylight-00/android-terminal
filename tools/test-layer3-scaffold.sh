@@ -202,13 +202,14 @@ if (terminal.options.theme.background !== '#fafafa') throw new Error('light pale
 if (Math.abs(terminal.options.fontSize - 18) > 1e-9) throw new Error('Android font scale was not composed');
 if (geometryRequests !== 1) throw new Error('Layer 3 did not request geometry refresh');
 
+const tapBlurBaseline = blurCalls;
 const tapTarget = new FakeTarget();
 const tapStart = touchEvent([point(1, 40, 100)], 0, tapTarget);
 terminalElement.dispatch('touchstart', tapStart);
 if (!tapStart.prevented || !tapStart.stopped || !tapStart.immediate) {
   throw new Error('tap candidate was not owned from touchstart');
 }
-if (blurCalls !== 0) throw new Error('tap candidate changed xterm focus on touchstart');
+if (blurCalls !== tapBlurBaseline + 1) throw new Error('hidden-IME tap candidate did not release retained focus on touchstart');
 const tapEnd = touchEvent([], 10, tapTarget);
 terminalElement.dispatch('touchend', tapEnd);
 if (!tapEnd.prevented || !tapEnd.stopped || !tapEnd.immediate) {
@@ -220,6 +221,7 @@ if (tapTarget.events.map((event) => event.type).join(',') !== 'mousedown,mouseup
   throw new Error('ordinary tap compatibility sequence was not replayed');
 }
 
+const dragBlurBaseline = blurCalls;
 const dragTarget = new FakeTarget();
 const dragStart = touchEvent([point(2, 0, 100)], 20, dragTarget);
 terminalElement.dispatch('touchstart', dragStart);
@@ -243,8 +245,9 @@ if (!dragEnd.prevented || frames.size !== 1) throw new Error('scroll fling was n
 if (focusCalls !== 1 || softInputCalls !== 1 || dragTarget.events.length !== 0) {
   throw new Error('committed scroll replayed tap focus activation');
 }
-if (blurCalls !== 0) throw new Error('committed scroll changed xterm focus');
+if (blurCalls !== dragBlurBaseline + 1) throw new Error('hidden-IME scroll did not release retained focus exactly once');
 
+const pinchBlurBaseline = blurCalls;
 const pinchTarget = new FakeTarget();
 const firstPinchFinger = touchEvent([point(3, 0, 0)], 75, pinchTarget);
 terminalElement.dispatch('touchstart', firstPinchFinger);
@@ -264,7 +267,7 @@ terminalElement.dispatch('touchend', pinchEnd);
 if (focusCalls !== 1 || softInputCalls !== 1 || pinchTarget.events.length !== 0) {
   throw new Error('pinch replayed tap focus activation');
 }
-if (blurCalls !== 0) throw new Error('pinch changed xterm focus');
+if (blurCalls !== pinchBlurBaseline + 1) throw new Error('hidden-IME pinch did not release retained focus exactly once');
 if (customization.getInteractionState().pinchConsumesGesture) throw new Error('pinch ownership did not reset');
 if (customization.getInteractionState().scrollAuthority !== 'layer3-public-scroll-lines') {
   throw new Error('scroll authority is not reported correctly');
@@ -330,7 +333,7 @@ if (geometryRequests !== 4) throw new Error('second platform update did not requ
 if (!customization.getInteractionState().softInputVisible) {
   throw new Error('Layer 3 did not retain Android IME visibility state');
 }
-if (customization.getInteractionState().gestureFocusPolicy !== 'ime-hide-blur-tap-only-focus-ime') {
+if (customization.getInteractionState().gestureFocusPolicy !== 'ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime') {
   throw new Error('gesture focus policy is not reported correctly');
 }
 
@@ -401,9 +404,9 @@ terminalElement.dispatch('touchstart', touchEvent([point(11, 30, 80)], 250, hidd
 runTimers();
 terminalElement.dispatch('touchmove', touchEvent([point(11, 70, 80)], 260, hiddenSelectionTarget));
 terminalElement.dispatch('touchend', touchEvent([], 270, hiddenSelectionTarget));
-if (blurCalls !== hiddenSelectionBlurBaseline || focusCalls !== hiddenSelectionFocusBaseline ||
+if (blurCalls !== hiddenSelectionBlurBaseline + 1 || focusCalls !== hiddenSelectionFocusBaseline ||
     softInputCalls !== hiddenSelectionSoftInputBaseline) {
-  throw new Error('hidden-IME long press reactivated or redundantly blurred terminal input');
+  throw new Error('hidden-IME long press did not release retained focus at gesture start or reactivated input');
 }
 
 const hiddenDragBlurBaseline = blurCalls;
@@ -413,15 +416,41 @@ const hiddenDragTarget = new FakeTarget();
 terminalElement.dispatch('touchstart', touchEvent([point(12, 0, 100)], 280, hiddenDragTarget));
 terminalElement.dispatch('touchmove', touchEvent([point(12, 0, 140)], 300, hiddenDragTarget));
 terminalElement.dispatch('touchend', touchEvent([], 310, hiddenDragTarget));
-if (blurCalls !== hiddenDragBlurBaseline || focusCalls !== hiddenDragFocusBaseline ||
+if (blurCalls !== hiddenDragBlurBaseline + 1 || focusCalls !== hiddenDragFocusBaseline ||
     softInputCalls !== hiddenDragSoftInputBaseline) {
-  throw new Error('hidden-IME scroll reactivated or redundantly blurred terminal input');
+  throw new Error('hidden-IME scroll did not release retained focus at gesture start or reactivated input');
+}
+
+const hiddenPinchBlurBaseline = blurCalls;
+const hiddenPinchFocusBaseline = focusCalls;
+const hiddenPinchSoftInputBaseline = softInputCalls;
+const hiddenPinchTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(13, 0, 0)], 320, hiddenPinchTarget));
+terminalElement.dispatch('touchstart', touchEvent([point(13, 0, 0), point(14, 100, 0)], 330, hiddenPinchTarget));
+terminalElement.dispatch('touchmove', touchEvent([point(13, 0, 0), point(14, 111, 0)], 340, hiddenPinchTarget));
+terminalElement.dispatch('touchend', touchEvent([], 350, hiddenPinchTarget));
+if (blurCalls !== hiddenPinchBlurBaseline + 1 || focusCalls !== hiddenPinchFocusBaseline ||
+    softInputCalls !== hiddenPinchSoftInputBaseline) {
+  throw new Error('hidden-IME pinch did not release retained focus once or reactivated input');
+}
+
+const hiddenTapBlurBaseline = blurCalls;
+const hiddenTapFocusBaseline = focusCalls;
+const hiddenTapSoftInputBaseline = softInputCalls;
+const hiddenTapTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(15, 20, 60)], 360, hiddenTapTarget));
+terminalElement.dispatch('touchend', touchEvent([], 370, hiddenTapTarget));
+if (blurCalls !== hiddenTapBlurBaseline + 1) {
+  throw new Error('hidden-IME tap did not release retained focus before tap classification');
+}
+if (focusCalls !== hiddenTapFocusBaseline + 1 || softInputCalls !== hiddenTapSoftInputBaseline + 1) {
+  throw new Error('completed hidden-IME tap did not exclusively restore focus and request soft input');
 }
 
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-hide-blur-tap-only-ime selection=xterm-buffer-select-long-press');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-hide-or-hidden-gesture-start-blur-tap-only-ime selection=xterm-buffer-select-long-press');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -441,10 +470,12 @@ for token in (
     'layer2.terminal.select(first.column, first.row, length)',
     'layer2.platform.showSoftInput()',
     "touchActivationAuthority: 'layer3-deferred-tap-only-native-ime'",
-    "gestureFocusPolicy: 'ime-hide-blur-tap-only-focus-ime'",
+    "gestureFocusPolicy: 'ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime'",
     'const wasSoftInputVisible = softInputVisible',
     'softInputVisible = Boolean(state.softInputVisible)',
     'wasSoftInputVisible && !softInputVisible',
+    'releaseHiddenInputFocusAtGestureStart',
+    'scrollTouchIdentifier !== null || pinchConsumesGesture',
     'layer2.terminal.blur()',
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',

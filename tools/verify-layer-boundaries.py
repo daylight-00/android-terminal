@@ -518,10 +518,10 @@ def verify(root: Path) -> list[str]:
         fail("controller does not transport soft-input visibility", failures)
     if "softInputVisible: Boolean(nativeMessage.softInputVisible)" not in bridge_js:
         fail("Layer 2 JavaScript does not expose soft-input visibility", failures)
-    if "ime-hide-blur-tap-only-focus-ime" not in customization_js:
-        fail("Layer 3 does not confine blur to Android IME visible-to-hidden transitions and focus to completed taps", failures)
-    if "const wasSoftInputVisible = softInputVisible" not in customization_js or "wasSoftInputVisible && !softInputVisible" not in customization_js or "layer2.terminal.blur()" not in customization_js:
-        fail("Layer 3 does not release retained xterm focus on Android IME visible-to-hidden transitions", failures)
+    if "ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime" not in customization_js:
+        fail("Layer 3 does not confine focus activation to completed taps while guarding hidden-IME gestures", failures)
+    if "const wasSoftInputVisible = softInputVisible" not in customization_js or "wasSoftInputVisible && !softInputVisible" not in customization_js or "releaseHiddenInputFocusAtGestureStart" not in customization_js or "layer2.terminal.blur()" not in customization_js:
+        fail("Layer 3 does not release retained xterm focus on IME hide and hidden-IME gesture start", failures)
     if "LONG_PRESS_DELAY_MILLIS" not in customization_js or "xterm-public-buffer-select-long-press" not in customization_js:
         fail("Layer 3 does not expose public xterm buffer-selection long press", failures)
     if "TerminalWindowInsets.isSoftInputVisible(insets)" not in activity or "updateSoftInputVisibility(softInputVisible)" not in activity:

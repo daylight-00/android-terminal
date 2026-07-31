@@ -167,8 +167,8 @@ def verify(root: Path) -> list[str]:
     require("Layer 3 scaffold rule" in capability_matrix and "Layer 2 must operate when the scaffold is empty or omitted" in capability_matrix, "capability matrix must bind the optional Layer 3 boundary", failures)
     require("minSdk 29" in build, "minSdk must be 29", failures)
     require("targetSdk 28" in build, "targetSdk compatibility boundary must be 28", failures)
-    require("versionCode 32" in build, "versionCode must identify the retained-focus IME-hide release", failures)
-    require("versionName '0.25.5'" in build, "versionName must identify the retained-focus IME-hide release", failures)
+    require("versionCode 33" in build, "versionCode must identify the hidden-gesture focus guard release", failures)
+    require("versionName '0.25.6'" in build, "versionName must identify the hidden-gesture focus guard release", failures)
     require("compileSdk 35" in build, "compileSdk must be 35", failures)
     require(
         "ndkVersion '27.3.13750724'" in build,
@@ -347,8 +347,8 @@ def verify(root: Path) -> list[str]:
     require("WindowInsets.Type.ime()" in window_insets and "systemWindowInsetBottom > insets.stableInsetBottom" in window_insets, "soft-input visibility must use platform WindowInsets with an API 29 fallback", failures)
     require("TerminalWindowInsets.isSoftInputVisible(insets)" in activity and "updateSoftInputVisibility(softInputVisible)" in activity, "window-inset changes must publish the listener-delivered IME state", failures)
     require("softInputVisible: Boolean(nativeMessage.softInputVisible)" in javascript, "Layer 2 must expose soft-input visibility to Layer 3", failures)
-    require("ime-hide-blur-tap-only-focus-ime" in customization_js, "Layer 3 must blur only on an observed visible-to-hidden IME transition and may request IME only for a completed tap", failures)
-    require("const wasSoftInputVisible = softInputVisible" in customization_js and "wasSoftInputVisible && !softInputVisible" in customization_js and "layer2.terminal.blur()" in customization_js, "Layer 3 must release retained xterm focus only when Android reports IME visible-to-hidden", failures)
+    require("ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime" in customization_js, "Layer 3 must guard hidden-IME gesture starts and may request IME only for a completed tap", failures)
+    require("const wasSoftInputVisible = softInputVisible" in customization_js and "wasSoftInputVisible && !softInputVisible" in customization_js and "releaseHiddenInputFocusAtGestureStart" in customization_js and "layer2.terminal.blur()" in customization_js, "Layer 3 must release retained xterm focus on IME hide and at hidden-IME gesture start", failures)
     require("LONG_PRESS_DELAY_MILLIS" in customization_js and "xterm-public-buffer-select-long-press" in customization_js, "Layer 3 must expose public xterm buffer-selection long press", failures)
     require("const upstreamFontSizes = new WeakMap()" in platform_js, "font-scale mapping must capture each upstream terminal default", failures)
     require("Number(terminal.options.fontSize)" in platform_js, "font-scale mapping must consume the upstream font size", failures)

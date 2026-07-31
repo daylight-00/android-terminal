@@ -63,7 +63,7 @@ Android reports IME visibility through the exact `WindowInsets` delivered to the
 
 When Android reports the specific transition `softInputVisible: true → false`, Layer 3 calls the public `terminal.blur()` exactly once. This releases the hidden xterm textarea focus retained after the user dismisses the keyboard, preventing WebView from reopening the IME on the release of a later scroll, pinch, or long press. Repeated hidden-state updates do not blur again.
 
-The stable policy is: touchstart, scroll, pinch, and long-press selection never change focus. Only the platform's visible-to-hidden IME transition may blur retained xterm input, and only a completed short tap replays the compatibility mouse sequence, focuses xterm, and requests Android soft input when the latest platform state says it is hidden. IME state remains outside gesture classification.
+The stable policy is: an observed visible-to-hidden IME transition releases retained xterm input, and the start of every later hidden-IME gesture reasserts that blur before WebView can reactivate the focused helper textarea. Visible-IME gestures never blur. Scroll, pinch, and long-press release without focusing or requesting soft input; only a completed short tap replays the compatibility mouse sequence, focuses xterm, and requests Android soft input. IME state remains outside gesture classification except for the hidden-gesture focus guard.
 
 
 ## Long-press selection

@@ -168,6 +168,16 @@
       layer2.requestGeometrySync();
     }
 
+    function releaseHiddenInputFocusAtGestureStart(event) {
+      if (softInputVisible || !event || !event.touches || event.touches.length === 0 ||
+          scrollTouchIdentifier !== null || pinchConsumesGesture ||
+          typeof layer2.terminal.blur !== 'function') {
+        return false;
+      }
+      layer2.terminal.blur();
+      return true;
+    }
+
     function changeUserFontSize(direction) {
       const platformBase = upstreamFontSize * androidFontScale;
       const current = platformBase * userFontScale;
@@ -484,6 +494,7 @@
     }
 
     function onTouchStart(event) {
+      releaseHiddenInputFocusAtGestureStart(event);
       if (event.touches.length >= 2 || pinchConsumesGesture) {
         beginPinch(event);
         return;
@@ -625,7 +636,7 @@
           selectionHandles: 'none',
           scrollAuthority: 'layer3-public-scroll-lines',
           touchActivationAuthority: 'layer3-deferred-tap-only-native-ime',
-          gestureFocusPolicy: 'ime-hide-blur-tap-only-focus-ime',
+          gestureFocusPolicy: 'ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime',
           softInputVisible,
           touchSurfaceAvailable
         });
