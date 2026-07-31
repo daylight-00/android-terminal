@@ -42,7 +42,7 @@ class FakeMouseEvent {
 }
 
 class FakeScreen {
-  getBoundingClientRect() { return {height: 240}; }
+  getBoundingClientRect() { return {left: 0, top: 0, width: 1200, height: 240}; }
 }
 
 class FakeElement {
@@ -93,6 +93,7 @@ function point(identifier, x, y) {
 const terminalElement = new FakeElement();
 const listeners = [];
 const scrollCalls = [];
+const selectCalls = [];
 const frames = new Map();
 let nextFrameId = 1;
 const timers = new Map();
@@ -113,16 +114,38 @@ let disposed = false;
 let focusCalls = 0;
 let blurCalls = 0;
 let softInputCalls = 0;
+const lineText = 'hello world';
+const fakeLine = {
+  getCell(column) {
+    const character = lineText[column] || '';
+    return {
+      getChars() { return character; },
+      getWidth() { return character ? 1 : 1; }
+    };
+  }
+};
+const activeBuffer = {
+  type: 'normal',
+  viewportY: 0,
+  getLine() { return fakeLine; }
+};
 const terminal = {
+  cols: 120,
   rows: 12,
-  options: {theme: {background: 'upstream-default'}, fontSize: 15, lineHeight: 1},
-  buffer: {active: {type: 'normal'}},
+  options: {
+    theme: {background: 'upstream-default'},
+    fontSize: 15,
+    lineHeight: 1,
+    wordSeparator: ' ()[]{}\'"'
+  },
+  buffer: {active: activeBuffer},
   modes: {mouseTrackingMode: 'none'},
   scrollLines(rows) { scrollCalls.push(rows); },
+  select(column, row, length) { selectCalls.push([column, row, length]); },
   focus() { focusCalls += 1; },
   blur() { blurCalls += 1; },
   clearSelection() {},
-  hasSelection() { return false; }
+  hasSelection() { return selectCalls.length > 0; }
 };
 const layer2 = Object.freeze({
   contractVersion: 4,
@@ -185,7 +208,7 @@ terminalElement.dispatch('touchstart', tapStart);
 if (!tapStart.prevented || !tapStart.stopped || !tapStart.immediate) {
   throw new Error('tap candidate was not owned from touchstart');
 }
-if (blurCalls !== 1) throw new Error('tap candidate did not suspend retained xterm input focus');
+if (blurCalls !== 0) throw new Error('tap candidate changed xterm focus on touchstart');
 const tapEnd = touchEvent([], 10, tapTarget);
 terminalElement.dispatch('touchend', tapEnd);
 if (!tapEnd.prevented || !tapEnd.stopped || !tapEnd.immediate) {
@@ -220,7 +243,7 @@ if (!dragEnd.prevented || frames.size !== 1) throw new Error('scroll fling was n
 if (focusCalls !== 1 || softInputCalls !== 1 || dragTarget.events.length !== 0) {
   throw new Error('committed scroll replayed tap focus activation');
 }
-if (blurCalls !== 2) throw new Error('committed scroll did not suspend retained xterm input focus');
+if (blurCalls !== 0) throw new Error('committed scroll changed xterm focus');
 
 const pinchTarget = new FakeTarget();
 const firstPinchFinger = touchEvent([point(3, 0, 0)], 75, pinchTarget);
@@ -241,12 +264,12 @@ terminalElement.dispatch('touchend', pinchEnd);
 if (focusCalls !== 1 || softInputCalls !== 1 || pinchTarget.events.length !== 0) {
   throw new Error('pinch replayed tap focus activation');
 }
-if (blurCalls !== 3) throw new Error('pinch focus policy was applied more than once');
+if (blurCalls !== 0) throw new Error('pinch changed xterm focus');
 if (customization.getInteractionState().pinchConsumesGesture) throw new Error('pinch ownership did not reset');
 if (customization.getInteractionState().scrollAuthority !== 'layer3-public-scroll-lines') {
   throw new Error('scroll authority is not reported correctly');
 }
-if (customization.getInteractionState().touchActivationAuthority !== 'layer3-ime-visibility-aware-deferred-tap-native-ime') {
+if (customization.getInteractionState().touchActivationAuthority !== 'layer3-deferred-tap-only-native-ime') {
   throw new Error('touch activation authority is not reported correctly');
 }
 
@@ -260,18 +283,19 @@ runTimers();
 if (!customization.getInteractionState().selectionConsumesGesture) {
   throw new Error('long press did not enter xterm selection mode');
 }
-if (selectionTarget.events.length !== 1 || selectionTarget.events[0].type !== 'mousedown' ||
-    selectionTarget.events[0].detail !== 2) {
-  throw new Error('long press did not delegate word selection to xterm');
+if (selectionTarget.events.length !== 0) {
+  throw new Error('long press used focus-bearing synthetic mouse selection');
+}
+if (JSON.stringify(selectCalls[0]) !== JSON.stringify([0, 4, 5])) {
+  throw new Error(`long press did not select the xterm buffer word: ${JSON.stringify(selectCalls)}`);
 }
 terminalElement.dispatch('touchmove', touchEvent([point(10, 70, 80)], 110, selectionTarget));
-if (selectionTarget.events.length !== 2 || selectionTarget.events[1].type !== 'mousemove' ||
-    selectionTarget.events[1].buttons !== 1) {
-  throw new Error('selection drag was not delegated to xterm');
+if (JSON.stringify(selectCalls[1]) !== JSON.stringify([0, 4, 8])) {
+  throw new Error(`selection drag did not extend through public terminal.select: ${JSON.stringify(selectCalls)}`);
 }
 terminalElement.dispatch('touchend', touchEvent([], 120, selectionTarget));
-if (selectionTarget.events.length !== 3 || selectionTarget.events[2].type !== 'mouseup') {
-  throw new Error('selection release was not delegated to xterm');
+if (selectCalls.length !== 2) {
+  throw new Error('selection release unexpectedly changed the selected range');
 }
 if (customization.getInteractionState().selectionConsumesGesture) {
   throw new Error('selection ownership did not reset');
@@ -280,7 +304,7 @@ if (blurCalls !== selectionBlurBaseline || focusCalls !== selectionFocusBaseline
     softInputCalls !== selectionSoftInputBaseline) {
   throw new Error('visible-IME long press changed xterm focus or Android soft input');
 }
-if (customization.getInteractionState().selectionAuthority !== 'xterm-public-mouse-selection-long-press') {
+if (customization.getInteractionState().selectionAuthority !== 'xterm-public-buffer-select-long-press') {
   throw new Error('selection authority is not reported correctly');
 }
 
@@ -306,7 +330,7 @@ if (geometryRequests !== 4) throw new Error('second platform update did not requ
 if (!customization.getInteractionState().softInputVisible) {
   throw new Error('Layer 3 did not retain Android IME visibility state');
 }
-if (customization.getInteractionState().gestureFocusPolicy !== 'preserve-visible-ime-blur-hidden-ime') {
+if (customization.getInteractionState().gestureFocusPolicy !== 'no-touchstart-blur-tap-only-focus-ime') {
   throw new Error('gesture focus policy is not reported correctly');
 }
 
@@ -350,14 +374,11 @@ if (blurCalls !== visiblePinchBlurBaseline || focusCalls !== visiblePinchFocusBa
     softInputCalls !== visiblePinchSoftInputBaseline) {
   throw new Error('visible-IME pinch changed xterm focus or Android soft input');
 }
-if (customization.getInteractionState().ownedTouchFocusActive) {
-  throw new Error('owned touch focus policy did not reset');
-}
 
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-visibility-aware selection=xterm-long-press');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=tap-only-ime selection=xterm-buffer-select-long-press');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -373,18 +394,18 @@ for token in (
     "addEventListener('touchstart'",
     "addEventListener('touchmove'",
     'consumeTouch(event);',
-    'replayTap(tapTarget, tapX, tapY, !startedWithSoftInput)',
-    'layer2.terminal.blur()',
+    'replayTap(tapTarget, tapX, tapY, !softInputVisible)',
+    'layer2.terminal.select(first.column, first.row, length)',
     'layer2.platform.showSoftInput()',
-    "touchActivationAuthority: 'layer3-ime-visibility-aware-deferred-tap-native-ime'",
-    "gestureFocusPolicy: 'preserve-visible-ime-blur-hidden-ime'",
+    "touchActivationAuthority: 'layer3-deferred-tap-only-native-ime'",
+    "gestureFocusPolicy: 'no-touchstart-blur-tap-only-focus-ime'",
     'softInputVisible = Boolean(state.softInputVisible)',
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',
     "scrollAuthority: 'layer3-public-scroll-lines'",
     'LONG_PRESS_DELAY_MILLIS',
     'beginLongPressSelection',
-    "selectionAuthority: 'xterm-public-mouse-selection-long-press'",
+    "selectionAuthority: 'xterm-public-buffer-select-long-press'",
 ):
     if token not in source:
         raise SystemExit(f'missing Layer 3 interaction token: {token}')

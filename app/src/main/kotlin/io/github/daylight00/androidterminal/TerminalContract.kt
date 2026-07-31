@@ -53,7 +53,7 @@ internal object TerminalContract {
         "serialize-state-v1",
         "webgl-renderer-fallback-v1",
         "layer3-scaffold-v1",
-        "ime-aware-layer3-gesture-focus-v1",
+        "tap-only-layer3-ime-focus-v1",
         "session-title-state-v1",
         "localized-xterm-strings-v1",
         "safe-window-reports-v1",

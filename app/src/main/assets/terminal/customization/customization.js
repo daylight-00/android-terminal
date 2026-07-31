@@ -104,8 +104,6 @@
       : 15;
     let userFontScale = 1;
     let softInputVisible = Boolean(initialState && initialState.softInputVisible);
-    let ownedTouchFocusActive = false;
-    let ownedTouchStartedWithSoftInput = false;
     let pinchDistance = 0;
     let pinchConsumesGesture = false;
     let scrollTouchIdentifier = null;
@@ -120,7 +118,8 @@
     let scrollAnimationFrame = 0;
     let longPressTimer = 0;
     let selectionConsumesGesture = false;
-    let selectionMouseTarget = null;
+    let selectionAnchorStart = null;
+    let selectionAnchorEnd = null;
     let disposed = false;
     const touchSurfaceAvailable =
       typeof terminalElement.addEventListener === 'function' &&
@@ -280,26 +279,115 @@
       scrollAnimationFrame = requestFrame(animate);
     }
 
-    function beginOwnedTouchFocusPolicy() {
-      if (ownedTouchFocusActive) return;
-      ownedTouchFocusActive = true;
-      ownedTouchStartedWithSoftInput = softInputVisible;
-
-      // Android owns IME visibility. Preserve xterm focus when the IME is already
-      // visible so scroll, pinch, and future selection gestures do not collapse
-      // the keyboard. When the IME is hidden, blur the retained hidden textarea
-      // before WebView can reinterpret the owned touch as an editor activation.
-      if (!ownedTouchStartedWithSoftInput &&
-          typeof layer2.terminal.blur === 'function') {
-        layer2.terminal.blur();
+    function terminalCellAt(clientX, clientY) {
+      const screen = typeof terminalElement.querySelector === 'function'
+        ? terminalElement.querySelector('.xterm-screen')
+        : null;
+      if (!screen || typeof screen.getBoundingClientRect !== 'function') return null;
+      const rect = screen.getBoundingClientRect();
+      const columns = Number(layer2.terminal.cols);
+      const rows = Number(layer2.terminal.rows);
+      if (!Number.isFinite(columns) || columns <= 0 ||
+          !Number.isFinite(rows) || rows <= 0 ||
+          !Number.isFinite(rect.width) || rect.width <= 0 ||
+          !Number.isFinite(rect.height) || rect.height <= 0) {
+        return null;
       }
+      const column = Math.min(
+        columns - 1,
+        Math.max(0, Math.floor((Number(clientX) - Number(rect.left || 0)) * columns / rect.width))
+      );
+      const viewportRow = Math.min(
+        rows - 1,
+        Math.max(0, Math.floor((Number(clientY) - Number(rect.top || 0)) * rows / rect.height))
+      );
+      const activeBuffer = layer2.terminal.buffer && layer2.terminal.buffer.active;
+      const viewportY = activeBuffer && Number.isFinite(Number(activeBuffer.viewportY))
+        ? Number(activeBuffer.viewportY)
+        : 0;
+      return {column, row: viewportY + viewportRow};
     }
 
-    function finishOwnedTouchFocusPolicy() {
-      const startedWithSoftInput = ownedTouchStartedWithSoftInput;
-      ownedTouchFocusActive = false;
-      ownedTouchStartedWithSoftInput = false;
-      return startedWithSoftInput;
+    function bufferCell(line, column) {
+      if (!line || typeof line.getCell !== 'function') return null;
+      return line.getCell(column) || null;
+    }
+
+    function cellCharacters(line, column) {
+      const cell = bufferCell(line, column);
+      if (!cell || typeof cell.getChars !== 'function') return '';
+      return String(cell.getChars() || '');
+    }
+
+    function cellWidth(line, column) {
+      const cell = bufferCell(line, column);
+      if (!cell || typeof cell.getWidth !== 'function') return 1;
+      const width = Number(cell.getWidth());
+      return Number.isFinite(width) ? width : 1;
+    }
+
+    function isWordSeparatorAt(line, column) {
+      if (cellWidth(line, column) === 0) return false;
+      const characters = cellCharacters(line, column);
+      if (!characters) return true;
+      const first = Array.from(characters)[0] || '';
+      if (!first || /\s/u.test(first)) return true;
+      const separators = String(layer2.terminal.options.wordSeparator || ' ()[]{}\'"');
+      return separators.includes(first);
+    }
+
+    function wordRangeAt(position) {
+      const activeBuffer = layer2.terminal.buffer && layer2.terminal.buffer.active;
+      const line = activeBuffer && typeof activeBuffer.getLine === 'function'
+        ? activeBuffer.getLine(position.row)
+        : null;
+      const columns = Number(layer2.terminal.cols);
+      if (!line || !Number.isFinite(columns) || columns <= 0) {
+        return {start: position, end: position};
+      }
+      let column = position.column;
+      while (column > 0 && cellWidth(line, column) === 0) {
+        column -= 1;
+      }
+      if (isWordSeparatorAt(line, column)) {
+        return {
+          start: {column, row: position.row},
+          end: {column, row: position.row}
+        };
+      }
+      let startColumn = column;
+      let endColumn = column;
+      while (startColumn > 0 && !isWordSeparatorAt(line, startColumn - 1)) {
+        startColumn -= 1;
+      }
+      while (endColumn + 1 < columns && !isWordSeparatorAt(line, endColumn + 1)) {
+        endColumn += 1;
+      }
+      return {
+        start: {column: startColumn, row: position.row},
+        end: {column: endColumn, row: position.row}
+      };
+    }
+
+    function compareCells(first, second) {
+      if (first.row !== second.row) return first.row - second.row;
+      return first.column - second.column;
+    }
+
+    function selectCellRange(start, end) {
+      if (typeof layer2.terminal.select !== 'function') return false;
+      const columns = Number(layer2.terminal.cols);
+      if (!Number.isFinite(columns) || columns <= 0) return false;
+      let first = start;
+      let last = end;
+      if (compareCells(first, last) > 0) {
+        first = end;
+        last = start;
+      }
+      const length = (last.row - first.row) * columns + (last.column - first.column) + 1;
+      if (!Number.isFinite(length) || length <= 0) return false;
+      layer2.terminal.select(first.column, first.row, length);
+      return true;
     }
 
     function replayTap(target, clientX, clientY, requestSoftInput) {
@@ -320,15 +408,16 @@
     function beginLongPressSelection() {
       longPressTimer = 0;
       if (disposed || pinchConsumesGesture || scrollConsumesGesture ||
-          scrollTouchIdentifier === null || selectionConsumesGesture || !scrollTapTarget) {
+          scrollTouchIdentifier === null || selectionConsumesGesture) {
         return;
       }
+      const position = terminalCellAt(scrollLastX, scrollLastY);
+      if (!position) return;
+      const range = wordRangeAt(position);
+      if (!selectCellRange(range.start, range.end)) return;
       selectionConsumesGesture = true;
-      selectionMouseTarget = scrollTapTarget;
-      // Delegate word selection and drag expansion to xterm's existing public
-      // mouse-selection surface. No terminal buffer or word-boundary model is
-      // reimplemented in Layer 3.
-      dispatchMouseEvent(selectionMouseTarget, 'mousedown', scrollLastX, scrollLastY, 1, 2);
+      selectionAnchorStart = range.start;
+      selectionAnchorEnd = range.end;
     }
 
     function armLongPressSelection() {
@@ -336,11 +425,21 @@
       longPressTimer = window.setTimeout(beginLongPressSelection, LONG_PRESS_DELAY_MILLIS);
     }
 
+    function updateSelectionGesture(clientX, clientY) {
+      if (!selectionConsumesGesture || !selectionAnchorStart || !selectionAnchorEnd) return false;
+      const current = terminalCellAt(clientX, clientY);
+      if (!current) return false;
+      if (compareCells(current, selectionAnchorStart) < 0) {
+        return selectCellRange(current, selectionAnchorEnd);
+      }
+      return selectCellRange(selectionAnchorStart, current);
+    }
+
     function finishSelectionGesture() {
       if (!selectionConsumesGesture) return false;
-      dispatchMouseEvent(selectionMouseTarget, 'mouseup', scrollLastX, scrollLastY, 0, 2);
       selectionConsumesGesture = false;
-      selectionMouseTarget = null;
+      selectionAnchorStart = null;
+      selectionAnchorEnd = null;
       return true;
     }
 
@@ -367,7 +466,6 @@
     }
 
     function beginPinch(event) {
-      beginOwnedTouchFocusPolicy();
       cancelScrollInertia();
       cancelLongPress();
       finishSelectionGesture();
@@ -386,10 +484,8 @@
         return;
       }
       if (beginOneFingerScroll(event)) {
-        beginOwnedTouchFocusPolicy();
-        // Own the gesture from its first touch. Waiting until touchmove is too
-        // late on Android WebView because the initial touch can already arm
-        // xterm's focus/IME activation for release.
+        // Own the gesture from its first touch, but do not change xterm focus.
+        // Only a completed tap may request input focus or Android soft input.
         consumeTouch(event);
       }
     }
@@ -424,7 +520,7 @@
       scrollLastY = currentY;
       recordScrollSample(eventTime(event), currentY);
       if (selectionConsumesGesture) {
-        dispatchMouseEvent(selectionMouseTarget, 'mousemove', currentX, currentY, 1, 0);
+        updateSelectionGesture(currentX, currentY);
         consumeTouch(event);
         return;
       }
@@ -451,7 +547,6 @@
         } else if (event.touches.length === 0) {
           pinchDistance = 0;
           pinchConsumesGesture = false;
-          finishOwnedTouchFocusPolicy();
         }
         return;
       }
@@ -459,7 +554,6 @@
       if (scrollTouchIdentifier === null) return;
       if (findTouch(event.touches, scrollTouchIdentifier)) return;
       if (selectionConsumesGesture) {
-        finishOwnedTouchFocusPolicy();
         finishSelectionGesture();
         resetScrollGesture(false);
         consumeTouch(event);
@@ -470,11 +564,10 @@
       const tapTarget = scrollTapTarget;
       const tapX = scrollLastX;
       const tapY = scrollLastY;
-      const startedWithSoftInput = finishOwnedTouchFocusPolicy();
       if (consumed) startScrollInertia();
       resetScrollGesture(false);
       consumeTouch(event);
-      if (!consumed) replayTap(tapTarget, tapX, tapY, !startedWithSoftInput);
+      if (!consumed) replayTap(tapTarget, tapX, tapY, !softInputVisible);
     }
 
     function onTouchCancel(event) {
@@ -486,7 +579,6 @@
       finishSelectionGesture();
       resetScrollGesture(true);
       if (owned) {
-        finishOwnedTouchFocusPolicy();
         consumeTouch(event);
       }
     }
@@ -524,13 +616,12 @@
           pinchConsumesGesture,
           scrollConsumesGesture,
           selectionConsumesGesture,
-          selectionAuthority: 'xterm-public-mouse-selection-long-press',
+          selectionAuthority: 'xterm-public-buffer-select-long-press',
           selectionHandles: 'none',
           scrollAuthority: 'layer3-public-scroll-lines',
-          touchActivationAuthority: 'layer3-ime-visibility-aware-deferred-tap-native-ime',
-          gestureFocusPolicy: 'preserve-visible-ime-blur-hidden-ime',
+          touchActivationAuthority: 'layer3-deferred-tap-only-native-ime',
+          gestureFocusPolicy: 'no-touchstart-blur-tap-only-focus-ime',
           softInputVisible,
-          ownedTouchFocusActive,
           touchSurfaceAvailable
         });
       }

@@ -518,10 +518,10 @@ def verify(root: Path) -> list[str]:
         fail("controller does not transport soft-input visibility", failures)
     if "softInputVisible: Boolean(nativeMessage.softInputVisible)" not in bridge_js:
         fail("Layer 2 JavaScript does not expose soft-input visibility", failures)
-    if "preserve-visible-ime-blur-hidden-ime" not in customization_js:
-        fail("Layer 3 does not preserve an already-visible IME during owned touch", failures)
-    if "LONG_PRESS_DELAY_MILLIS" not in customization_js or "xterm-public-mouse-selection-long-press" not in customization_js:
-        fail("Layer 3 does not expose xterm-owned long-press selection", failures)
+    if "no-touchstart-blur-tap-only-focus-ime" not in customization_js:
+        fail("Layer 3 still changes xterm focus at touchstart instead of deferring IME work to completed taps", failures)
+    if "LONG_PRESS_DELAY_MILLIS" not in customization_js or "xterm-public-buffer-select-long-press" not in customization_js:
+        fail("Layer 3 does not expose public xterm buffer-selection long press", failures)
     if "TerminalWindowInsets.isSoftInputVisible(insets)" not in activity or "updateSoftInputVisibility(softInputVisible)" not in activity:
         fail("window-inset changes do not publish the listener-delivered IME state", failures)
     if 'android:configChanges="fontScale|' not in manifest:
