@@ -153,7 +153,12 @@
 
     function applyAppearance(state) {
       layer2.terminal.options.theme = state.colorScheme === 'light' ? lightTheme : darkTheme;
+      const wasSoftInputVisible = softInputVisible;
       softInputVisible = Boolean(state.softInputVisible);
+      if (wasSoftInputVisible && !softInputVisible &&
+          typeof layer2.terminal.blur === 'function') {
+        layer2.terminal.blur();
+      }
       androidFontScale = boundedScale(
         state.fontScale,
         MIN_ANDROID_FONT_SCALE,
@@ -620,7 +625,7 @@
           selectionHandles: 'none',
           scrollAuthority: 'layer3-public-scroll-lines',
           touchActivationAuthority: 'layer3-deferred-tap-only-native-ime',
-          gestureFocusPolicy: 'no-touchstart-blur-tap-only-focus-ime',
+          gestureFocusPolicy: 'ime-hide-blur-tap-only-focus-ime',
           softInputVisible,
           touchSurfaceAvailable
         });

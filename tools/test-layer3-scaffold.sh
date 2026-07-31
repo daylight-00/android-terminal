@@ -330,7 +330,7 @@ if (geometryRequests !== 4) throw new Error('second platform update did not requ
 if (!customization.getInteractionState().softInputVisible) {
   throw new Error('Layer 3 did not retain Android IME visibility state');
 }
-if (customization.getInteractionState().gestureFocusPolicy !== 'no-touchstart-blur-tap-only-focus-ime') {
+if (customization.getInteractionState().gestureFocusPolicy !== 'ime-hide-blur-tap-only-focus-ime') {
   throw new Error('gesture focus policy is not reported correctly');
 }
 
@@ -375,10 +375,53 @@ if (blurCalls !== visiblePinchBlurBaseline || focusCalls !== visiblePinchFocusBa
   throw new Error('visible-IME pinch changed xterm focus or Android soft input');
 }
 
+const imeHideBlurBaseline = blurCalls;
+const imeHideFocusBaseline = focusCalls;
+const imeHideSoftInputBaseline = softInputCalls;
+listeners[0]({colorScheme: 'dark', fontScale: 2, softInputVisible: false});
+if (blurCalls !== imeHideBlurBaseline + 1) {
+  throw new Error('visible-to-hidden IME transition did not release retained xterm focus exactly once');
+}
+if (focusCalls !== imeHideFocusBaseline || softInputCalls !== imeHideSoftInputBaseline) {
+  throw new Error('IME hide transition unexpectedly focused xterm or requested Android soft input');
+}
+listeners[0]({colorScheme: 'dark', fontScale: 2, softInputVisible: false});
+if (blurCalls !== imeHideBlurBaseline + 1) {
+  throw new Error('repeated hidden-IME state redundantly blurred xterm');
+}
+if (customization.getInteractionState().softInputVisible) {
+  throw new Error('Layer 3 did not retain the hidden Android IME state');
+}
+
+const hiddenSelectionBlurBaseline = blurCalls;
+const hiddenSelectionFocusBaseline = focusCalls;
+const hiddenSelectionSoftInputBaseline = softInputCalls;
+const hiddenSelectionTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(11, 30, 80)], 250, hiddenSelectionTarget));
+runTimers();
+terminalElement.dispatch('touchmove', touchEvent([point(11, 70, 80)], 260, hiddenSelectionTarget));
+terminalElement.dispatch('touchend', touchEvent([], 270, hiddenSelectionTarget));
+if (blurCalls !== hiddenSelectionBlurBaseline || focusCalls !== hiddenSelectionFocusBaseline ||
+    softInputCalls !== hiddenSelectionSoftInputBaseline) {
+  throw new Error('hidden-IME long press reactivated or redundantly blurred terminal input');
+}
+
+const hiddenDragBlurBaseline = blurCalls;
+const hiddenDragFocusBaseline = focusCalls;
+const hiddenDragSoftInputBaseline = softInputCalls;
+const hiddenDragTarget = new FakeTarget();
+terminalElement.dispatch('touchstart', touchEvent([point(12, 0, 100)], 280, hiddenDragTarget));
+terminalElement.dispatch('touchmove', touchEvent([point(12, 0, 140)], 300, hiddenDragTarget));
+terminalElement.dispatch('touchend', touchEvent([], 310, hiddenDragTarget));
+if (blurCalls !== hiddenDragBlurBaseline || focusCalls !== hiddenDragFocusBaseline ||
+    softInputCalls !== hiddenDragSoftInputBaseline) {
+  throw new Error('hidden-IME scroll reactivated or redundantly blurred terminal input');
+}
+
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=tap-only-ime selection=xterm-buffer-select-long-press');
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-hide-blur-tap-only-ime selection=xterm-buffer-select-long-press');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -398,8 +441,11 @@ for token in (
     'layer2.terminal.select(first.column, first.row, length)',
     'layer2.platform.showSoftInput()',
     "touchActivationAuthority: 'layer3-deferred-tap-only-native-ime'",
-    "gestureFocusPolicy: 'no-touchstart-blur-tap-only-focus-ime'",
+    "gestureFocusPolicy: 'ime-hide-blur-tap-only-focus-ime'",
+    'const wasSoftInputVisible = softInputVisible',
     'softInputVisible = Boolean(state.softInputVisible)',
+    'wasSoftInputVisible && !softInputVisible',
+    'layer2.terminal.blur()',
     'layer2.terminal.scrollLines(rows)',
     'layer2.requestGeometrySync()',
     "scrollAuthority: 'layer3-public-scroll-lines'",

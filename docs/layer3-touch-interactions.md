@@ -59,9 +59,11 @@ release below threshold
 
 Synthetic JavaScript mouse events are not trusted Android input events, so `terminal.focus()` alone can focus the hidden xterm textarea without causing WebView to reopen the IME. The ordinary-tap path therefore follows DOM focus with an explicit native `soft-input-show` platform request. Scroll and pinch never send that request.
 
-Android still reports IME visibility through the exact `WindowInsets` delivered to the Activity root, but Layer 3 no longer uses that asynchronous state to blur xterm at `touchstart`. Device evidence showed that even a briefly stale false value caused the keyboard to lower immediately, then rise again when the same gesture was replayed as a tap.
+Android reports IME visibility through the exact `WindowInsets` delivered to the Activity root. Layer 3 never uses that asynchronous state to blur xterm at `touchstart` or `touchend`; device evidence showed that even a briefly stale false value caused the keyboard to lower immediately and then rise again when the gesture completed.
 
-The stable policy is now simpler: touchstart, scroll, pinch, and long-press selection never call `terminal.blur()`, `terminal.focus()`, or `soft-input-show`. Only a completed short tap replays the compatibility mouse sequence, focuses xterm, and requests Android soft input when the latest platform state says it is hidden. This removes IME state from gesture classification and prevents a long press from being converted back into a focus-restoring tap.
+When Android reports the specific transition `softInputVisible: true → false`, Layer 3 calls the public `terminal.blur()` exactly once. This releases the hidden xterm textarea focus retained after the user dismisses the keyboard, preventing WebView from reopening the IME on the release of a later scroll, pinch, or long press. Repeated hidden-state updates do not blur again.
+
+The stable policy is: touchstart, scroll, pinch, and long-press selection never change focus. Only the platform's visible-to-hidden IME transition may blur retained xterm input, and only a completed short tap replays the compatibility mouse sequence, focuses xterm, and requests Android soft input when the latest platform state says it is hidden. IME state remains outside gesture classification.
 
 
 ## Long-press selection

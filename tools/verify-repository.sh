@@ -88,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 31' app/build.gradle
-check version-name grep -Fxq "        versionName '0.25.4'" app/build.gradle
+check version-code grep -Fxq '        versionCode 32' app/build.gradle
+check version-name grep -Fxq "        versionName '0.25.5'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -168,7 +168,7 @@ check platform-state-soft-input grep -Fq 'softInputVisible' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformState.kt
 check platform-insets-ime grep -Fq 'WindowInsets.Type.ime()' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalWindowInsets.kt
-check layer3-tap-only-ime-focus grep -Fq 'no-touchstart-blur-tap-only-focus-ime' \
+check layer3-tap-only-ime-focus grep -Fq 'ime-hide-blur-tap-only-focus-ime' \
   app/src/main/assets/terminal/customization/customization.js
 check activity-ime-insets-authority grep -Fq 'TerminalWindowInsets.isSoftInputVisible(insets)' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/MainActivity.kt
