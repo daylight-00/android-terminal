@@ -96,8 +96,10 @@ machine-verified inventory, and [`docs/layer2-completion.json`](docs/layer2-comp
   loads after Layer 2, and may consume only the stable customization capability.
 - Layer 3 touch interaction uses public xterm surfaces inside the WebView: one-finger drag and fling
   translate CSS-pixel motion into `Terminal.scrollLines()`, two-finger pinch changes the public font
-  size and reuses the existing geometry bridge, and a stationary 500 ms hold delegates word selection
-  and drag expansion to xterm's existing mouse-selection path. Android root `WindowInsets` are cached
+  size and reuses the existing geometry bridge, and a stationary 500 ms hold maps the touched public
+  buffer cells into xterm's public `select()` API. Selection release asks Layer 2 to show Android's
+  floating `ActionMode` with Copy, Paste, and Select all; the native toolbar emits bounded selection
+  action events back to Layer 3 without owning the selection model. Android root `WindowInsets` are cached
   as the IME visibility authority so an already-visible keyboard is preserved; only a completed hidden-IME
   tap requests the system keyboard. See `docs/layer3-touch-interactions.md`.
 

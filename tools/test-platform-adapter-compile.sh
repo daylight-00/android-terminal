@@ -24,6 +24,10 @@ for token in (
     "systemWindowInsetBottom > insets.stableInsetBottom",
     "showSoftInput",
     "restartInput",
+    "ActionMode.TYPE_FLOATING",
+    "ActionMode.Callback2",
+    "invalidateContentRect",
+    "startActionMode",
     "AccessibilityStateChangeListener",
     "TouchExplorationStateChangeListener",
     "configuration.locales[0].toLanguageTag()",
@@ -72,6 +76,7 @@ open class Activity {
     fun startActivityForResult(intent: Intent, requestCode: Int) {}
     fun runOnUiThread(action: () -> Unit) = action()
     fun getString(id: Int): String = "localized-$id"
+    fun getText(id: Int): CharSequence = "localized-$id"
     companion object { const val RESULT_OK: Int = -1 }
 }
 KT
@@ -175,6 +180,9 @@ object Color {
     const val BLACK: Int = 0xff000000.toInt()
     fun rgb(red: Int, green: Int, blue: Int): Int = 0
 }
+class Rect {
+    fun set(left: Int, top: Int, right: Int, bottom: Int) {}
+}
 KT
 
 cat > "$WORK/android/net/Uri.kt" <<'KT'
@@ -203,6 +211,58 @@ package android.provider
 object OpenableColumns {
     const val DISPLAY_NAME: String = "_display_name"
     const val SIZE: String = "_size"
+}
+KT
+
+cat > "$WORK/android/R.kt" <<'KT'
+package android
+object R {
+    object string {
+        const val copy: Int = 1
+        const val paste: Int = 2
+        const val selectAll: Int = 3
+    }
+}
+KT
+
+cat > "$WORK/android/view/ActionMode.kt" <<'KT'
+package android.view
+
+import android.graphics.Rect
+
+open class View {
+    open val width: Int = 1080
+    open val height: Int = 1920
+    open fun startActionMode(callback: ActionMode.Callback, type: Int): ActionMode? = ActionMode()
+}
+
+open class ActionMode {
+    open fun finish() {}
+    open fun invalidateContentRect() {}
+    interface Callback {
+        fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean
+        fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean
+        fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean
+        fun onDestroyActionMode(mode: ActionMode)
+    }
+    abstract class Callback2 : Callback {
+        open fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {}
+    }
+    companion object { const val TYPE_FLOATING: Int = 1 }
+}
+
+interface Menu {
+    fun add(groupId: Int, itemId: Int, order: Int, title: CharSequence): MenuItem
+    companion object { const val NONE: Int = 0 }
+}
+
+interface MenuItem {
+    val itemId: Int
+    fun setShowAsAction(actionEnum: Int)
+    companion object {
+        const val SHOW_AS_ACTION_ALWAYS: Int = 2
+        const val SHOW_AS_ACTION_IF_ROOM: Int = 1
+    }
 }
 KT
 
@@ -257,8 +317,9 @@ cat > "$WORK/android/webkit/WebView.kt" <<'KT'
 package android.webkit
 
 import android.view.WindowInsets
+import android.view.View
 
-open class WebView {
+open class WebView : View() {
     val rootWindowInsets: WindowInsets? = WindowInsets()
     val isAttachedToWindow: Boolean = true
     fun hasWindowFocus(): Boolean = true
@@ -293,6 +354,7 @@ package org.json
 class JSONObject {
     fun put(name: String, value: Any?): JSONObject = this
     fun optString(name: String): String = ""
+    fun optDouble(name: String, fallback: Double): Double = fallback
 }
 KT
 
@@ -301,11 +363,13 @@ kotlinc -nowarn \
   "$WORK/android/content/Content.kt" \
   "$WORK/android/content/res/Configuration.kt" \
   "$WORK/android/database/Cursor.kt" \
+  "$WORK/android/R.kt" \
   "$WORK/android/graphics/Color.kt" \
   "$WORK/android/net/Uri.kt" \
   "$WORK/android/os/SystemClock.kt" \
   "$WORK/android/os/Build.kt" \
   "$WORK/android/provider/OpenableColumns.kt" \
+  "$WORK/android/view/ActionMode.kt" \
   "$WORK/android/view/HapticFeedbackConstants.kt" \
   "$WORK/android/view/WindowInsets.kt" \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \

@@ -1,7 +1,7 @@
 package io.github.daylight00.androidterminal
 
 internal object TerminalContract {
-    const val PROTOCOL_VERSION = 6
+    const val PROTOCOL_VERSION = 7
     const val ORIGIN = "https://app.local"
     const val HOST = "app.local"
     const val DOCUMENT_PATH = "/terminal/index.html"
@@ -26,6 +26,7 @@ internal object TerminalContract {
         const val GEOMETRY = "geometry"
         const val PLATFORM_STATE = "platform-state"
         const val PLATFORM_RESULT = "platform-result"
+        const val PLATFORM_EVENT = "platform-event"
         const val ERROR = "error"
     }
 
@@ -37,6 +38,8 @@ internal object TerminalContract {
         const val SOFT_INPUT_SHOW = "soft-input-show"
         const val DOCUMENT_IMPORT = "document-import"
         const val DOCUMENT_EXPORT = "document-export"
+        const val SELECTION_ACTIONS_SHOW = "selection-actions-show"
+        const val SELECTION_ACTIONS_HIDE = "selection-actions-hide"
     }
 
     val REQUIRED_PAGE_CAPABILITIES = setOf(
@@ -83,6 +86,7 @@ internal object TerminalContract {
         "android-document-transport",
         "android-shared-storage-direct-path",
         "android-native-account-session",
+        "android-floating-selection-actionmode",
         "xterm-serialized-state",
     )
 }

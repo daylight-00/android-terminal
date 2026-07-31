@@ -239,7 +239,7 @@ const paths = process.argv.slice(2);
 
   function sendNative(payload) {
     port.onmessage({data: JSON.stringify({
-      contractVersion: 6,
+      contractVersion: 7,
       connectionGeneration: 3,
       sessionId: 'session-a',
       ...payload
@@ -329,7 +329,7 @@ const paths = process.argv.slice(2);
   }
 
   if (!context.AndroidTerminalContract) throw new Error('contract export missing');
-  if (context.AndroidTerminalContract.protocolVersion !== 6) throw new Error('protocol v6 missing');
+  if (context.AndroidTerminalContract.protocolVersion !== 7) throw new Error('protocol v7 missing');
   if (!context.AndroidTerminalPlatformIntegration) throw new Error('platform integration export missing');
   if (!context.AndroidTerminalPlatform) throw new Error('platform facade missing');
   if (!context.AndroidTerminalLayer2 || context.AndroidTerminalLayer2.contractVersion !== 4) {
@@ -384,7 +384,7 @@ const paths = process.argv.slice(2);
   resizeObserverCallback();
   flushFrames();
   if (posted.length !== 1 || posted[0].type !== 'ready') throw new Error('ready message missing');
-  if (posted[0].contractVersion !== 6) throw new Error('ready contract version missing');
+  if (posted[0].contractVersion !== 7) throw new Error('ready contract version missing');
   if (posted[0].pixelWidth !== 1080 || posted[0].pixelHeight !== 1920) {
     throw new Error('ready pixel geometry missing');
   }
@@ -397,7 +397,7 @@ const paths = process.argv.slice(2);
 
   const requiredNative = context.AndroidTerminalContract.requiredNativeCapabilities;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 6,
+    contractVersion: 7,
     type: 'attached',
     connectionGeneration: 3,
     sessionId: 'session-a',
@@ -463,7 +463,7 @@ const paths = process.argv.slice(2);
   if (posted.length !== 2) throw new Error('transient zero geometry emitted resize');
 
   port.onmessage({data: JSON.stringify({
-    contractVersion: 6,
+    contractVersion: 7,
     type: 'output',
     connectionGeneration: 2,
     sessionId: 'stale-session',
@@ -509,6 +509,25 @@ const paths = process.argv.slice(2);
   const softInputRequest = latestRequest('soft-input-show');
   completeRequest(softInputRequest, {requested: true});
   if (!(await softInputPromise).requested) throw new Error('soft-input request result mismatch');
+
+  const selectionActions = [];
+  const selectionActionSubscription = context.AndroidTerminalLayer2.onSelectionAction(
+    (action) => selectionActions.push(action)
+  );
+  const showActionsPromise = context.AndroidTerminalPlatform.showSelectionActions({x: 120, y: 240});
+  const showActionsRequest = latestRequest('selection-actions-show');
+  if (showActionsRequest.payload.x !== 120 || showActionsRequest.payload.y !== 240) {
+    throw new Error('selection action anchor mismatch');
+  }
+  completeRequest(showActionsRequest, {shown: true});
+  if (!(await showActionsPromise).shown) throw new Error('selection action show result mismatch');
+  sendNative({type: 'platform-event', event: 'selection-action', action: 'copy'});
+  if (selectionActions.at(-1) !== 'copy') throw new Error('selection action event was not delivered');
+  const hideActionsPromise = context.AndroidTerminalPlatform.hideSelectionActions();
+  const hideActionsRequest = latestRequest('selection-actions-hide');
+  completeRequest(hideActionsRequest, {hidden: true});
+  if (!(await hideActionsPromise).hidden) throw new Error('selection action hide result mismatch');
+  selectionActionSubscription.dispose();
 
   const countBeforeBlockedUri = posted.length;
   let blocked = false;
@@ -614,7 +633,7 @@ const paths = process.argv.slice(2);
   await exportPromise;
 
   port.onmessage({data: JSON.stringify({
-    contractVersion: 6,
+    contractVersion: 7,
     type: 'attached',
     connectionGeneration: 4,
     sessionId: 'session-gap',
@@ -628,7 +647,7 @@ const paths = process.argv.slice(2);
   })});
   const gapCount = posted.length;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 6,
+    contractVersion: 7,
     type: 'output',
     connectionGeneration: 4,
     sessionId: 'session-gap',
@@ -642,7 +661,7 @@ const paths = process.argv.slice(2);
 
   const countBeforeRestore = posted.length;
   port.onmessage({data: JSON.stringify({
-    contractVersion: 6,
+    contractVersion: 7,
     type: 'attached',
     connectionGeneration: 5,
     sessionId: 'session-b',
@@ -696,7 +715,7 @@ const paths = process.argv.slice(2);
   if (windowHandler.callback([18]) !== false) throw new Error('upstream-owned window report was intercepted');
   titleSubscription.dispose();
 
-  console.log('PASS web-terminal-channel contract=6 stable-addons=clipboard,image,progress,search,unicode11,web-fonts,ligatures serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,soft-input,documents layer3=optional-theme geometry=deduplicated');
+  console.log('PASS web-terminal-channel contract=7 stable-addons=clipboard,image,progress,search,unicode11,web-fonts,ligatures serialize=official-addon web-links=official-addon platform=clipboard,accessibility,font-scale,title,localized-strings,safe-window-reports,links,bell,soft-input,documents layer3=optional-theme geometry=deduplicated');
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : error);
   process.exit(1);
@@ -713,7 +732,7 @@ import sys
 contract_path, codec_path, platform_path, bridge_path = map(pathlib.Path, sys.argv[1:])
 required = {
     contract_path: (
-        "protocolVersion: 6",
+        "protocolVersion: 7",
         "channelMarker: 'native-shell'",
         "session-attach-v2",
         "geometry-dedup-v1",
@@ -728,6 +747,9 @@ required = {
         "platformState: 'platform-state'",
         "android-soft-input-visibility-state",
         "platformResult: 'platform-result'",
+        "platformEvent: 'platform-event'",
+        "selectionActionsShow: 'selection-actions-show'",
+        "selectionActionsHide: 'selection-actions-hide'",
     ),
     codec_path: ("window.NativeShellCodec = Object.freeze", "new TextEncoder().encode(value)"),
     platform_path: (
@@ -794,6 +816,6 @@ for length in (0, 1, 2, 3, 255, 32768, 65537):
     if base64.b64decode(base64.b64encode(payload), validate=True) != payload:
         raise SystemExit(f"base64 reference roundtrip failed: {length}")
 
-print("PASS web-terminal static-python node=unavailable contract=6 serialize=official-addon stable-addons=official web-links=official-addon platform=bounded-documents,font-scale,title,localized-strings,safe-window-reports geometry=deduplicated")
+print("PASS web-terminal static-python node=unavailable contract=7 serialize=official-addon stable-addons=official web-links=official-addon platform=bounded-documents,font-scale,title,localized-strings,safe-window-reports geometry=deduplicated")
 PY
 fi

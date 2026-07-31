@@ -8,6 +8,11 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.SystemClock
+import android.graphics.Rect
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
 import android.view.HapticFeedbackConstants
 import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityManager
@@ -22,11 +27,53 @@ internal class TerminalPlatformAdapter(
     private val activity: Activity,
     private val terminalView: WebView,
     private val onStateChanged: (TerminalPlatformState) -> Unit,
+    private val onSelectionAction: (String) -> Unit,
 ) : AutoCloseable {
     private val clipboardManager = activity.getSystemService(ClipboardManager::class.java)
     private val accessibilityManager = activity.getSystemService(AccessibilityManager::class.java)
     private val inputMethodManager = activity.getSystemService(InputMethodManager::class.java)
     private val documentTransport = TerminalDocumentTransport(activity)
+    private var selectionActionMode: ActionMode? = null
+    private var selectionAnchorX = 0
+    private var selectionAnchorY = 0
+
+    private val selectionActionModeCallback = object : ActionMode.Callback2() {
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+            menu.add(Menu.NONE, MENU_COPY, 0, activity.getText(android.R.string.copy))
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            menu.add(Menu.NONE, MENU_PASTE, 1, activity.getText(android.R.string.paste))
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            menu.add(Menu.NONE, MENU_SELECT_ALL, 2, activity.getText(android.R.string.selectAll))
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            return true
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean = false
+
+        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+            val action = when (item.itemId) {
+                MENU_COPY -> SELECTION_ACTION_COPY
+                MENU_PASTE -> SELECTION_ACTION_PASTE
+                MENU_SELECT_ALL -> SELECTION_ACTION_SELECT_ALL
+                else -> return false
+            }
+            onSelectionAction(action)
+            if (action != SELECTION_ACTION_SELECT_ALL) mode.finish()
+            return true
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+            if (selectionActionMode === mode) selectionActionMode = null
+        }
+
+        override fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {
+            val width = view.width.coerceAtLeast(1)
+            val height = view.height.coerceAtLeast(1)
+            val x = selectionAnchorX.coerceIn(0, width - 1)
+            val y = selectionAnchorY.coerceIn(0, height - 1)
+            outRect.set(x, y, (x + 1).coerceAtMost(width), (y + 1).coerceAtMost(height))
+        }
+    }
 
     private val accessibilityStateListener =
         AccessibilityManager.AccessibilityStateChangeListener { publishState() }
@@ -47,6 +94,8 @@ internal class TerminalPlatformAdapter(
     override fun close() {
         if (closed) return
         closed = true
+        selectionActionMode?.finish()
+        selectionActionMode = null
         pendingDocumentRequest = null
         accessibilityManager?.removeAccessibilityStateChangeListener(accessibilityStateListener)
         accessibilityManager?.removeTouchExplorationStateChangeListener(touchExplorationStateListener)
@@ -113,6 +162,12 @@ internal class TerminalPlatformAdapter(
             }
             TerminalContract.PlatformOperation.DOCUMENT_EXPORT -> {
                 beginDocumentExport(payload, completion)
+            }
+            TerminalContract.PlatformOperation.SELECTION_ACTIONS_SHOW -> {
+                completion(showSelectionActions(payload))
+            }
+            TerminalContract.PlatformOperation.SELECTION_ACTIONS_HIDE -> {
+                completion(hideSelectionActions())
             }
             else -> completion(TerminalPlatformResult.failure("unsupported platform operation"))
         }
@@ -232,6 +287,38 @@ internal class TerminalPlatformAdapter(
         }
     }
 
+    private fun showSelectionActions(payload: JSONObject): TerminalPlatformResult {
+        if (!terminalView.isAttachedToWindow) {
+            return TerminalPlatformResult.failure("terminal WebView is not attached")
+        }
+        val x = payload.optDouble("x", Double.NaN)
+        val y = payload.optDouble("y", Double.NaN)
+        if (!x.isFinite() || !y.isFinite()) {
+            return TerminalPlatformResult.failure("selection action anchor is invalid")
+        }
+        selectionAnchorX = x.toInt()
+        selectionAnchorY = y.toInt()
+        val current = selectionActionMode
+        if (current != null) {
+            current.invalidateContentRect()
+            return TerminalPlatformResult.success(JSONObject().put("shown", true).put("reused", true))
+        }
+        val mode = terminalView.startActionMode(
+            selectionActionModeCallback,
+            ActionMode.TYPE_FLOATING,
+        ) ?: return TerminalPlatformResult.failure("floating selection action mode is unavailable")
+        selectionActionMode = mode
+        mode.invalidateContentRect()
+        return TerminalPlatformResult.success(JSONObject().put("shown", true).put("reused", false))
+    }
+
+    private fun hideSelectionActions(): TerminalPlatformResult {
+        val mode = selectionActionMode
+        selectionActionMode = null
+        mode?.finish()
+        return TerminalPlatformResult.success(JSONObject().put("hidden", mode != null))
+    }
+
     private fun readClipboard(): TerminalPlatformResult {
         if (!terminalView.hasWindowFocus()) {
             return TerminalPlatformResult.failure("clipboard read requires application focus")
@@ -323,6 +410,12 @@ internal class TerminalPlatformAdapter(
     private companion object {
         const val REQUEST_IMPORT_DOCUMENT = 0x5401
         const val REQUEST_EXPORT_DOCUMENT = 0x5402
+        const val MENU_COPY = 0x5501
+        const val MENU_PASTE = 0x5502
+        const val MENU_SELECT_ALL = 0x5503
+        const val SELECTION_ACTION_COPY = "copy"
+        const val SELECTION_ACTION_PASTE = "paste"
+        const val SELECTION_ACTION_SELECT_ALL = "select-all"
     }
 }
 

@@ -16,6 +16,7 @@
     geometry: 'geometry',
     platformState: 'platform-state',
     platformResult: 'platform-result',
+    platformEvent: 'platform-event',
     error: 'error'
   });
 
@@ -26,11 +27,13 @@
     bell: 'bell',
     softInputShow: 'soft-input-show',
     documentImport: 'document-import',
-    documentExport: 'document-export'
+    documentExport: 'document-export',
+    selectionActionsShow: 'selection-actions-show',
+    selectionActionsHide: 'selection-actions-hide'
   });
 
   window.AndroidTerminalContract = Object.freeze({
-    protocolVersion: 6,
+    protocolVersion: 7,
     channelMarker: 'native-shell',
     serializedSnapshotMaxBytes: 8 * 1024 * 1024,
     messages,
@@ -49,6 +52,7 @@
       'android-document-transport',
       'android-shared-storage-direct-path',
       'android-native-account-session',
+      'android-floating-selection-actionmode',
       'xterm-serialized-state'
     ]),
     pageCapabilities: Object.freeze([

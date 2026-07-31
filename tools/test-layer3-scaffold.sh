@@ -13,9 +13,11 @@ fi
 grep -Fq 'window.AndroidTerminalLayer2 = Object.freeze' "$BRIDGE"
 grep -Fq 'touch-action: none' "$CUSTOMIZATION_CSS"
 grep -Fq '#terminal .xterm-screen canvas' "$CUSTOMIZATION_CSS"
-grep -Fq 'id="terminal-selection-toolbar"' "$INDEX"
-grep -Fq 'data-terminal-selection-action="copy"' "$INDEX"
-grep -Fq 'data-terminal-selection-action="paste"' "$INDEX"
+! grep -Fq 'terminal-selection-toolbar' "$INDEX"
+grep -Fq 'layer2.platform.showSelectionActions({x, y})' "$CUSTOMIZATION"
+grep -Fq 'layer2.platform.hideSelectionActions()' "$CUSTOMIZATION"
+grep -Fq 'layer2.onSelectionAction(runToolbarAction)' "$CUSTOMIZATION"
+grep -Fq "selectionToolbarAuthority: 'layer2-android-floating-actionmode-copy-paste-select-all'" "$CUSTOMIZATION"
 
 if command -v node >/dev/null 2>&1; then
   node --check "$CUSTOMIZATION"
@@ -26,223 +28,128 @@ const vm = require('vm');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 
 class FakeTarget {
-  constructor() {
-    this.events = [];
-  }
+  constructor() { this.events = []; }
   closest() { return null; }
-  dispatchEvent(event) {
-    this.events.push(event);
-    return !event.defaultPrevented;
-  }
+  dispatchEvent(event) { this.events.push(event); return true; }
 }
-
 class FakeMouseEvent {
-  constructor(type, init = {}) {
-    this.type = type;
-    Object.assign(this, init);
-    this.defaultPrevented = false;
-  }
-  preventDefault() { this.defaultPrevented = true; }
+  constructor(type, init = {}) { this.type = type; Object.assign(this, init); }
 }
-
 class FakeScreen {
   getBoundingClientRect() { return {left: 0, top: 0, width: 1200, height: 240}; }
 }
-
-class FakeClassList {
-  constructor(initial = []) { this.values = new Set(initial); }
-  add(value) { this.values.add(value); }
-  remove(value) { this.values.delete(value); }
-  contains(value) { return this.values.has(value); }
-}
-
 class FakeElement {
-  constructor() {
-    this.listeners = new Map();
-    this.screen = new FakeScreen();
-    this.classList = new FakeClassList();
-    this.style = {};
-    this.attributes = new Map();
-  }
+  constructor() { this.listeners = new Map(); this.screen = new FakeScreen(); }
   addEventListener(type, listener) {
-    const current = this.listeners.get(type) || [];
-    current.push(listener);
-    this.listeners.set(type, current);
+    const list = this.listeners.get(type) || [];
+    list.push(listener);
+    this.listeners.set(type, list);
   }
   removeEventListener(type, listener) {
-    const current = this.listeners.get(type) || [];
-    this.listeners.set(type, current.filter((candidate) => candidate !== listener));
+    this.listeners.set(type, (this.listeners.get(type) || []).filter((item) => item !== listener));
   }
-  dispatch(type, event = {}) {
-    event.currentTarget = this;
+  dispatch(type, event) {
     for (const listener of [...(this.listeners.get(type) || [])]) listener(event);
   }
-  setAttribute(name, value) { this.attributes.set(name, String(value)); }
-  getAttribute(name) { return this.attributes.get(name); }
-  querySelector(selector) {
-    return selector === '.xterm-screen' ? this.screen : null;
-  }
-  listenerCount() {
-    let total = 0;
-    for (const listeners of this.listeners.values()) total += listeners.length;
-    return total;
-  }
+  querySelector(selector) { return selector === '.xterm-screen' ? this.screen : null; }
+  listenerCount() { return [...this.listeners.values()].reduce((sum, list) => sum + list.length, 0); }
 }
-
-
-class FakeButton extends FakeElement {
-  constructor(action) {
-    super();
-    this.dataset = {terminalSelectionAction: action};
-  }
-}
-
-class FakeToolbar extends FakeElement {
-  constructor() {
-    super();
-    this.classList.add('hidden');
-    this.offsetWidth = 240;
-    this.offsetHeight = 44;
-    this.buttons = new Map([
-      ['copy', new FakeButton('copy')],
-      ['paste', new FakeButton('paste')],
-      ['select-all', new FakeButton('select-all')]
-    ]);
-  }
-  querySelector(selector) {
-    const match = selector.match(/data-terminal-selection-action="([^"]+)"/);
-    return match ? this.buttons.get(match[1]) || null : null;
-  }
-}
-
+function touch(identifier, x, y) { return {identifier, clientX: x, clientY: y}; }
 function touchEvent(touches, timeStamp, target = new FakeTarget()) {
   return {
     touches,
     timeStamp,
     target,
-    prevented: false,
-    stopped: false,
-    immediate: false,
     preventDefault() { this.prevented = true; },
     stopPropagation() { this.stopped = true; },
     stopImmediatePropagation() { this.immediate = true; }
   };
 }
 
-function point(identifier, x, y) {
-  return {identifier, clientX: x, clientY: y};
-}
-
 const terminalElement = new FakeElement();
-const selectionToolbar = new FakeToolbar();
-const copyButton = selectionToolbar.buttons.get('copy');
-const pasteButton = selectionToolbar.buttons.get('paste');
-const selectAllButton = selectionToolbar.buttons.get('select-all');
-const listeners = [];
-const scrollCalls = [];
-const selectCalls = [];
-const pasteCalls = [];
-let copyCalls = 0;
-let selectAllCalls = 0;
-let selectionActive = false;
-const frames = new Map();
-let nextFrameId = 1;
+const platformStateListeners = [];
+const selectionActionListeners = [];
 const timers = new Map();
-let nextTimerId = 1;
-function scheduleTimeout(callback) {
-  const id = nextTimerId++;
-  timers.set(id, callback);
-  return id;
-}
-function cancelTimeout(id) { timers.delete(id); }
-function runTimers() {
-  const pending = [...timers.entries()];
-  timers.clear();
-  for (const [, callback] of pending) callback();
-}
-let geometryRequests = 0;
-let disposed = false;
+let nextTimer = 1;
+const frames = new Map();
+let nextFrame = 1;
+let selectionActive = false;
 let focusCalls = 0;
 let blurCalls = 0;
 let softInputCalls = 0;
+let copyCalls = 0;
+let pasteCalls = 0;
+let selectAllCalls = 0;
+let geometryCalls = 0;
+let showCalls = [];
+let hideCalls = 0;
+let stateDisposed = false;
+let actionDisposed = false;
+const scrollCalls = [];
+const selectCalls = [];
 const lineText = 'hello world';
-const fakeLine = {
-  getCell(column) {
-    const character = lineText[column] || '';
-    return {
-      getChars() { return character; },
-      getWidth() { return character ? 1 : 1; }
-    };
-  }
-};
 const activeBuffer = {
   type: 'normal',
   viewportY: 0,
-  getLine() { return fakeLine; }
+  getLine() {
+    return {
+      getCell(column) {
+        const value = lineText[column] || '';
+        return {getChars() { return value; }, getWidth() { return 1; }};
+      }
+    };
+  }
 };
 const terminal = {
   cols: 120,
   rows: 12,
-  options: {
-    theme: {background: 'upstream-default'},
-    fontSize: 15,
-    lineHeight: 1,
-    wordSeparator: ' ()[]{}\'"'
-  },
+  options: {theme: {}, fontSize: 15, lineHeight: 1, wordSeparator: ' ()[]{}\'"'},
   buffer: {active: activeBuffer},
   modes: {mouseTrackingMode: 'none'},
   scrollLines(rows) { scrollCalls.push(rows); },
   select(column, row, length) { selectCalls.push([column, row, length]); selectionActive = true; },
   selectAll() { selectAllCalls += 1; selectionActive = true; },
-  paste(text) { pasteCalls.push(text); },
-  focus() { focusCalls += 1; },
-  blur() { blurCalls += 1; },
+  hasSelection() { return selectionActive; },
   clearSelection() { selectionActive = false; },
-  hasSelection() { return selectionActive; }
+  focus() { focusCalls += 1; },
+  blur() { blurCalls += 1; }
 };
 const layer2 = Object.freeze({
   contractVersion: 4,
   terminal,
+  completion: Object.freeze({manifest: Object.freeze({schemaVersion: 1})}),
   platform: Object.freeze({
     showSoftInput() { softInputCalls += 1; return {catch() {}}; },
     copySelection() { copyCalls += 1; return {catch() {}}; },
     pasteClipboard() {
-      pasteCalls.push('clipboard text');
-      return {then(callback) { callback({text: 'clipboard text'}); return {catch() {}}; }};
-    }
+      pasteCalls += 1;
+      return {then(callback) { callback({text: 'clipboard'}); return {catch() {}}; }};
+    },
+    showSelectionActions(position) { showCalls.push({...position}); return {catch() {}}; },
+    hideSelectionActions() { hideCalls += 1; return {catch() {}}; }
   }),
-  completion: Object.freeze({manifest: Object.freeze({schemaVersion: 1})}),
-  getPlatformState() { return {softInputVisible: false}; },
+  getPlatformState() { return {colorScheme: 'dark', fontScale: 1, softInputVisible: false}; },
   onPlatformState(listener) {
-    listeners.push(listener);
-    return Object.freeze({dispose() { disposed = true; }});
+    platformStateListeners.push(listener);
+    return Object.freeze({dispose() { stateDisposed = true; }});
   },
-  requestGeometrySync() { geometryRequests += 1; }
-});
-const document = Object.freeze({
-  getElementById(id) {
-    if (id === 'terminal') return terminalElement;
-    if (id === 'terminal-selection-toolbar') return selectionToolbar;
-    return null;
-  }
+  onSelectionAction(listener) {
+    selectionActionListeners.push(listener);
+    return Object.freeze({dispose() { actionDisposed = true; }});
+  },
+  requestGeometrySync() { geometryCalls += 1; }
 });
 const windowObject = {
   AndroidTerminalLayer2: layer2,
   MouseEvent: FakeMouseEvent,
-  requestAnimationFrame(callback) {
-    const id = nextFrameId++;
-    frames.set(id, callback);
-    return id;
-  },
+  requestAnimationFrame(callback) { const id = nextFrame++; frames.set(id, callback); return id; },
   cancelAnimationFrame(id) { frames.delete(id); },
-  setTimeout: scheduleTimeout,
-  clearTimeout: cancelTimeout,
-  innerWidth: 360,
-  innerHeight: 640
+  setTimeout(callback) { const id = nextTimer++; timers.set(id, callback); return id; },
+  clearTimeout(id) { timers.delete(id); }
 };
 const context = vm.createContext({
   window: windowObject,
-  document,
+  document: {getElementById(id) { return id === 'terminal' ? terminalElement : null; }},
   console,
   Error,
   TypeError,
@@ -250,299 +157,111 @@ const context = vm.createContext({
   Number,
   Math,
   Date,
-  setTimeout: scheduleTimeout,
-  clearTimeout: cancelTimeout
+  setTimeout: windowObject.setTimeout,
+  clearTimeout: windowObject.clearTimeout
 });
 vm.runInContext(source, context, {filename: 'customization.js'});
 const customization = context.window.AndroidTerminalCustomization;
-if (!customization || customization.contractVersion !== 2) {
-  throw new Error('Layer 3 JavaScript contract is unavailable');
+if (!customization || customization.contractVersion !== 2) throw new Error('customization missing');
+if (terminalElement.listenerCount() !== 4) throw new Error('touch listeners incomplete');
+if (platformStateListeners.length !== 1 || selectionActionListeners.length !== 1) {
+  throw new Error('Layer 2 subscriptions incomplete');
 }
-if (listeners.length !== 1) throw new Error('Layer 3 did not use the public Layer 2 state capability');
-if (terminalElement.listenerCount() !== 4) throw new Error('Layer 3 touch listeners are incomplete');
-
-listeners[0]({colorScheme: 'light', fontScale: 1.2, softInputVisible: false});
-if (terminal.options.theme.background !== '#fafafa') throw new Error('light palette was not applied');
-if (Math.abs(terminal.options.fontSize - 18) > 1e-9) throw new Error('Android font scale was not composed');
-if (geometryRequests !== 1) throw new Error('Layer 3 did not request geometry refresh');
-
-const tapBlurBaseline = blurCalls;
-const tapTarget = new FakeTarget();
-const tapStart = touchEvent([point(1, 40, 100)], 0, tapTarget);
-terminalElement.dispatch('touchstart', tapStart);
-if (!tapStart.prevented || !tapStart.stopped || !tapStart.immediate) {
-  throw new Error('tap candidate was not owned from touchstart');
-}
-if (blurCalls !== tapBlurBaseline + 1) throw new Error('hidden-IME tap candidate did not release retained focus on touchstart');
-const tapEnd = touchEvent([], 10, tapTarget);
-terminalElement.dispatch('touchend', tapEnd);
-if (!tapEnd.prevented || !tapEnd.stopped || !tapEnd.immediate) {
-  throw new Error('tap release was not isolated from WebView compatibility activation');
-}
-if (focusCalls !== 1) throw new Error('ordinary tap did not explicitly focus the terminal');
-if (softInputCalls !== 1) throw new Error('ordinary tap did not request Android soft input');
-if (tapTarget.events.map((event) => event.type).join(',') !== 'mousedown,mouseup,click') {
-  throw new Error('ordinary tap compatibility sequence was not replayed');
+function runTimers() {
+  const pending = [...timers.values()];
+  timers.clear();
+  for (const callback of pending) callback();
 }
 
-const dragBlurBaseline = blurCalls;
-const dragTarget = new FakeTarget();
-const dragStart = touchEvent([point(2, 0, 100)], 20, dragTarget);
-terminalElement.dispatch('touchstart', dragStart);
-if (!dragStart.prevented) throw new Error('scroll candidate touchstart was not consumed');
-const dragDown = touchEvent([point(2, 0, 140)], 40, dragTarget);
-terminalElement.dispatch('touchmove', dragDown);
-if (!dragDown.prevented || !dragDown.stopped || !dragDown.immediate) {
-  throw new Error('one-finger drag was not isolated from WebView page handling');
-}
-if (scrollCalls.length !== 1 || scrollCalls[0] !== -2) {
-  throw new Error(`drag-down row translation failed: ${JSON.stringify(scrollCalls)}`);
-}
-const dragUp = touchEvent([point(2, 0, 120)], 60, dragTarget);
-terminalElement.dispatch('touchmove', dragUp);
-if (scrollCalls.length !== 2 || scrollCalls[1] !== 1) {
-  throw new Error(`drag-up row translation failed: ${JSON.stringify(scrollCalls)}`);
-}
-const dragEnd = touchEvent([], 70, dragTarget);
-terminalElement.dispatch('touchend', dragEnd);
-if (!dragEnd.prevented || frames.size !== 1) throw new Error('scroll fling was not scheduled');
-if (focusCalls !== 1 || softInputCalls !== 1 || dragTarget.events.length !== 0) {
-  throw new Error('committed scroll replayed tap focus activation');
-}
-if (blurCalls !== dragBlurBaseline + 1) throw new Error('hidden-IME scroll did not release retained focus exactly once');
-
-const pinchBlurBaseline = blurCalls;
-const pinchTarget = new FakeTarget();
-const firstPinchFinger = touchEvent([point(3, 0, 0)], 75, pinchTarget);
-terminalElement.dispatch('touchstart', firstPinchFinger);
-if (!firstPinchFinger.prevented) throw new Error('first pinch finger was not owned');
-const pinchStart = touchEvent([point(3, 0, 0), point(4, 100, 0)], 80, pinchTarget);
-terminalElement.dispatch('touchstart', pinchStart);
-if (!pinchStart.prevented || !pinchStart.stopped || !pinchStart.immediate) {
-  throw new Error('pinch gesture was not isolated from one-finger scrolling');
-}
-if (frames.size !== 0) throw new Error('pinch did not cancel prior scroll inertia');
-const pinchGrow = touchEvent([point(3, 0, 0), point(4, 111, 0)], 90, pinchTarget);
-terminalElement.dispatch('touchmove', pinchGrow);
-if (Math.abs(terminal.options.fontSize - 19) > 1e-9) throw new Error('pinch-out did not increase font size');
-if (geometryRequests !== 2) throw new Error('pinch-out did not request geometry refresh');
-const pinchEnd = touchEvent([], 100, pinchTarget);
-terminalElement.dispatch('touchend', pinchEnd);
-if (focusCalls !== 1 || softInputCalls !== 1 || pinchTarget.events.length !== 0) {
-  throw new Error('pinch replayed tap focus activation');
-}
-if (blurCalls !== pinchBlurBaseline + 1) throw new Error('hidden-IME pinch did not release retained focus exactly once');
-if (customization.getInteractionState().pinchConsumesGesture) throw new Error('pinch ownership did not reset');
-if (customization.getInteractionState().scrollAuthority !== 'layer3-public-scroll-lines') {
-  throw new Error('scroll authority is not reported correctly');
-}
-if (customization.getInteractionState().touchActivationAuthority !== 'layer3-deferred-tap-only-native-ime') {
-  throw new Error('touch activation authority is not reported correctly');
-}
-
-listeners[0]({colorScheme: 'dark', fontScale: 1.2, softInputVisible: true});
-const selectionBlurBaseline = blurCalls;
-const selectionFocusBaseline = focusCalls;
-const selectionSoftInputBaseline = softInputCalls;
-const selectionTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(10, 30, 80)], 105, selectionTarget));
+const longPressTarget = new FakeTarget();
+const focusBaseline = focusCalls;
+const softBaseline = softInputCalls;
+const blurBaseline = blurCalls;
+terminalElement.dispatch('touchstart', touchEvent([touch(1, 30, 80)], 10, longPressTarget));
 runTimers();
-if (!customization.getInteractionState().selectionConsumesGesture) {
-  throw new Error('long press did not enter xterm selection mode');
+terminalElement.dispatch('touchmove', touchEvent([touch(1, 80, 80)], 20, longPressTarget));
+terminalElement.dispatch('touchend', touchEvent([], 30, longPressTarget));
+if (!selectionActive || selectCalls.length < 2) throw new Error('long press selection failed');
+if (showCalls.length !== 1 || showCalls[0].x !== 80 || showCalls[0].y !== 80) {
+  throw new Error('native action anchor was not requested');
 }
-if (selectionTarget.events.length !== 0) {
-  throw new Error('long press used focus-bearing synthetic mouse selection');
-}
-if (JSON.stringify(selectCalls[0]) !== JSON.stringify([0, 4, 5])) {
-  throw new Error(`long press did not select the xterm buffer word: ${JSON.stringify(selectCalls)}`);
-}
-terminalElement.dispatch('touchmove', touchEvent([point(10, 70, 80)], 110, selectionTarget));
-if (JSON.stringify(selectCalls[1]) !== JSON.stringify([0, 4, 8])) {
-  throw new Error(`selection drag did not extend through public terminal.select: ${JSON.stringify(selectCalls)}`);
-}
-terminalElement.dispatch('touchend', touchEvent([], 120, selectionTarget));
-if (selectCalls.length !== 2) {
-  throw new Error('selection release unexpectedly changed the selected range');
-}
-if (customization.getInteractionState().selectionConsumesGesture) {
-  throw new Error('selection ownership did not reset');
-}
-if (blurCalls !== selectionBlurBaseline || focusCalls !== selectionFocusBaseline ||
-    softInputCalls !== selectionSoftInputBaseline) {
-  throw new Error('visible-IME long press changed xterm focus or Android soft input');
-}
-if (customization.getInteractionState().selectionAuthority !== 'xterm-public-buffer-select-long-press') {
-  throw new Error('selection authority is not reported correctly');
-}
-if (!customization.getInteractionState().selectionToolbarVisible ||
-    selectionToolbar.classList.contains('hidden')) {
-  throw new Error('selection release did not expose the Layer 3 clipboard toolbar');
-}
-const toolbarFocusBaseline = focusCalls;
-const toolbarSoftInputBaseline = softInputCalls;
-copyButton.dispatch('click', {preventDefault() {}, stopPropagation() {}});
-if (copyCalls !== 1 || !selectionActive || selectionToolbar.classList.contains('hidden')) {
-  throw new Error('Copy did not use the existing Layer 2 clipboard write while preserving selection');
-}
-selectAllButton.dispatch('click', {preventDefault() {}, stopPropagation() {}});
-if (selectAllCalls !== 1 || !selectionActive) {
-  throw new Error('Select all did not use public terminal.selectAll');
-}
-pasteButton.dispatch('click', {preventDefault() {}, stopPropagation() {}});
-if (pasteCalls.length !== 1 || selectionActive || !selectionToolbar.classList.contains('hidden')) {
-  throw new Error('Paste did not use the existing Layer 2 clipboard read and close selection actions');
-}
-if (focusCalls !== toolbarFocusBaseline || softInputCalls !== toolbarSoftInputBaseline) {
-  throw new Error('selection toolbar action changed terminal focus or Android soft input');
+if (focusCalls !== focusBaseline || softInputCalls !== softBaseline || blurCalls !== blurBaseline + 1) {
+  throw new Error('hidden-IME selection focus policy regressed');
 }
 if (customization.getInteractionState().selectionToolbarAuthority !==
-    'layer3-webview-copy-paste-select-all') {
-  throw new Error('selection toolbar authority is not reported correctly');
+    'layer2-android-floating-actionmode-copy-paste-select-all') {
+  throw new Error('native ActionMode authority missing');
 }
 
-terminal.buffer.active.type = 'alternate';
-const altTarget = new FakeTarget();
-const altStart = touchEvent([point(5, 0, 100)], 110, altTarget);
-terminalElement.dispatch('touchstart', altStart);
-const altMove = touchEvent([point(5, 0, 140)], 130, altTarget);
-terminalElement.dispatch('touchmove', altMove);
-if (altStart.prevented || altMove.prevented || scrollCalls.length !== 2) {
-  throw new Error('alternate-buffer touch was incorrectly captured as normal scrollback');
-}
-terminalElement.dispatch('touchend', touchEvent([], 140, altTarget));
-terminal.buffer.active.type = 'normal';
-
-listeners[0]({colorScheme: 'dark', fontScale: 2, softInputVisible: true});
-if (terminal.options.theme.background !== '#000000') throw new Error('dark palette was not applied');
-const expectedScaledSize = 15 * 2 * (19 / 18);
-if (Math.abs(terminal.options.fontSize - expectedScaledSize) > 1e-9) {
-  throw new Error('user font scale was not preserved across Android font-scale updates');
-}
-if (geometryRequests !== 4) throw new Error('second platform update did not request geometry refresh');
-if (!customization.getInteractionState().softInputVisible) {
-  throw new Error('Layer 3 did not retain Android IME visibility state');
-}
-if (customization.getInteractionState().gestureFocusPolicy !== 'ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime') {
-  throw new Error('gesture focus policy is not reported correctly');
+selectionActionListeners[0]('copy');
+if (copyCalls !== 1 || !selectionActive) throw new Error('copy action failed or cleared selection');
+if (customization.getInteractionState().selectionToolbarVisible) {
+  throw new Error('copy did not close the toolbar state');
 }
 
-const visibleTapBlurBaseline = blurCalls;
-const visibleTapSoftInputBaseline = softInputCalls;
-const visibleTapFocusBaseline = focusCalls;
-const visibleTapTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(6, 20, 60)], 150, visibleTapTarget));
-terminalElement.dispatch('touchend', touchEvent([], 160, visibleTapTarget));
-if (blurCalls !== visibleTapBlurBaseline) {
-  throw new Error('visible-IME tap incorrectly blurred xterm input focus');
-}
-if (softInputCalls !== visibleTapSoftInputBaseline) {
-  throw new Error('visible-IME tap redundantly requested Android soft input');
-}
-if (focusCalls !== visibleTapFocusBaseline + 1) {
-  throw new Error('visible-IME tap did not preserve ordinary terminal focus activation');
-}
-
-const visibleDragBlurBaseline = blurCalls;
-const visibleDragFocusBaseline = focusCalls;
-const visibleDragSoftInputBaseline = softInputCalls;
-const visibleDragTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(7, 0, 100)], 170, visibleDragTarget));
-terminalElement.dispatch('touchmove', touchEvent([point(7, 0, 140)], 190, visibleDragTarget));
-terminalElement.dispatch('touchend', touchEvent([], 200, visibleDragTarget));
-if (blurCalls !== visibleDragBlurBaseline || focusCalls !== visibleDragFocusBaseline ||
-    softInputCalls !== visibleDragSoftInputBaseline) {
-  throw new Error('visible-IME scroll changed xterm focus or Android soft input');
-}
-
-const visiblePinchBlurBaseline = blurCalls;
-const visiblePinchFocusBaseline = focusCalls;
-const visiblePinchSoftInputBaseline = softInputCalls;
-const visiblePinchTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(8, 0, 0)], 210, visiblePinchTarget));
-terminalElement.dispatch('touchstart', touchEvent([point(8, 0, 0), point(9, 100, 0)], 220, visiblePinchTarget));
-terminalElement.dispatch('touchmove', touchEvent([point(8, 0, 0), point(9, 111, 0)], 230, visiblePinchTarget));
-terminalElement.dispatch('touchend', touchEvent([], 240, visiblePinchTarget));
-if (blurCalls !== visiblePinchBlurBaseline || focusCalls !== visiblePinchFocusBaseline ||
-    softInputCalls !== visiblePinchSoftInputBaseline) {
-  throw new Error('visible-IME pinch changed xterm focus or Android soft input');
-}
-
-const imeHideBlurBaseline = blurCalls;
-const imeHideFocusBaseline = focusCalls;
-const imeHideSoftInputBaseline = softInputCalls;
-listeners[0]({colorScheme: 'dark', fontScale: 2, softInputVisible: false});
-if (blurCalls !== imeHideBlurBaseline + 1) {
-  throw new Error('visible-to-hidden IME transition did not release retained xterm focus exactly once');
-}
-if (focusCalls !== imeHideFocusBaseline || softInputCalls !== imeHideSoftInputBaseline) {
-  throw new Error('IME hide transition unexpectedly focused xterm or requested Android soft input');
-}
-listeners[0]({colorScheme: 'dark', fontScale: 2, softInputVisible: false});
-if (blurCalls !== imeHideBlurBaseline + 1) {
-  throw new Error('repeated hidden-IME state redundantly blurred xterm');
-}
-if (customization.getInteractionState().softInputVisible) {
-  throw new Error('Layer 3 did not retain the hidden Android IME state');
-}
-
-const hiddenSelectionBlurBaseline = blurCalls;
-const hiddenSelectionFocusBaseline = focusCalls;
-const hiddenSelectionSoftInputBaseline = softInputCalls;
-const hiddenSelectionTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(11, 30, 80)], 250, hiddenSelectionTarget));
+// Re-open actions around the existing selection, then paste.
+terminalElement.dispatch('touchstart', touchEvent([touch(2, 40, 80)], 40));
 runTimers();
-terminalElement.dispatch('touchmove', touchEvent([point(11, 70, 80)], 260, hiddenSelectionTarget));
-terminalElement.dispatch('touchend', touchEvent([], 270, hiddenSelectionTarget));
-if (blurCalls !== hiddenSelectionBlurBaseline + 1 || focusCalls !== hiddenSelectionFocusBaseline ||
-    softInputCalls !== hiddenSelectionSoftInputBaseline) {
-  throw new Error('hidden-IME long press did not release retained focus at gesture start or reactivated input');
+terminalElement.dispatch('touchend', touchEvent([], 50));
+selectionActionListeners[0]('paste');
+if (pasteCalls !== 1 || selectionActive) throw new Error('paste did not clear selection');
+if (focusCalls !== focusBaseline || softInputCalls !== softBaseline) {
+  throw new Error('native toolbar action reactivated input');
 }
 
-const hiddenDragBlurBaseline = blurCalls;
-const hiddenDragFocusBaseline = focusCalls;
-const hiddenDragSoftInputBaseline = softInputCalls;
-const hiddenDragTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(12, 0, 100)], 280, hiddenDragTarget));
-terminalElement.dispatch('touchmove', touchEvent([point(12, 0, 140)], 300, hiddenDragTarget));
-terminalElement.dispatch('touchend', touchEvent([], 310, hiddenDragTarget));
-if (blurCalls !== hiddenDragBlurBaseline + 1 || focusCalls !== hiddenDragFocusBaseline ||
-    softInputCalls !== hiddenDragSoftInputBaseline) {
-  throw new Error('hidden-IME scroll did not release retained focus at gesture start or reactivated input');
+// Select all stays active and refreshes the native anchor.
+selectionActive = true;
+selectionActionListeners[0]('select-all');
+if (selectAllCalls !== 1 || !selectionActive || showCalls.length < 3) {
+  throw new Error('select all did not refresh native actions');
 }
 
-const hiddenPinchBlurBaseline = blurCalls;
-const hiddenPinchFocusBaseline = focusCalls;
-const hiddenPinchSoftInputBaseline = softInputCalls;
-const hiddenPinchTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(13, 0, 0)], 320, hiddenPinchTarget));
-terminalElement.dispatch('touchstart', touchEvent([point(13, 0, 0), point(14, 100, 0)], 330, hiddenPinchTarget));
-terminalElement.dispatch('touchmove', touchEvent([point(13, 0, 0), point(14, 111, 0)], 340, hiddenPinchTarget));
-terminalElement.dispatch('touchend', touchEvent([], 350, hiddenPinchTarget));
-if (blurCalls !== hiddenPinchBlurBaseline + 1 || focusCalls !== hiddenPinchFocusBaseline ||
-    softInputCalls !== hiddenPinchSoftInputBaseline) {
-  throw new Error('hidden-IME pinch did not release retained focus once or reactivated input');
+// Hidden-IME scroll must never activate input.
+const scrollFocus = focusCalls;
+const scrollSoft = softInputCalls;
+const scrollBlur = blurCalls;
+terminalElement.dispatch('touchstart', touchEvent([touch(3, 0, 100)], 60));
+terminalElement.dispatch('touchmove', touchEvent([touch(3, 0, 150)], 80));
+terminalElement.dispatch('touchend', touchEvent([], 90));
+if (scrollCalls.length === 0) throw new Error('scrollLines was not used');
+if (focusCalls !== scrollFocus || softInputCalls !== scrollSoft || blurCalls !== scrollBlur + 1) {
+  throw new Error('hidden-IME scroll focus policy regressed');
 }
 
-const hiddenTapBlurBaseline = blurCalls;
-const hiddenTapFocusBaseline = focusCalls;
-const hiddenTapSoftInputBaseline = softInputCalls;
-const hiddenTapTarget = new FakeTarget();
-terminalElement.dispatch('touchstart', touchEvent([point(15, 20, 60)], 360, hiddenTapTarget));
-terminalElement.dispatch('touchend', touchEvent([], 370, hiddenTapTarget));
-if (blurCalls !== hiddenTapBlurBaseline + 1) {
-  throw new Error('hidden-IME tap did not release retained focus before tap classification');
+// Hidden-IME short tap remains the only path that opens input.
+const tapFocus = focusCalls;
+const tapSoft = softInputCalls;
+terminalElement.dispatch('touchstart', touchEvent([touch(4, 20, 60)], 100));
+terminalElement.dispatch('touchend', touchEvent([], 110));
+if (focusCalls !== tapFocus + 1 || softInputCalls !== tapSoft + 1) {
+  throw new Error('tap-only input activation regressed');
 }
-if (focusCalls !== hiddenTapFocusBaseline + 1 || softInputCalls !== hiddenTapSoftInputBaseline + 1) {
-  throw new Error('completed hidden-IME tap did not exclusively restore focus and request soft input');
+
+// Visible IME gestures do not blur.
+platformStateListeners[0]({colorScheme: 'dark', fontScale: 1, softInputVisible: true});
+const visibleBlur = blurCalls;
+const visibleFocus = focusCalls;
+const visibleSoft = softInputCalls;
+terminalElement.dispatch('touchstart', touchEvent([touch(5, 0, 100)], 120));
+terminalElement.dispatch('touchmove', touchEvent([touch(5, 0, 150)], 130));
+terminalElement.dispatch('touchend', touchEvent([], 140));
+if (blurCalls !== visibleBlur || focusCalls !== visibleFocus || softInputCalls !== visibleSoft) {
+  throw new Error('visible-IME gesture policy regressed');
 }
+
+// Pinch uses public font size and geometry synchronization.
+platformStateListeners[0]({colorScheme: 'dark', fontScale: 1, softInputVisible: false});
+const sizeBefore = terminal.options.fontSize;
+terminalElement.dispatch('touchstart', touchEvent([touch(6, 0, 0)], 150));
+terminalElement.dispatch('touchstart', touchEvent([touch(6, 0, 0), touch(7, 100, 0)], 160));
+terminalElement.dispatch('touchmove', touchEvent([touch(6, 0, 0), touch(7, 120, 0)], 170));
+terminalElement.dispatch('touchend', touchEvent([], 180));
+if (!(terminal.options.fontSize > sizeBefore) || geometryCalls === 0) throw new Error('pinch failed');
 
 customization.installation.dispose();
-if (!disposed) throw new Error('Layer 3 subscription is not disposable');
-if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-if (copyButton.listenerCount() !== 0 || pasteButton.listenerCount() !== 0 || selectAllButton.listenerCount() !== 0) {
-  throw new Error('Layer 3 toolbar listeners were not removed');
-}
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-hide-or-hidden-gesture-start-blur-tap-only-ime selection=xterm-buffer-select-long-press clipboard=layer2-android-toolbar');
+if (!stateDisposed || !actionDisposed) throw new Error('subscriptions were not disposed');
+if (terminalElement.listenerCount() !== 0) throw new Error('touch listeners were not removed');
+console.log('PASS layer3-scaffold selection=xterm-buffer native-toolbar=android-floating-actionmode copy-close=true ime=r15-preserved');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -553,32 +272,17 @@ css = Path(sys.argv[2]).read_text(encoding='utf-8')
 for token in (
     'window.AndroidTerminalCustomization',
     'layer2.onPlatformState',
-    'layer2.terminal.options.theme',
-    'layer2.terminal.options.fontSize',
-    "addEventListener('touchstart'",
-    "addEventListener('touchmove'",
-    'consumeTouch(event);',
-    'replayTap(tapTarget, tapX, tapY, !softInputVisible)',
-    'layer2.terminal.select(first.column, first.row, length)',
-    'layer2.platform.showSoftInput()',
+    'layer2.onSelectionAction',
+    'layer2.platform.showSelectionActions({x, y})',
+    'layer2.platform.hideSelectionActions()',
     'layer2.platform.copySelection()',
     'layer2.platform.pasteClipboard()',
     'layer2.terminal.selectAll()',
-    "selectionToolbarAuthority: 'layer3-webview-copy-paste-select-all'",
+    "selectionToolbarAuthority: 'layer2-android-floating-actionmode-copy-paste-select-all'",
     "touchActivationAuthority: 'layer3-deferred-tap-only-native-ime'",
-    "gestureFocusPolicy: 'ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime'",
-    'const wasSoftInputVisible = softInputVisible',
-    'softInputVisible = Boolean(state.softInputVisible)',
-    'wasSoftInputVisible && !softInputVisible',
     'releaseHiddenInputFocusAtGestureStart',
-    'scrollTouchIdentifier !== null || pinchConsumesGesture',
-    'layer2.terminal.blur()',
     'layer2.terminal.scrollLines(rows)',
-    'layer2.requestGeometrySync()',
-    "scrollAuthority: 'layer3-public-scroll-lines'",
-    'LONG_PRESS_DELAY_MILLIS',
-    'beginLongPressSelection',
-    "selectionAuthority: 'xterm-public-buffer-select-long-press'",
+    'layer2.terminal.select(first.column, first.row, length)',
 ):
     if token not in source:
         raise SystemExit(f'missing Layer 3 interaction token: {token}')

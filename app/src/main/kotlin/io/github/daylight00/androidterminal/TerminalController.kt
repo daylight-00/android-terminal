@@ -25,9 +25,12 @@ internal class TerminalController(
     val view: WebView = WebView(activity)
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val platformAdapter = TerminalPlatformAdapter(activity, view) { state ->
-        mainHandler.post { sendPlatformState(state) }
-    }
+    private val platformAdapter = TerminalPlatformAdapter(
+        activity = activity,
+        terminalView = view,
+        onStateChanged = { state -> mainHandler.post { sendPlatformState(state) } },
+        onSelectionAction = { action -> mainHandler.post { sendSelectionAction(action) } },
+    )
     private val queueLock = Object()
     private val outputQueue = TreeMap<Long, ByteArray>()
 
@@ -499,6 +502,18 @@ internal class TerminalController(
                 .put("fontScale", state.fontScale)
                 .put("sharedStorageAccessGranted", state.sharedStorageAccessGranted)
                 .put("sharedStoragePath", state.sharedStoragePath),
+        )
+    }
+
+    private fun sendSelectionAction(action: String) {
+        if (!isCurrentAttachment(connectionGeneration, sessionId)) return
+        sendJson(
+            JSONObject()
+                .put("type", TerminalContract.MessageType.PLATFORM_EVENT)
+                .put("connectionGeneration", connectionGeneration)
+                .put("sessionId", sessionId)
+                .put("event", "selection-action")
+                .put("action", action),
         )
     }
 

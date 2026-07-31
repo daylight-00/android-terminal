@@ -200,7 +200,7 @@ def verify(root: Path) -> list[str]:
     if "CONTRACT_VERSION = 2" not in customization_kt:
         fail("Layer 3 native scaffold contract is incomplete", failures)
 
-    if "protocolVersion: 6" not in contract_js or "PROTOCOL_VERSION = 6" not in contract_kt:
+    if "protocolVersion: 7" not in contract_js or "PROTOCOL_VERSION = 7" not in contract_kt:
         fail("JavaScript and Kotlin protocol version 6 must match", failures)
     if "channelMarker: 'native-shell'" not in contract_js or 'CHANNEL_MARKER = "native-shell"' not in contract_kt:
         fail("JavaScript and Kotlin channel marker must match", failures)
@@ -524,12 +524,14 @@ def verify(root: Path) -> list[str]:
         fail("Layer 3 does not release retained xterm focus on IME hide and hidden-IME gesture start", failures)
     if "LONG_PRESS_DELAY_MILLIS" not in customization_js or "xterm-public-buffer-select-long-press" not in customization_js:
         fail("Layer 3 does not expose public xterm buffer-selection long press", failures)
-    if 'id="terminal-selection-toolbar"' not in html or 'data-terminal-selection-action="copy"' not in html or 'data-terminal-selection-action="paste"' not in html:
-        fail("Layer 3 selection toolbar markup is incomplete", failures)
+    if 'terminal-selection-toolbar' in html:
+        fail("floating ActionMode POC must not retain WebView selection toolbar markup", failures)
     if "layer2.platform.copySelection()" not in customization_js or "layer2.platform.pasteClipboard()" not in customization_js or "layer2.terminal.selectAll()" not in customization_js:
         fail("Layer 3 selection toolbar bypasses public clipboard or selection APIs", failures)
-    if "layer3-webview-copy-paste-select-all" not in customization_js:
-        fail("Layer 3 selection toolbar authority is not reported", failures)
+    if "layer2-android-floating-actionmode-copy-paste-select-all" not in customization_js:
+        fail("Layer 3 floating ActionMode authority is not reported", failures)
+    if "layer2.platform.showSelectionActions({x, y})" not in customization_js or "layer2.platform.hideSelectionActions()" not in customization_js or "layer2.onSelectionAction" not in customization_js:
+        fail("Layer 3 does not use the public Layer 2 native selection-action facade", failures)
 
     if "TerminalWindowInsets.isSoftInputVisible(insets)" not in activity or "updateSoftInputVisibility(softInputVisible)" not in activity:
         fail("window-inset changes do not publish the listener-delivered IME state", failures)
@@ -547,13 +549,18 @@ def verify(root: Path) -> list[str]:
         "android-document-transport",
         "android-shared-storage-direct-path",
         "android-native-account-session",
+        "android-floating-selection-actionmode",
     ):
         if capability not in contract_kt:
             fail(f"native platform capability is missing: {capability}", failures)
-    if "TerminalPlatformAdapter(activity, view)" not in controller:
-        fail("WebView controller must delegate Android capabilities to TerminalPlatformAdapter", failures)
+    if "TerminalPlatformAdapter(" not in controller or "onSelectionAction" not in controller:
+        fail("WebView controller must delegate Android capabilities and selection actions to TerminalPlatformAdapter", failures)
     if "TerminalContract.MessageType.PLATFORM_REQUEST" not in controller:
         fail("Kotlin controller does not accept bounded platform requests", failures)
+    if "TerminalContract.MessageType.PLATFORM_EVENT" not in controller or "selection-action" not in controller:
+        fail("Kotlin controller does not emit bounded selection-action events", failures)
+    if "SELECTION_ACTIONS_SHOW" not in contract_kt or "SELECTION_ACTIONS_HIDE" not in contract_kt or "selectionActionsShow" not in contract_js or "platformEvent" not in contract_js:
+        fail("selection-action contract does not match JavaScript and Kotlin", failures)
     for token in (
         "ClipboardManager",
         "ClipData.newPlainText",
@@ -561,6 +568,9 @@ def verify(root: Path) -> list[str]:
         "performHapticFeedback",
         "AccessibilityStateChangeListener",
         "TouchExplorationStateChangeListener",
+        "ActionMode.TYPE_FLOATING",
+        "ActionMode.Callback2",
+        "onGetContentRect",
     ):
         if token not in platform_adapter:
             fail(f"Android platform adapter lacks token: {token}", failures)
