@@ -524,6 +524,13 @@ def verify(root: Path) -> list[str]:
         fail("Layer 3 does not release retained xterm focus on IME hide and hidden-IME gesture start", failures)
     if "LONG_PRESS_DELAY_MILLIS" not in customization_js or "xterm-public-buffer-select-long-press" not in customization_js:
         fail("Layer 3 does not expose public xterm buffer-selection long press", failures)
+    if 'id="terminal-selection-toolbar"' not in html or 'data-terminal-selection-action="copy"' not in html or 'data-terminal-selection-action="paste"' not in html:
+        fail("Layer 3 selection toolbar markup is incomplete", failures)
+    if "layer2.platform.copySelection()" not in customization_js or "layer2.platform.pasteClipboard()" not in customization_js or "layer2.terminal.selectAll()" not in customization_js:
+        fail("Layer 3 selection toolbar bypasses public clipboard or selection APIs", failures)
+    if "layer3-webview-copy-paste-select-all" not in customization_js:
+        fail("Layer 3 selection toolbar authority is not reported", failures)
+
     if "TerminalWindowInsets.isSoftInputVisible(insets)" not in activity or "updateSoftInputVisibility(softInputVisible)" not in activity:
         fail("window-inset changes do not publish the listener-delivered IME state", failures)
     if 'android:configChanges="fontScale|' not in manifest:

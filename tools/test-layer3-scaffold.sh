@@ -4,6 +4,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 BRIDGE="$ROOT/app/src/main/assets/terminal/bridge/terminal-bridge.js"
 CUSTOMIZATION="$ROOT/app/src/main/assets/terminal/customization/customization.js"
 CUSTOMIZATION_CSS="$ROOT/app/src/main/assets/terminal/customization/customization.css"
+INDEX="$ROOT/app/src/main/assets/terminal/bridge/index.html"
 
 if grep -Fq 'AndroidTerminalCustomization' "$BRIDGE" || grep -Fq '/terminal/customization/' "$BRIDGE"; then
   printf 'FAIL layer3-scaffold Layer 2 depends on Layer 3\n' >&2
@@ -12,6 +13,9 @@ fi
 grep -Fq 'window.AndroidTerminalLayer2 = Object.freeze' "$BRIDGE"
 grep -Fq 'touch-action: none' "$CUSTOMIZATION_CSS"
 grep -Fq '#terminal .xterm-screen canvas' "$CUSTOMIZATION_CSS"
+grep -Fq 'id="terminal-selection-toolbar"' "$INDEX"
+grep -Fq 'data-terminal-selection-action="copy"' "$INDEX"
+grep -Fq 'data-terminal-selection-action="paste"' "$INDEX"
 
 if command -v node >/dev/null 2>&1; then
   node --check "$CUSTOMIZATION"
@@ -45,10 +49,20 @@ class FakeScreen {
   getBoundingClientRect() { return {left: 0, top: 0, width: 1200, height: 240}; }
 }
 
+class FakeClassList {
+  constructor(initial = []) { this.values = new Set(initial); }
+  add(value) { this.values.add(value); }
+  remove(value) { this.values.delete(value); }
+  contains(value) { return this.values.has(value); }
+}
+
 class FakeElement {
   constructor() {
     this.listeners = new Map();
     this.screen = new FakeScreen();
+    this.classList = new FakeClassList();
+    this.style = {};
+    this.attributes = new Map();
   }
   addEventListener(type, listener) {
     const current = this.listeners.get(type) || [];
@@ -59,9 +73,12 @@ class FakeElement {
     const current = this.listeners.get(type) || [];
     this.listeners.set(type, current.filter((candidate) => candidate !== listener));
   }
-  dispatch(type, event) {
+  dispatch(type, event = {}) {
+    event.currentTarget = this;
     for (const listener of [...(this.listeners.get(type) || [])]) listener(event);
   }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name); }
   querySelector(selector) {
     return selector === '.xterm-screen' ? this.screen : null;
   }
@@ -69,6 +86,32 @@ class FakeElement {
     let total = 0;
     for (const listeners of this.listeners.values()) total += listeners.length;
     return total;
+  }
+}
+
+
+class FakeButton extends FakeElement {
+  constructor(action) {
+    super();
+    this.dataset = {terminalSelectionAction: action};
+  }
+}
+
+class FakeToolbar extends FakeElement {
+  constructor() {
+    super();
+    this.classList.add('hidden');
+    this.offsetWidth = 240;
+    this.offsetHeight = 44;
+    this.buttons = new Map([
+      ['copy', new FakeButton('copy')],
+      ['paste', new FakeButton('paste')],
+      ['select-all', new FakeButton('select-all')]
+    ]);
+  }
+  querySelector(selector) {
+    const match = selector.match(/data-terminal-selection-action="([^"]+)"/);
+    return match ? this.buttons.get(match[1]) || null : null;
   }
 }
 
@@ -91,9 +134,17 @@ function point(identifier, x, y) {
 }
 
 const terminalElement = new FakeElement();
+const selectionToolbar = new FakeToolbar();
+const copyButton = selectionToolbar.buttons.get('copy');
+const pasteButton = selectionToolbar.buttons.get('paste');
+const selectAllButton = selectionToolbar.buttons.get('select-all');
 const listeners = [];
 const scrollCalls = [];
 const selectCalls = [];
+const pasteCalls = [];
+let copyCalls = 0;
+let selectAllCalls = 0;
+let selectionActive = false;
 const frames = new Map();
 let nextFrameId = 1;
 const timers = new Map();
@@ -141,17 +192,24 @@ const terminal = {
   buffer: {active: activeBuffer},
   modes: {mouseTrackingMode: 'none'},
   scrollLines(rows) { scrollCalls.push(rows); },
-  select(column, row, length) { selectCalls.push([column, row, length]); },
+  select(column, row, length) { selectCalls.push([column, row, length]); selectionActive = true; },
+  selectAll() { selectAllCalls += 1; selectionActive = true; },
+  paste(text) { pasteCalls.push(text); },
   focus() { focusCalls += 1; },
   blur() { blurCalls += 1; },
-  clearSelection() {},
-  hasSelection() { return selectCalls.length > 0; }
+  clearSelection() { selectionActive = false; },
+  hasSelection() { return selectionActive; }
 };
 const layer2 = Object.freeze({
   contractVersion: 4,
   terminal,
   platform: Object.freeze({
-    showSoftInput() { softInputCalls += 1; return {catch() {}}; }
+    showSoftInput() { softInputCalls += 1; return {catch() {}}; },
+    copySelection() { copyCalls += 1; return {catch() {}}; },
+    pasteClipboard() {
+      pasteCalls.push('clipboard text');
+      return {then(callback) { callback({text: 'clipboard text'}); return {catch() {}}; }};
+    }
   }),
   completion: Object.freeze({manifest: Object.freeze({schemaVersion: 1})}),
   getPlatformState() { return {softInputVisible: false}; },
@@ -162,7 +220,11 @@ const layer2 = Object.freeze({
   requestGeometrySync() { geometryRequests += 1; }
 });
 const document = Object.freeze({
-  getElementById(id) { return id === 'terminal' ? terminalElement : null; }
+  getElementById(id) {
+    if (id === 'terminal') return terminalElement;
+    if (id === 'terminal-selection-toolbar') return selectionToolbar;
+    return null;
+  }
 });
 const windowObject = {
   AndroidTerminalLayer2: layer2,
@@ -174,7 +236,9 @@ const windowObject = {
   },
   cancelAnimationFrame(id) { frames.delete(id); },
   setTimeout: scheduleTimeout,
-  clearTimeout: cancelTimeout
+  clearTimeout: cancelTimeout,
+  innerWidth: 360,
+  innerHeight: 640
 };
 const context = vm.createContext({
   window: windowObject,
@@ -309,6 +373,31 @@ if (blurCalls !== selectionBlurBaseline || focusCalls !== selectionFocusBaseline
 }
 if (customization.getInteractionState().selectionAuthority !== 'xterm-public-buffer-select-long-press') {
   throw new Error('selection authority is not reported correctly');
+}
+if (!customization.getInteractionState().selectionToolbarVisible ||
+    selectionToolbar.classList.contains('hidden')) {
+  throw new Error('selection release did not expose the Layer 3 clipboard toolbar');
+}
+const toolbarFocusBaseline = focusCalls;
+const toolbarSoftInputBaseline = softInputCalls;
+copyButton.dispatch('click', {preventDefault() {}, stopPropagation() {}});
+if (copyCalls !== 1 || !selectionActive || selectionToolbar.classList.contains('hidden')) {
+  throw new Error('Copy did not use the existing Layer 2 clipboard write while preserving selection');
+}
+selectAllButton.dispatch('click', {preventDefault() {}, stopPropagation() {}});
+if (selectAllCalls !== 1 || !selectionActive) {
+  throw new Error('Select all did not use public terminal.selectAll');
+}
+pasteButton.dispatch('click', {preventDefault() {}, stopPropagation() {}});
+if (pasteCalls.length !== 1 || selectionActive || !selectionToolbar.classList.contains('hidden')) {
+  throw new Error('Paste did not use the existing Layer 2 clipboard read and close selection actions');
+}
+if (focusCalls !== toolbarFocusBaseline || softInputCalls !== toolbarSoftInputBaseline) {
+  throw new Error('selection toolbar action changed terminal focus or Android soft input');
+}
+if (customization.getInteractionState().selectionToolbarAuthority !==
+    'layer3-webview-copy-paste-select-all') {
+  throw new Error('selection toolbar authority is not reported correctly');
 }
 
 terminal.buffer.active.type = 'alternate';
@@ -450,7 +539,10 @@ if (focusCalls !== hiddenTapFocusBaseline + 1 || softInputCalls !== hiddenTapSof
 customization.installation.dispose();
 if (!disposed) throw new Error('Layer 3 subscription is not disposable');
 if (terminalElement.listenerCount() !== 0) throw new Error('Layer 3 touch listeners were not removed');
-console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-hide-or-hidden-gesture-start-blur-tap-only-ime selection=xterm-buffer-select-long-press');
+if (copyButton.listenerCount() !== 0 || pasteButton.listenerCount() !== 0 || selectAllButton.listenerCount() !== 0) {
+  throw new Error('Layer 3 toolbar listeners were not removed');
+}
+console.log('PASS layer3-scaffold direction=layer2-to-layer3 scroll=public-scroll-lines pinch=font-size focus=ime-hide-or-hidden-gesture-start-blur-tap-only-ime selection=xterm-buffer-select-long-press clipboard=layer2-android-toolbar');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -469,6 +561,10 @@ for token in (
     'replayTap(tapTarget, tapX, tapY, !softInputVisible)',
     'layer2.terminal.select(first.column, first.row, length)',
     'layer2.platform.showSoftInput()',
+    'layer2.platform.copySelection()',
+    'layer2.platform.pasteClipboard()',
+    'layer2.terminal.selectAll()',
+    "selectionToolbarAuthority: 'layer3-webview-copy-paste-select-all'",
     "touchActivationAuthority: 'layer3-deferred-tap-only-native-ime'",
     "gestureFocusPolicy: 'ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime'",
     'const wasSoftInputVisible = softInputVisible',

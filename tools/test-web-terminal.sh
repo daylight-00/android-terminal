@@ -69,6 +69,34 @@ const paths = process.argv.slice(2);
       remove(value) { statusClasses.delete(value); }
     }
   };
+  function createToolbarButton(action) {
+    const listeners = new Map();
+    return {
+      dataset: {terminalSelectionAction: action},
+      addEventListener(type, callback) { listeners.set(type, callback); },
+      removeEventListener(type, callback) { if (listeners.get(type) === callback) listeners.delete(type); }
+    };
+  }
+  const toolbarButtons = new Map([
+    ['copy', createToolbarButton('copy')],
+    ['paste', createToolbarButton('paste')],
+    ['select-all', createToolbarButton('select-all')]
+  ]);
+  const toolbarClasses = new Set(['hidden']);
+  const selectionToolbar = {
+    classList: {
+      add(value) { toolbarClasses.add(value); },
+      remove(value) { toolbarClasses.delete(value); }
+    },
+    style: {},
+    offsetWidth: 240,
+    offsetHeight: 44,
+    setAttribute() {},
+    querySelector(selector) {
+      const match = selector.match(/data-terminal-selection-action="([^"]+)"/);
+      return match ? toolbarButtons.get(match[1]) || null : null;
+    }
+  };
   const container = {clientWidth: 0, clientHeight: 0};
   const posted = [];
   let portStarted = false;
@@ -240,6 +268,7 @@ const paths = process.argv.slice(2);
     hidden: false,
     getElementById(id) {
       if (id === 'status') return status;
+      if (id === 'terminal-selection-toolbar') return selectionToolbar;
       return container;
     },
     addEventListener(type, callback) { documentListeners.set(type, callback); }

@@ -81,13 +81,31 @@
         !layer2.completion.manifest || layer2.completion.manifest.schemaVersion !== 1 ||
         typeof layer2.onPlatformState !== 'function' ||
         typeof layer2.requestGeometrySync !== 'function' ||
-        !layer2.platform || typeof layer2.platform.showSoftInput !== 'function') {
+        !layer2.platform || typeof layer2.platform.showSoftInput !== 'function' ||
+        typeof layer2.platform.copySelection !== 'function' ||
+        typeof layer2.platform.pasteClipboard !== 'function') {
       throw new Error('Layer 2 customization capability is unavailable.');
     }
 
     const terminalElement = document.getElementById('terminal');
+    const selectionToolbar = document.getElementById('terminal-selection-toolbar');
     if (!terminalElement) {
       throw new Error('Terminal interaction surface is unavailable.');
+    }
+    if (!selectionToolbar || typeof selectionToolbar.querySelector !== 'function') {
+      throw new Error('Terminal selection toolbar is unavailable.');
+    }
+    const copyButton = selectionToolbar.querySelector(
+      '[data-terminal-selection-action="copy"]'
+    );
+    const pasteButton = selectionToolbar.querySelector(
+      '[data-terminal-selection-action="paste"]'
+    );
+    const selectAllButton = selectionToolbar.querySelector(
+      '[data-terminal-selection-action="select-all"]'
+    );
+    if (!copyButton || !pasteButton || !selectAllButton) {
+      throw new Error('Terminal selection toolbar actions are incomplete.');
     }
 
     const initialState = typeof layer2.getPlatformState === 'function'
@@ -120,6 +138,9 @@
     let selectionConsumesGesture = false;
     let selectionAnchorStart = null;
     let selectionAnchorEnd = null;
+    let selectionToolbarVisible = false;
+    let selectionToolbarX = 0;
+    let selectionToolbarY = 0;
     let disposed = false;
     const touchSurfaceAvailable =
       typeof terminalElement.addEventListener === 'function' &&
@@ -149,6 +170,87 @@
         buttons,
         detail
       }));
+    }
+
+    function hideSelectionToolbar() {
+      selectionToolbarVisible = false;
+      selectionToolbar.classList.add('hidden');
+      selectionToolbar.setAttribute('aria-hidden', 'true');
+    }
+
+    function showSelectionToolbar(clientX, clientY) {
+      if (typeof layer2.terminal.hasSelection !== 'function' ||
+          !layer2.terminal.hasSelection()) {
+        hideSelectionToolbar();
+        return false;
+      }
+      const viewportWidth = Number(window.innerWidth) || 360;
+      const viewportHeight = Number(window.innerHeight) || 640;
+      const toolbarWidth = Number(selectionToolbar.offsetWidth) || 240;
+      const toolbarHeight = Number(selectionToolbar.offsetHeight) || 44;
+      const margin = 8;
+      const x = Number.isFinite(Number(clientX)) ? Number(clientX) : viewportWidth / 2;
+      const y = Number.isFinite(Number(clientY)) ? Number(clientY) : margin;
+      selectionToolbar.classList.remove('hidden');
+      selectionToolbar.setAttribute('aria-hidden', 'false');
+      selectionToolbarX = Math.min(
+        Math.max(margin, x - toolbarWidth / 2),
+        Math.max(margin, viewportWidth - toolbarWidth - margin)
+      );
+      const preferredTop = y - toolbarHeight - 12;
+      selectionToolbarY = preferredTop >= margin
+        ? preferredTop
+        : Math.min(viewportHeight - toolbarHeight - margin, y + 12);
+      selectionToolbar.style.left = `${Math.max(margin, selectionToolbarX)}px`;
+      selectionToolbar.style.top = `${Math.max(margin, selectionToolbarY)}px`;
+      selectionToolbarVisible = true;
+      return true;
+    }
+
+    function runToolbarAction(action) {
+      if (action === 'copy') {
+        if (typeof layer2.terminal.hasSelection !== 'function' ||
+            !layer2.terminal.hasSelection()) {
+          hideSelectionToolbar();
+          return;
+        }
+        const request = layer2.platform.copySelection();
+        if (request && typeof request.catch === 'function') {
+          request.catch((error) => console.warn('Android clipboard write failed.', error));
+        }
+        return;
+      }
+      if (action === 'paste') {
+        const request = layer2.platform.pasteClipboard();
+        if (request && typeof request.then === 'function') {
+          request.then(() => {
+            if (typeof layer2.terminal.clearSelection === 'function') {
+              layer2.terminal.clearSelection();
+            }
+            hideSelectionToolbar();
+          }).catch((error) => console.warn('Android clipboard read failed.', error));
+        }
+        return;
+      }
+      if (action === 'select-all' && typeof layer2.terminal.selectAll === 'function') {
+        layer2.terminal.selectAll();
+        showSelectionToolbar(scrollLastX, scrollLastY);
+      }
+    }
+
+    function onToolbarClick(event) {
+      const target = event && event.currentTarget;
+      const action = target && target.dataset
+        ? target.dataset.terminalSelectionAction
+        : '';
+      if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+      runToolbarAction(action);
+    }
+
+    function preventToolbarPointerFocus(event) {
+      if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
     }
 
     function applyAppearance(state) {
@@ -406,6 +508,10 @@
     }
 
     function replayTap(target, clientX, clientY, requestSoftInput) {
+      hideSelectionToolbar();
+      if (typeof layer2.terminal.clearSelection === 'function') {
+        layer2.terminal.clearSelection();
+      }
       dispatchMouseEvent(target, 'mousedown', clientX, clientY, 1, 1);
       dispatchMouseEvent(target, 'mouseup', clientX, clientY, 0, 1);
       dispatchMouseEvent(target, 'click', clientX, clientY, 0, 1);
@@ -450,11 +556,12 @@
       return selectCellRange(selectionAnchorStart, current);
     }
 
-    function finishSelectionGesture() {
+    function finishSelectionGesture(showActions = true) {
       if (!selectionConsumesGesture) return false;
       selectionConsumesGesture = false;
       selectionAnchorStart = null;
       selectionAnchorEnd = null;
+      if (showActions) showSelectionToolbar(scrollLastX, scrollLastY);
       return true;
     }
 
@@ -483,7 +590,8 @@
     function beginPinch(event) {
       cancelScrollInertia();
       cancelLongPress();
-      finishSelectionGesture();
+      finishSelectionGesture(false);
+      hideSelectionToolbar();
       if (typeof layer2.terminal.clearSelection === 'function') {
         layer2.terminal.clearSelection();
       }
@@ -494,6 +602,7 @@
     }
 
     function onTouchStart(event) {
+      hideSelectionToolbar();
       releaseHiddenInputFocusAtGestureStart(event);
       if (event.touches.length >= 2 || pinchConsumesGesture) {
         beginPinch(event);
@@ -548,6 +657,7 @@
       }
       cancelLongPress();
       scrollConsumesGesture = true;
+      hideSelectionToolbar();
       if (typeof layer2.terminal.clearSelection === 'function') {
         layer2.terminal.clearSelection();
       }
@@ -592,7 +702,8 @@
       pinchConsumesGesture = false;
       cancelScrollInertia();
       cancelLongPress();
-      finishSelectionGesture();
+      finishSelectionGesture(false);
+      hideSelectionToolbar();
       resetScrollGesture(true);
       if (owned) {
         consumeTouch(event);
@@ -607,6 +718,11 @@
       terminalElement.addEventListener('touchcancel', onTouchCancel, touchOptions);
     }
 
+    for (const button of [copyButton, pasteButton, selectAllButton]) {
+      button.addEventListener('mousedown', preventToolbarPointerFocus);
+      button.addEventListener('click', onToolbarClick);
+    }
+
     const platformSubscription = layer2.onPlatformState(applyAppearance);
 
     return Object.freeze({
@@ -615,8 +731,13 @@
         disposed = true;
         cancelScrollInertia();
         cancelLongPress();
-        finishSelectionGesture();
+        finishSelectionGesture(false);
+        hideSelectionToolbar();
         platformSubscription.dispose();
+        for (const button of [copyButton, pasteButton, selectAllButton]) {
+          button.removeEventListener('mousedown', preventToolbarPointerFocus);
+          button.removeEventListener('click', onToolbarClick);
+        }
         if (touchSurfaceAvailable) {
           terminalElement.removeEventListener('touchstart', onTouchStart, touchOptions);
           terminalElement.removeEventListener('touchmove', onTouchMove, touchOptions);
@@ -634,6 +755,10 @@
           selectionConsumesGesture,
           selectionAuthority: 'xterm-public-buffer-select-long-press',
           selectionHandles: 'none',
+          selectionToolbarVisible,
+          selectionToolbarAuthority: 'layer3-webview-copy-paste-select-all',
+          copyAuthority: 'layer2-bounded-android-clipboard-write',
+          pasteAuthority: 'layer2-bounded-android-clipboard-read-terminal-paste',
           scrollAuthority: 'layer3-public-scroll-lines',
           touchActivationAuthority: 'layer3-deferred-tap-only-native-ime',
           gestureFocusPolicy: 'ime-hide-or-hidden-gesture-start-blur-tap-only-focus-ime',

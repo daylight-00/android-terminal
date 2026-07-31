@@ -10,3 +10,39 @@
 #terminal .xterm-screen canvas {
   touch-action: none;
 }
+
+/*
+ * Layer 3 selection actions. The toolbar is a sibling of the terminal surface
+ * so its buttons never enter the terminal touch gesture classifier.
+ */
+.terminal-selection-toolbar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid rgba(127, 127, 127, 0.55);
+  border-radius: 8px;
+  background: rgba(32, 32, 32, 0.96);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+  touch-action: manipulation;
+}
+
+.terminal-selection-toolbar.hidden {
+  display: none;
+}
+
+.terminal-selection-toolbar button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #ffffff;
+  font: 500 14px/1 sans-serif;
+  white-space: nowrap;
+}
+
+.terminal-selection-toolbar button:active {
+  background: rgba(255, 255, 255, 0.18);
+}

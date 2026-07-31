@@ -85,7 +85,7 @@ release
 → no focus or IME request
 ```
 
-Crossing the six-pixel movement threshold before the timer fires cancels selection and commits scrolling. A second finger cancels selection and commits pinch. The selection model remains xterm's public buffer and public selection API; Layer 3 stores only the gesture anchors. The existing Layer 2 bounded clipboard operations remain available, but this wave intentionally adds no selection handles or new copy/paste menu UI.
+Crossing the six-pixel movement threshold before the timer fires cancels selection and commits scrolling. A second finger cancels selection and commits pinch. The selection model remains xterm's public buffer and public selection API; Layer 3 stores only the gesture anchors. The existing Layer 2 bounded clipboard operations are surfaced through a WebView-local Copy/Paste/Select all toolbar after selection release. The toolbar is outside the terminal touch surface and never focuses xterm or requests soft input. This wave still adds no movable selection handles.
 
 ## Pinch font zoom
 
@@ -106,7 +106,7 @@ The user scale is bounded to `0.5–3.0` and remains session-local. Pinch does n
 This policy does not add:
 
 - Android-style movable text-selection handles;
-- a new long-press copy/paste menu;
+- Android-native floating `ActionMode`;
 - a Layer 3 key toolbar;
 - persistent zoom preferences;
 - browser page scrolling or page zoom;
@@ -135,4 +135,4 @@ Device trials of versions 0.25.0 and 0.25.1 rejected the browser-native path for
 - WebView native overflow did not scroll xterm scrollback,
 - handing one-finger touch from WebView to Layer 3 after a movement threshold caused interrupted scrolling.
 
-The production baseline therefore keeps xterm as the viewport authority and restores the proven public `scrollLines()` drag/inertia path. Pinch continues to change public `terminal.options.fontSize` and synchronize PTY geometry. The production path now uses xterm's public buffer and `terminal.select()` APIs for long press and drag expansion without activating the hidden textarea. Browser DOM selection and custom Android ActionMode are not active production authorities; movable handles and copy/paste menu UX remain future work.
+The production baseline therefore keeps xterm as the viewport authority and restores the proven public `scrollLines()` drag/inertia path. Pinch continues to change public `terminal.options.fontSize` and synchronize PTY geometry. The production path now uses xterm's public buffer and `terminal.select()` APIs for long press and drag expansion without activating the hidden textarea. Browser DOM selection and custom Android ActionMode are not active production authorities; movable handles remain future work; Copy/Paste/Select all use the WebView-local Layer 3 toolbar and existing Layer 2 clipboard bridge.
