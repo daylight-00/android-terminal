@@ -17,7 +17,7 @@ grep -Fq '#terminal .xterm-screen canvas' "$CUSTOMIZATION_CSS"
 grep -Fq 'layer2.platform.showSelectionActions({x, y})' "$CUSTOMIZATION"
 grep -Fq 'layer2.platform.hideSelectionActions()' "$CUSTOMIZATION"
 grep -Fq 'layer2.onSelectionAction(runToolbarAction)' "$CUSTOMIZATION"
-grep -Fq "selectionToolbarAuthority: 'layer2-android-floating-actionmode-copy-paste-select-all'" "$CUSTOMIZATION"
+grep -Fq "selectionToolbarAuthority: 'layer2-android-popupwindow-copy-paste-select-all'" "$CUSTOMIZATION"
 
 if command -v node >/dev/null 2>&1; then
   node --check "$CUSTOMIZATION"
@@ -189,8 +189,8 @@ if (focusCalls !== focusBaseline || softInputCalls !== softBaseline || blurCalls
   throw new Error('hidden-IME selection focus policy regressed');
 }
 if (customization.getInteractionState().selectionToolbarAuthority !==
-    'layer2-android-floating-actionmode-copy-paste-select-all') {
-  throw new Error('native ActionMode authority missing');
+    'layer2-android-popupwindow-copy-paste-select-all') {
+  throw new Error('native PopupWindow authority missing');
 }
 
 selectionActionListeners[0]('copy');
@@ -261,7 +261,7 @@ if (!(terminal.options.fontSize > sizeBefore) || geometryCalls === 0) throw new 
 customization.installation.dispose();
 if (!stateDisposed || !actionDisposed) throw new Error('subscriptions were not disposed');
 if (terminalElement.listenerCount() !== 0) throw new Error('touch listeners were not removed');
-console.log('PASS layer3-scaffold selection=xterm-buffer native-toolbar=android-floating-actionmode copy-close=true ime=r15-preserved');
+console.log('PASS layer3-scaffold selection=xterm-buffer native-toolbar=android-popupwindow copy-close=true ime=r15-preserved');
 JS
 else
   python3 - "$CUSTOMIZATION" "$CUSTOMIZATION_CSS" <<'PY'
@@ -278,7 +278,7 @@ for token in (
     'layer2.platform.copySelection()',
     'layer2.platform.pasteClipboard()',
     'layer2.terminal.selectAll()',
-    "selectionToolbarAuthority: 'layer2-android-floating-actionmode-copy-paste-select-all'",
+    "selectionToolbarAuthority: 'layer2-android-popupwindow-copy-paste-select-all'",
     "touchActivationAuthority: 'layer3-deferred-tap-only-native-ime'",
     'releaseHiddenInputFocusAtGestureStart',
     'layer2.terminal.scrollLines(rows)',

@@ -525,11 +525,11 @@ def verify(root: Path) -> list[str]:
     if "LONG_PRESS_DELAY_MILLIS" not in customization_js or "xterm-public-buffer-select-long-press" not in customization_js:
         fail("Layer 3 does not expose public xterm buffer-selection long press", failures)
     if 'terminal-selection-toolbar' in html:
-        fail("floating ActionMode POC must not retain WebView selection toolbar markup", failures)
+        fail("selection PopupWindow POC must not retain WebView selection toolbar markup", failures)
     if "layer2.platform.copySelection()" not in customization_js or "layer2.platform.pasteClipboard()" not in customization_js or "layer2.terminal.selectAll()" not in customization_js:
         fail("Layer 3 selection toolbar bypasses public clipboard or selection APIs", failures)
-    if "layer2-android-floating-actionmode-copy-paste-select-all" not in customization_js:
-        fail("Layer 3 floating ActionMode authority is not reported", failures)
+    if "layer2-android-popupwindow-copy-paste-select-all" not in customization_js:
+        fail("Layer 3 selection PopupWindow authority is not reported", failures)
     if "layer2.platform.showSelectionActions({x, y})" not in customization_js or "layer2.platform.hideSelectionActions()" not in customization_js or "layer2.onSelectionAction" not in customization_js:
         fail("Layer 3 does not use the public Layer 2 native selection-action facade", failures)
 
@@ -549,7 +549,7 @@ def verify(root: Path) -> list[str]:
         "android-document-transport",
         "android-shared-storage-direct-path",
         "android-native-account-session",
-        "android-floating-selection-actionmode",
+        "android-selection-popupwindow",
     ):
         if capability not in contract_kt:
             fail(f"native platform capability is missing: {capability}", failures)
@@ -568,9 +568,12 @@ def verify(root: Path) -> list[str]:
         "performHapticFeedback",
         "AccessibilityStateChangeListener",
         "TouchExplorationStateChangeListener",
-        "ActionMode.TYPE_FLOATING",
-        "ActionMode.Callback2",
-        "onGetContentRect",
+        "PopupWindow(",
+        "PopupWindow.INPUT_METHOD_NOT_NEEDED",
+        "SOFT_INPUT_ADJUST_NOTHING",
+        "getLocationOnScreen",
+        "getWindowVisibleDisplayFrame",
+        "showAtLocation",
     ):
         if token not in platform_adapter:
             fail(f"Android platform adapter lacks token: {token}", failures)

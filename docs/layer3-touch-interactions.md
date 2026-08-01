@@ -87,7 +87,7 @@ release
 
 Crossing the six-pixel movement threshold before the timer fires cancels selection and commits scrolling. A second finger cancels selection and commits pinch. The selection model remains xterm's public buffer and public selection API; Layer 3 stores only the gesture anchors.
 
-After selection release, Layer 3 sends only the release coordinates to the Layer 2 selection-action facade. Android displays a `TYPE_FLOATING` `ActionMode` backed by `ActionMode.Callback2.onGetContentRect()`. Copy, Paste, and Select all are returned as bounded native-to-page events; Layer 3 then calls the existing public clipboard and xterm APIs. Copy closes the floating toolbar while preserving the selected range. Paste closes it and clears the selection after `terminal.paste()`. Select all keeps the native surface active and applies public `terminal.selectAll()`. The ActionMode never owns or reconstructs terminal text and does not request IME focus. This POC still adds no movable selection handles.
+After selection release, Layer 3 sends only the release coordinates to the Layer 2 selection-action facade. Android displays a non-focusable `PopupWindow` directly around the release coordinate after converting WebView CSS viewport coordinates into Android screen coordinates. Copy, Paste, and Select all are returned as bounded native-to-page events; Layer 3 then calls the existing public clipboard and xterm APIs. Copy closes the native popup while preserving the selected range. Paste closes it and clears the selection after `terminal.paste()`. Select all keeps the native surface active and applies public `terminal.selectAll()`. The PopupWindow never owns or reconstructs terminal text and does not request IME focus. This POC still adds no movable selection handles.
 
 ## Pinch font zoom
 
@@ -108,14 +108,14 @@ The user scale is bounded to `0.5–3.0` and remains session-local. Pinch does n
 This policy does not add:
 
 - Android-style movable text-selection handles;
-- movable selection handles attached to the floating `ActionMode`;
+- movable selection handles attached to the native `PopupWindow`;
 - a Layer 3 key toolbar;
 - persistent zoom preferences;
 - browser page scrolling or page zoom;
 - touch wheel-protocol synthesis for mouse-tracking applications;
 - alternate-buffer swipe-to-arrow translation.
 
-Long-press xterm selection and the floating-ActionMode menu POC are active; movable handles remain a separate interaction wave.
+Long-press xterm selection and the selection PopupWindow menu POC are active; movable handles remain a separate interaction wave.
 
 ## Bounded device check
 
@@ -137,4 +137,4 @@ Device trials of versions 0.25.0 and 0.25.1 rejected the browser-native path for
 - WebView native overflow did not scroll xterm scrollback,
 - handing one-finger touch from WebView to Layer 3 after a movement threshold caused interrupted scrolling.
 
-The production baseline therefore keeps xterm as the viewport authority and restores the proven public `scrollLines()` drag/inertia path. Pinch continues to change public `terminal.options.fontSize` and synchronize PTY geometry. The production path now uses xterm's public buffer and `terminal.select()` APIs for long press and drag expansion without activating the hidden textarea. Browser DOM selection is not active. The current POC keeps xterm as the production selection authority while Android `TYPE_FLOATING` ActionMode owns only transient menu presentation; movable handles remain future work and clipboard data still travels through the existing bounded Layer 2 bridge.
+The production baseline therefore keeps xterm as the viewport authority and restores the proven public `scrollLines()` drag/inertia path. Pinch continues to change public `terminal.options.fontSize` and synchronize PTY geometry. The production path now uses xterm's public buffer and `terminal.select()` APIs for long press and drag expansion without activating the hidden textarea. Browser DOM selection is not active. The current POC keeps xterm as the production selection authority while Android `PopupWindow` owns only transient menu presentation; movable handles remain future work and clipboard data still travels through the existing bounded Layer 2 bridge.

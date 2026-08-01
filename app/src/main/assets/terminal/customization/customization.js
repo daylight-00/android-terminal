@@ -180,7 +180,7 @@
       if (request && typeof request.catch === 'function') {
         request.catch((error) => {
           selectionToolbarVisible = false;
-          console.warn('Android floating selection actions failed.', error);
+          console.warn('Android selection PopupWindow failed.', error);
         });
       }
       return true;
@@ -713,7 +713,7 @@
           selectionAuthority: 'xterm-public-buffer-select-long-press',
           selectionHandles: 'none',
           selectionToolbarVisible,
-          selectionToolbarAuthority: 'layer2-android-floating-actionmode-copy-paste-select-all',
+          selectionToolbarAuthority: 'layer2-android-popupwindow-copy-paste-select-all',
           copyAuthority: 'layer2-bounded-android-clipboard-write',
           pasteAuthority: 'layer2-bounded-android-clipboard-read-terminal-paste',
           scrollAuthority: 'layer3-public-scroll-lines',

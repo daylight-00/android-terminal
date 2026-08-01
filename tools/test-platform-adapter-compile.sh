@@ -24,10 +24,12 @@ for token in (
     "systemWindowInsetBottom > insets.stableInsetBottom",
     "showSoftInput",
     "restartInput",
-    "ActionMode.TYPE_FLOATING",
-    "ActionMode.Callback2",
-    "invalidateContentRect",
-    "startActionMode",
+    "PopupWindow(",
+    "PopupWindow.INPUT_METHOD_NOT_NEEDED",
+    "SOFT_INPUT_ADJUST_NOTHING",
+    "getLocationOnScreen",
+    "getWindowVisibleDisplayFrame",
+    "showAtLocation",
     "AccessibilityStateChangeListener",
     "TouchExplorationStateChangeListener",
     "configuration.locales[0].toLanguageTag()",
@@ -49,15 +51,64 @@ mkdir -p \
   "$WORK/android/content/res" \
   "$WORK/android/database" \
   "$WORK/android/graphics" \
+  "$WORK/android/graphics/drawable" \
   "$WORK/android/net" \
   "$WORK/android/os" \
   "$WORK/android/provider" \
+  "$WORK/android/util" \
   "$WORK/android/view" \
   "$WORK/android/view/accessibility" \
   "$WORK/android/view/inputmethod" \
   "$WORK/android/webkit" \
+  "$WORK/android/widget" \
   "$WORK/org/json" \
   "$WORK/io/github/daylight00/androidterminal"
+
+cat > "$WORK/android/util/TypedValue.kt" <<'KT'
+package android.util
+class TypedValue {
+    var resourceId: Int = 0
+    var data: Int = 0xff202124.toInt()
+}
+KT
+
+cat > "$WORK/android/content/res/Configuration.kt" <<'KT'
+package android.content.res
+
+import android.util.TypedValue
+
+class LocaleList {
+    operator fun get(index: Int): java.util.Locale = java.util.Locale.ENGLISH
+}
+
+class Configuration {
+    var uiMode: Int = 0
+    var keyboard: Int = KEYBOARD_NOKEYS
+    var fontScale: Float = 1f
+    var locales: LocaleList = LocaleList()
+    companion object {
+        const val UI_MODE_NIGHT_MASK: Int = 0x30
+        const val UI_MODE_NIGHT_YES: Int = 0x20
+        const val KEYBOARD_UNDEFINED: Int = 0
+        const val KEYBOARD_NOKEYS: Int = 1
+    }
+}
+
+class DisplayMetrics { var density: Float = 2f }
+
+class Theme {
+    fun resolveAttribute(attribute: Int, value: TypedValue, resolveRefs: Boolean): Boolean {
+        value.resourceId = 0
+        value.data = 0xff202124.toInt()
+        return true
+    }
+}
+
+class Resources(
+    val configuration: Configuration = Configuration(),
+    val displayMetrics: DisplayMetrics = DisplayMetrics(),
+)
+KT
 
 cat > "$WORK/android/app/Activity.kt" <<'KT'
 package android.app
@@ -65,10 +116,12 @@ package android.app
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.res.Resources
+import android.content.res.Theme
 import java.io.File
 
 open class Activity {
     val resources: Resources = Resources()
+    val theme: Theme = Theme()
     val contentResolver: ContentResolver = ContentResolver()
     val filesDir: File = File(System.getProperty("java.io.tmpdir"), "android-files")
     fun <T> getSystemService(serviceClass: Class<T>): T? = null
@@ -77,6 +130,7 @@ open class Activity {
     fun runOnUiThread(action: () -> Unit) = action()
     fun getString(id: Int): String = "localized-$id"
     fun getText(id: Int): CharSequence = "localized-$id"
+    fun getColor(id: Int): Int = 0xff202124.toInt()
     companion object { const val RESULT_OK: Int = -1 }
 }
 KT
@@ -136,34 +190,9 @@ open class ClipboardManager {
 }
 KT
 
-cat > "$WORK/android/content/res/Configuration.kt" <<'KT'
-package android.content.res
-
-class LocaleList {
-    operator fun get(index: Int): java.util.Locale = java.util.Locale.ENGLISH
-}
-
-class Configuration {
-    var uiMode: Int = 0
-    var keyboard: Int = KEYBOARD_NOKEYS
-    var fontScale: Float = 1f
-    var locales: LocaleList = LocaleList()
-    companion object {
-        const val UI_MODE_NIGHT_MASK: Int = 0x30
-        const val UI_MODE_NIGHT_YES: Int = 0x20
-        const val KEYBOARD_UNDEFINED: Int = 0
-        const val KEYBOARD_NOKEYS: Int = 1
-    }
-}
-
-class Resources(val configuration: Configuration = Configuration())
-KT
-
 cat > "$WORK/android/database/Cursor.kt" <<'KT'
 package android.database
-
 import java.io.Closeable
-
 interface Cursor : Closeable {
     fun moveToFirst(): Boolean
     fun getColumnIndex(name: String): Int
@@ -174,14 +203,34 @@ interface Cursor : Closeable {
 }
 KT
 
-cat > "$WORK/android/graphics/Color.kt" <<'KT'
+cat > "$WORK/android/graphics/Graphics.kt" <<'KT'
 package android.graphics
 object Color {
     const val BLACK: Int = 0xff000000.toInt()
+    const val WHITE: Int = 0xffffffff.toInt()
+    const val DKGRAY: Int = 0xff444444.toInt()
+    const val TRANSPARENT: Int = 0x00000000
     fun rgb(red: Int, green: Int, blue: Int): Int = 0
 }
-class Rect {
-    fun set(left: Int, top: Int, right: Int, bottom: Int) {}
+class Rect(
+    var left: Int = 0,
+    var top: Int = 0,
+    var right: Int = 1080,
+    var bottom: Int = 1920,
+) {
+    fun set(left: Int, top: Int, right: Int, bottom: Int) {
+        this.left = left; this.top = top; this.right = right; this.bottom = bottom
+    }
+}
+KT
+
+cat > "$WORK/android/graphics/drawable/Drawable.kt" <<'KT'
+package android.graphics.drawable
+open class Drawable
+class ColorDrawable(val color: Int) : Drawable()
+class GradientDrawable : Drawable() {
+    var cornerRadius: Float = 0f
+    fun setColor(color: Int) {}
 }
 KT
 
@@ -222,53 +271,61 @@ object R {
         const val paste: Int = 2
         const val selectAll: Int = 3
     }
+    object attr {
+        const val colorBackgroundFloating: Int = 11
+        const val textColorPrimary: Int = 12
+        const val selectableItemBackgroundBorderless: Int = 13
+    }
 }
 KT
 
-cat > "$WORK/android/view/ActionMode.kt" <<'KT'
+cat > "$WORK/android/view/View.kt" <<'KT'
 package android.view
 
 import android.graphics.Rect
+import android.graphics.drawable.Drawable
 
 open class View {
-    open val width: Int = 1080
-    open val height: Int = 1920
-    open fun startActionMode(callback: ActionMode.Callback, type: Int): ActionMode? = ActionMode()
-}
-
-open class ActionMode {
-    open fun finish() {}
-    open fun invalidateContentRect() {}
-    interface Callback {
-        fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean
-        fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean
-        fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean
-        fun onDestroyActionMode(mode: ActionMode)
+    open var width: Int = 1080
+    open var height: Int = 1920
+    open var measuredWidth: Int = 300
+    open var measuredHeight: Int = 52
+    open var background: Drawable? = null
+    open var elevation: Float = 0f
+    open var minHeight: Int = 0
+    open var isClickable: Boolean = false
+    open var isFocusable: Boolean = false
+    open fun measure(widthSpec: Int, heightSpec: Int) {}
+    open fun setPadding(left: Int, top: Int, right: Int, bottom: Int) {}
+    open fun setBackgroundResource(resourceId: Int) {}
+    open fun setOnClickListener(listener: (View) -> Unit) {}
+    open fun getLocationOnScreen(location: IntArray) { location[0] = 0; location[1] = 0 }
+    open fun getWindowVisibleDisplayFrame(rect: Rect) {
+        rect.left = 0; rect.top = 0; rect.right = 1080; rect.bottom = 1920
     }
-    abstract class Callback2 : Callback {
-        open fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {}
-    }
-    companion object { const val TYPE_FLOATING: Int = 1 }
-}
-
-interface Menu {
-    fun add(groupId: Int, itemId: Int, order: Int, title: CharSequence): MenuItem
-    companion object { const val NONE: Int = 0 }
-}
-
-interface MenuItem {
-    val itemId: Int
-    fun setShowAsAction(actionEnum: Int)
-    companion object {
-        const val SHOW_AS_ACTION_ALWAYS: Int = 2
-        const val SHOW_AS_ACTION_IF_ROOM: Int = 1
+    object MeasureSpec {
+        const val UNSPECIFIED: Int = 0
+        fun makeMeasureSpec(size: Int, mode: Int): Int = 0
     }
 }
-KT
 
-cat > "$WORK/android/view/HapticFeedbackConstants.kt" <<'KT'
-package android.view
+open class ViewGroup : View() {
+    class LayoutParams {
+        companion object { const val WRAP_CONTENT: Int = -2 }
+    }
+}
+
+object Gravity {
+    const val NO_GRAVITY: Int = 0
+    const val CENTER: Int = 17
+    const val CENTER_VERTICAL: Int = 16
+}
+
 object HapticFeedbackConstants { const val CLOCK_TICK: Int = 4 }
+
+object WindowManager {
+    object LayoutParams { const val SOFT_INPUT_ADJUST_NOTHING: Int = 0x30 }
+}
 KT
 
 cat > "$WORK/android/view/WindowInsets.kt" <<'KT'
@@ -281,16 +338,55 @@ open class WindowInsets {
 }
 KT
 
+cat > "$WORK/android/widget/Widgets.kt" <<'KT'
+package android.widget
+
+import android.app.Activity
+import android.graphics.drawable.Drawable
+import android.view.View
+import android.view.ViewGroup
+
+open class LinearLayout(activity: Activity) : ViewGroup() {
+    var orientation: Int = HORIZONTAL
+    var gravity: Int = 0
+    fun addView(view: View) {}
+    companion object { const val HORIZONTAL: Int = 0 }
+}
+
+open class TextView(activity: Activity) : View() {
+    var text: CharSequence = ""
+    var gravity: Int = 0
+    fun setTextColor(color: Int) {}
+}
+
+class PopupWindow(
+    val contentView: View,
+    width: Int,
+    height: Int,
+    focusable: Boolean,
+) {
+    var isTouchable: Boolean = false
+    var isOutsideTouchable: Boolean = false
+    var isClippingEnabled: Boolean = false
+    var inputMethodMode: Int = 0
+    var softInputMode: Int = 0
+    var elevation: Float = 0f
+    var isShowing: Boolean = false
+    private var dismissListener: (() -> Unit)? = null
+    fun setBackgroundDrawable(drawable: Drawable?) {}
+    fun setOnDismissListener(listener: () -> Unit) { dismissListener = listener }
+    fun dismiss() { val was = isShowing; isShowing = false; if (was) dismissListener?.invoke() }
+    fun update(x: Int, y: Int, width: Int, height: Int) { isShowing = true }
+    fun showAtLocation(parent: View, gravity: Int, x: Int, y: Int) { isShowing = true }
+    companion object { const val INPUT_METHOD_NOT_NEEDED: Int = 2 }
+}
+KT
+
 cat > "$WORK/android/view/accessibility/AccessibilityManager.kt" <<'KT'
 package android.view.accessibility
-
 open class AccessibilityManager {
-    fun interface AccessibilityStateChangeListener {
-        fun onAccessibilityStateChanged(enabled: Boolean)
-    }
-    fun interface TouchExplorationStateChangeListener {
-        fun onTouchExplorationStateChanged(enabled: Boolean)
-    }
+    fun interface AccessibilityStateChangeListener { fun onAccessibilityStateChanged(enabled: Boolean) }
+    fun interface TouchExplorationStateChangeListener { fun onTouchExplorationStateChanged(enabled: Boolean) }
     var isEnabled: Boolean = false
     var isTouchExplorationEnabled: Boolean = false
     fun addAccessibilityStateChangeListener(listener: AccessibilityStateChangeListener): Boolean = true
@@ -300,12 +396,9 @@ open class AccessibilityManager {
 }
 KT
 
-
 cat > "$WORK/android/view/inputmethod/InputMethodManager.kt" <<'KT'
 package android.view.inputmethod
-
 import android.webkit.WebView
-
 open class InputMethodManager {
     fun restartInput(view: WebView) {}
     fun showSoftInput(view: WebView, flags: Int): Boolean = true
@@ -315,10 +408,8 @@ KT
 
 cat > "$WORK/android/webkit/WebView.kt" <<'KT'
 package android.webkit
-
-import android.view.WindowInsets
 import android.view.View
-
+import android.view.WindowInsets
 open class WebView : View() {
     val rootWindowInsets: WindowInsets? = WindowInsets()
     val isAttachedToWindow: Boolean = true
@@ -328,8 +419,6 @@ open class WebView : View() {
     fun post(action: () -> Unit): Boolean { action(); return true }
 }
 KT
-
-
 
 cat > "$WORK/io/github/daylight00/androidterminal/R.kt" <<'KT'
 package io.github.daylight00.androidterminal
@@ -359,19 +448,21 @@ class JSONObject {
 KT
 
 kotlinc -nowarn \
+  "$WORK/android/util/TypedValue.kt" \
+  "$WORK/android/content/res/Configuration.kt" \
   "$WORK/android/app/Activity.kt" \
   "$WORK/android/content/Content.kt" \
-  "$WORK/android/content/res/Configuration.kt" \
   "$WORK/android/database/Cursor.kt" \
   "$WORK/android/R.kt" \
-  "$WORK/android/graphics/Color.kt" \
+  "$WORK/android/graphics/Graphics.kt" \
+  "$WORK/android/graphics/drawable/Drawable.kt" \
   "$WORK/android/net/Uri.kt" \
   "$WORK/android/os/SystemClock.kt" \
   "$WORK/android/os/Build.kt" \
   "$WORK/android/provider/OpenableColumns.kt" \
-  "$WORK/android/view/ActionMode.kt" \
-  "$WORK/android/view/HapticFeedbackConstants.kt" \
+  "$WORK/android/view/View.kt" \
   "$WORK/android/view/WindowInsets.kt" \
+  "$WORK/android/widget/Widgets.kt" \
   "$WORK/android/view/accessibility/AccessibilityManager.kt" \
   "$WORK/android/view/inputmethod/InputMethodManager.kt" \
   "$WORK/android/webkit/WebView.kt" \
@@ -387,4 +478,4 @@ kotlinc -nowarn \
   "$PACKAGE_ROOT/TerminalPlatformAdapter.kt" \
   -d "$WORK/platform-adapter.jar"
 
-echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path soft-input=explicit visibility=window-insets"
+echo "PASS terminal-platform-adapter runtime=kotlinc api=android29-shape localization=android-resources documents=saf-private-file storage-state=direct-path soft-input=explicit visibility=window-insets selection-toolbar=popupwindow"

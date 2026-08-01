@@ -88,8 +88,8 @@ check app-label grep -Fq 'android:label="Terminal"' app/src/main/AndroidManifest
 check project-description grep -Fq 'A thin terminal frontend for Android’s native shell, powered by xterm.js.' README.md
 check min-api grep -Fxq '        minSdk 29' app/build.gradle
 check target-api grep -Fxq '        targetSdk 28' app/build.gradle
-check version-code grep -Fxq '        versionCode 35' app/build.gradle
-check version-name grep -Fxq "        versionName '0.27.0'" app/build.gradle
+check version-code grep -Fxq '        versionCode 36' app/build.gradle
+check version-name grep -Fxq "        versionName '0.28.0'" app/build.gradle
 check ndk-r27d grep -Fxq "    ndkVersion '27.3.13750724'" app/build.gradle
 check arm64-only grep -Fxq "            abiFilters 'arm64-v8a'" app/build.gradle
 check generated-jni grep -Fq 'generated/jniLibs' app/build.gradle
@@ -142,9 +142,11 @@ check geometry-native-capability grep -Fq 'android-window-geometry' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt
 check platform-adapter grep -Fq 'class TerminalPlatformAdapter' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
-check floating-actionmode grep -Fq 'ActionMode.TYPE_FLOATING' \
+check selection-popupwindow grep -Fq 'PopupWindow(' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
-check floating-actionmode-callback grep -Fq 'ActionMode.Callback2' \
+check selection-popupwindow-position grep -Fq 'getLocationOnScreen' \
+  app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
+check selection-popupwindow-ime grep -Fq 'PopupWindow.INPUT_METHOD_NOT_NEEDED' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalPlatformAdapter.kt
 check selection-platform-event grep -Fq 'PLATFORM_EVENT' \
   app/src/main/kotlin/io/github/daylight00/androidterminal/TerminalContract.kt

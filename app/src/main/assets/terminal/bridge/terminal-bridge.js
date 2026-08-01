@@ -234,10 +234,19 @@
     showSelectionActions(position = {}) {
       const x = Number(position && position.x);
       const y = Number(position && position.y);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      const viewportWidth = Number(window.innerWidth);
+      const viewportHeight = Number(window.innerHeight);
+      if (!Number.isFinite(x) || !Number.isFinite(y) ||
+          !Number.isFinite(viewportWidth) || viewportWidth <= 0 ||
+          !Number.isFinite(viewportHeight) || viewportHeight <= 0) {
         return Promise.reject(new TypeError('A finite selection action anchor is required.'));
       }
-      return requestPlatform(contract.platformOperations.selectionActionsShow, {x, y});
+      return requestPlatform(contract.platformOperations.selectionActionsShow, {
+        x,
+        y,
+        viewportWidth,
+        viewportHeight
+      });
     },
     hideSelectionActions() {
       return requestPlatform(contract.platformOperations.selectionActionsHide);

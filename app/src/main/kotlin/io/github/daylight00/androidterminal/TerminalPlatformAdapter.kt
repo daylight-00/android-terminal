@@ -8,12 +8,19 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.SystemClock
+import android.graphics.Color
 import android.graphics.Rect
-import android.view.ActionMode
-import android.view.Menu
-import android.view.MenuItem
-import android.view.View
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.HapticFeedbackConstants
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.LinearLayout
+import android.widget.PopupWindow
+import android.widget.TextView
 import android.view.inputmethod.InputMethodManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.WebView
@@ -33,47 +40,7 @@ internal class TerminalPlatformAdapter(
     private val accessibilityManager = activity.getSystemService(AccessibilityManager::class.java)
     private val inputMethodManager = activity.getSystemService(InputMethodManager::class.java)
     private val documentTransport = TerminalDocumentTransport(activity)
-    private var selectionActionMode: ActionMode? = null
-    private var selectionAnchorX = 0
-    private var selectionAnchorY = 0
-
-    private val selectionActionModeCallback = object : ActionMode.Callback2() {
-        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-            menu.add(Menu.NONE, MENU_COPY, 0, activity.getText(android.R.string.copy))
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-            menu.add(Menu.NONE, MENU_PASTE, 1, activity.getText(android.R.string.paste))
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-            menu.add(Menu.NONE, MENU_SELECT_ALL, 2, activity.getText(android.R.string.selectAll))
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            return true
-        }
-
-        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean = false
-
-        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
-            val action = when (item.itemId) {
-                MENU_COPY -> SELECTION_ACTION_COPY
-                MENU_PASTE -> SELECTION_ACTION_PASTE
-                MENU_SELECT_ALL -> SELECTION_ACTION_SELECT_ALL
-                else -> return false
-            }
-            onSelectionAction(action)
-            if (action != SELECTION_ACTION_SELECT_ALL) mode.finish()
-            return true
-        }
-
-        override fun onDestroyActionMode(mode: ActionMode) {
-            if (selectionActionMode === mode) selectionActionMode = null
-        }
-
-        override fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {
-            val width = view.width.coerceAtLeast(1)
-            val height = view.height.coerceAtLeast(1)
-            val x = selectionAnchorX.coerceIn(0, width - 1)
-            val y = selectionAnchorY.coerceIn(0, height - 1)
-            outRect.set(x, y, (x + 1).coerceAtMost(width), (y + 1).coerceAtMost(height))
-        }
-    }
+    private var selectionPopupWindow: PopupWindow? = null
 
     private val accessibilityStateListener =
         AccessibilityManager.AccessibilityStateChangeListener { publishState() }
@@ -94,8 +61,8 @@ internal class TerminalPlatformAdapter(
     override fun close() {
         if (closed) return
         closed = true
-        selectionActionMode?.finish()
-        selectionActionMode = null
+        selectionPopupWindow?.dismiss()
+        selectionPopupWindow = null
         pendingDocumentRequest = null
         accessibilityManager?.removeAccessibilityStateChangeListener(accessibilityStateListener)
         accessibilityManager?.removeTouchExplorationStateChangeListener(touchExplorationStateListener)
@@ -288,36 +255,144 @@ internal class TerminalPlatformAdapter(
     }
 
     private fun showSelectionActions(payload: JSONObject): TerminalPlatformResult {
-        if (!terminalView.isAttachedToWindow) {
-            return TerminalPlatformResult.failure("terminal WebView is not attached")
+        if (!terminalView.isAttachedToWindow || terminalView.width <= 0 || terminalView.height <= 0) {
+            return TerminalPlatformResult.failure("terminal WebView is not attached or laid out")
         }
         val x = payload.optDouble("x", Double.NaN)
         val y = payload.optDouble("y", Double.NaN)
-        if (!x.isFinite() || !y.isFinite()) {
+        val viewportWidth = payload.optDouble("viewportWidth", Double.NaN)
+        val viewportHeight = payload.optDouble("viewportHeight", Double.NaN)
+        if (!x.isFinite() || !y.isFinite() ||
+            !viewportWidth.isFinite() || viewportWidth <= 0.0 ||
+            !viewportHeight.isFinite() || viewportHeight <= 0.0
+        ) {
             return TerminalPlatformResult.failure("selection action anchor is invalid")
         }
-        selectionAnchorX = x.toInt()
-        selectionAnchorY = y.toInt()
-        val current = selectionActionMode
-        if (current != null) {
-            current.invalidateContentRect()
-            return TerminalPlatformResult.success(JSONObject().put("shown", true).put("reused", true))
+
+        val popup = selectionPopupWindow ?: createSelectionPopupWindow().also {
+            selectionPopupWindow = it
         }
-        val mode = terminalView.startActionMode(
-            selectionActionModeCallback,
-            ActionMode.TYPE_FLOATING,
-        ) ?: return TerminalPlatformResult.failure("floating selection action mode is unavailable")
-        selectionActionMode = mode
-        mode.invalidateContentRect()
-        return TerminalPlatformResult.success(JSONObject().put("shown", true).put("reused", false))
+        val localX = (x * terminalView.width.toDouble() / viewportWidth).toInt()
+            .coerceIn(0, terminalView.width - 1)
+        val localY = (y * terminalView.height.toDouble() / viewportHeight).toInt()
+            .coerceIn(0, terminalView.height - 1)
+        val location = IntArray(2)
+        terminalView.getLocationOnScreen(location)
+        val anchorScreenX = location[0] + localX
+        val anchorScreenY = location[1] + localY
+
+        val content = popup.contentView
+        content.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        val popupWidth = content.measuredWidth.coerceAtLeast(dp(1))
+        val popupHeight = content.measuredHeight.coerceAtLeast(dp(1))
+        val visibleFrame = Rect()
+        terminalView.getWindowVisibleDisplayFrame(visibleFrame)
+        val margin = dp(8)
+        val gap = dp(10)
+        val minimumX = visibleFrame.left + margin
+        val maximumX = (visibleFrame.right - popupWidth - margin).coerceAtLeast(minimumX)
+        val popupX = (anchorScreenX - popupWidth / 2).coerceIn(minimumX, maximumX)
+        val minimumY = visibleFrame.top + margin
+        val maximumY = (visibleFrame.bottom - popupHeight - margin).coerceAtLeast(minimumY)
+        var popupY = anchorScreenY - popupHeight - gap
+        if (popupY < minimumY) popupY = anchorScreenY + gap
+        popupY = popupY.coerceIn(minimumY, maximumY)
+
+        val reused = popup.isShowing
+        if (reused) {
+            popup.update(popupX, popupY, -1, -1)
+        } else {
+            popup.showAtLocation(terminalView, Gravity.NO_GRAVITY, popupX, popupY)
+        }
+        return TerminalPlatformResult.success(
+            JSONObject()
+                .put("shown", true)
+                .put("reused", reused)
+                .put("anchorX", anchorScreenX)
+                .put("anchorY", anchorScreenY)
+                .put("popupX", popupX)
+                .put("popupY", popupY),
+        )
     }
 
     private fun hideSelectionActions(): TerminalPlatformResult {
-        val mode = selectionActionMode
-        selectionActionMode = null
-        mode?.finish()
-        return TerminalPlatformResult.success(JSONObject().put("hidden", mode != null))
+        val popup = selectionPopupWindow
+        selectionPopupWindow = null
+        popup?.dismiss()
+        return TerminalPlatformResult.success(JSONObject().put("hidden", popup != null))
     }
+
+    private fun createSelectionPopupWindow(): PopupWindow {
+        val content = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, dp(4), 0)
+            background = GradientDrawable().apply {
+                setColor(resolveThemeColor(android.R.attr.colorBackgroundFloating, Color.DKGRAY))
+                cornerRadius = dp(12).toFloat()
+            }
+            elevation = dp(8).toFloat()
+            addView(selectionActionView(android.R.string.copy, SELECTION_ACTION_COPY))
+            addView(selectionActionView(android.R.string.paste, SELECTION_ACTION_PASTE))
+            addView(selectionActionView(android.R.string.selectAll, SELECTION_ACTION_SELECT_ALL))
+        }
+        val popup = PopupWindow(
+            content,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            false,
+        ).apply {
+            isTouchable = true
+            isOutsideTouchable = true
+            isClippingEnabled = true
+            inputMethodMode = PopupWindow.INPUT_METHOD_NOT_NEEDED
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            elevation = dp(8).toFloat()
+        }
+        popup.setOnDismissListener {
+            if (selectionPopupWindow === popup) selectionPopupWindow = null
+        }
+        return popup
+    }
+
+    private fun selectionActionView(label: Int, action: String): TextView = TextView(activity).apply {
+        text = activity.getText(label)
+        gravity = Gravity.CENTER
+        minHeight = dp(48)
+        setPadding(dp(16), 0, dp(16), 0)
+        setTextColor(resolveThemeColor(android.R.attr.textColorPrimary, Color.WHITE))
+        val selectableBackground = TypedValue()
+        if (activity.theme.resolveAttribute(
+                android.R.attr.selectableItemBackgroundBorderless,
+                selectableBackground,
+                true,
+            ) && selectableBackground.resourceId != 0
+        ) {
+            setBackgroundResource(selectableBackground.resourceId)
+        }
+        isClickable = true
+        isFocusable = false
+        setOnClickListener {
+            onSelectionAction(action)
+            if (action != SELECTION_ACTION_SELECT_ALL) {
+                selectionPopupWindow?.dismiss()
+                selectionPopupWindow = null
+            }
+        }
+    }
+
+    private fun resolveThemeColor(attribute: Int, fallback: Int): Int {
+        val value = TypedValue()
+        if (!activity.theme.resolveAttribute(attribute, value, true)) return fallback
+        return if (value.resourceId != 0) activity.getColor(value.resourceId) else value.data
+    }
+
+    private fun dp(value: Int): Int =
+        (value * activity.resources.displayMetrics.density + 0.5f).toInt()
 
     private fun readClipboard(): TerminalPlatformResult {
         if (!terminalView.hasWindowFocus()) {
@@ -410,9 +485,6 @@ internal class TerminalPlatformAdapter(
     private companion object {
         const val REQUEST_IMPORT_DOCUMENT = 0x5401
         const val REQUEST_EXPORT_DOCUMENT = 0x5402
-        const val MENU_COPY = 0x5501
-        const val MENU_PASTE = 0x5502
-        const val MENU_SELECT_ALL = 0x5503
         const val SELECTION_ACTION_COPY = "copy"
         const val SELECTION_ACTION_PASTE = "paste"
         const val SELECTION_ACTION_SELECT_ALL = "select-all"

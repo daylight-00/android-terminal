@@ -52,7 +52,7 @@
       'android-document-transport',
       'android-shared-storage-direct-path',
       'android-native-account-session',
-      'android-floating-selection-actionmode',
+      'android-selection-popupwindow',
       'xterm-serialized-state'
     ]),
     pageCapabilities: Object.freeze([

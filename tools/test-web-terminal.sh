@@ -303,6 +303,8 @@ const paths = process.argv.slice(2);
     atob(value) { return Buffer.from(value, 'base64').toString('binary'); }
   };
   context.window = context;
+  context.innerWidth = 360;
+  context.innerHeight = 720;
   context.visualViewport = {
     addEventListener(type, callback) { viewportListeners.set(type, callback); }
   };
@@ -516,8 +518,10 @@ const paths = process.argv.slice(2);
   );
   const showActionsPromise = context.AndroidTerminalPlatform.showSelectionActions({x: 120, y: 240});
   const showActionsRequest = latestRequest('selection-actions-show');
-  if (showActionsRequest.payload.x !== 120 || showActionsRequest.payload.y !== 240) {
-    throw new Error('selection action anchor mismatch');
+  if (showActionsRequest.payload.x !== 120 || showActionsRequest.payload.y !== 240 ||
+      showActionsRequest.payload.viewportWidth !== 360 ||
+      showActionsRequest.payload.viewportHeight !== 720) {
+    throw new Error('selection action anchor or viewport mismatch');
   }
   completeRequest(showActionsRequest, {shown: true});
   if (!(await showActionsPromise).shown) throw new Error('selection action show result mismatch');
