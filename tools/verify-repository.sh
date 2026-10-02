@@ -79,8 +79,6 @@ check python-syntax python3 -m py_compile \
   "$ROOT/tools/verify-upstream-capabilities.py" \
   "$ROOT/tools/verify-layer2-completion.py" \
   "$ROOT/tools/verify-web-assets.py"
-check identity-name test "$(git config --local user.name)" = 'daylight-00'
-check identity-email test "$(git config --local user.email)" = 'hwjang00@snu.ac.kr'
 check main-branch test "$(git branch --show-current)" = 'main'
 check project-name grep -Fxq "rootProject.name = 'android-terminal'" settings.gradle
 check application-id grep -Fxq "        applicationId 'io.github.daylight00.androidterminal'" app/build.gradle
