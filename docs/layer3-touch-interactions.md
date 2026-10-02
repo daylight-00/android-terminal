@@ -2,17 +2,19 @@
 
 This policy sits above the completed Layer 2 terminal surface. It does not change the PTY, shell, xterm.js vendor assets, Android account/session contract, or terminal transport.
 
-## Device finding
+## Why Layer 3 owns scrolling
 
-The initial device wave confirmed that pinch font zoom worked but one-finger scrolling did not. The earlier assumption that the pinned xterm.js `6.0.0` browser runtime connected its internal touch recognizer to the terminal viewport was incorrect.
-
-The pinned public runtime provides `Terminal.scrollLines()` and a scrollback viewport, but its `MouseService` only converts pointer coordinates and its `Viewport` connects the scroll model to the browser scrollbar and wheel path. The later upstream touch-to-viewport integration must not be attributed retroactively to the pinned release.
+- **Pinned runtime** — xterm.js `6.0.0` provides `Terminal.scrollLines()` and a scrollback viewport
+- **No touch recognizer** — its `MouseService` only converts pointer coordinates, and its `Viewport` connects the scroll model to the browser scrollbar and wheel path
+- **Device result** — pinch font zoom worked and one-finger scrolling did not
+- **Later upstream work** — a later upstream touch-to-viewport integration does not apply to the pinned release
 
 ## Authority
 
-The terminal page remains fixed. Browser page scrolling and WebView page zoom are not enabled. xterm remains the sole owner of the terminal buffer and viewport position.
-
-Layer 3 owns only touch interpretation:
+- The terminal page stays fixed; browser page scrolling and WebView page zoom are not enabled
+- xterm is the sole owner of the terminal buffer and viewport position
+- The xterm scrollbar stays browser-owned; gestures that begin on it are not intercepted
+- Layer 3 owns only touch interpretation:
 
 ```text
 one-finger CSS-pixel movement
@@ -21,29 +23,23 @@ one-finger CSS-pixel movement
 → public Terminal.scrollLines()
 ```
 
-This is not a second scrollback model. Layer 3 stores only sub-row pixel remainder and short-lived gesture velocity; xterm still clamps and applies the authoritative viewport position.
-
-The existing xterm scrollbar remains browser-owned. Gestures that begin on the scrollbar are not intercepted.
+This is not a second scrollback model. Layer 3 keeps only the sub-row pixel remainder and short-lived gesture velocity; xterm clamps and applies the authoritative viewport position.
 
 ## One-finger scrolling
 
-A drag starts only after a six-pixel threshold, preserving ordinary taps. Motion is accumulated in CSS pixels and converted to rows using the rendered `.xterm-screen` height divided by `terminal.rows`. A font-size fallback is used only when rendered geometry is unavailable.
-
-The direction follows normal touch content semantics:
-
-- dragging down requests negative rows, revealing older scrollback;
-- dragging up requests positive rows, returning toward the live bottom.
-
-On release, recent motion samples drive a bounded `requestAnimationFrame` deceleration. Starting a new touch or pinch cancels the previous fling.
-
-The current policy is deliberately limited to the normal buffer when terminal mouse tracking is inactive. It does not synthesize mouse-wheel protocol messages or alternate-buffer arrow keys.
-
+- **Threshold** — a drag starts after six pixels, preserving ordinary taps
+- **Rows** — motion accumulates in CSS pixels and converts using the rendered `.xterm-screen` height divided by `terminal.rows`; a font-size fallback applies only when rendered geometry is unavailable
+- **Direction** — normal touch content semantics
+  - drag down requests negative rows, revealing older scrollback
+  - drag up requests positive rows, returning toward the live bottom
+- **Fling** — on release, recent motion samples drive a bounded `requestAnimationFrame` deceleration; a new touch or pinch cancels it
+- **Scope** — normal buffer with terminal mouse tracking inactive; no mouse-wheel protocol messages and no alternate-buffer arrow keys
 
 ## Soft-keyboard focus preservation
 
-The first device attempt suppressed `mousedown`, `mouseup`, and `click` only after a drag or pinch had already committed. That was too late on Android WebView: the initial `touchstart` could already arm xterm/WebView focus activation, with the soft keyboard appearing when the fingers were released.
+Suppressing `mousedown`, `mouseup`, and `click` only after a drag or pinch has committed is too late on Android WebView: the initial `touchstart` can already arm xterm/WebView focus activation, and the keyboard appears on release.
 
-Layer 3 now owns a normal-buffer terminal-screen touch from the first `touchstart`. It prevents the browser compatibility activation for the entire candidate gesture and decides the outcome itself:
+Layer 3 owns a normal-buffer terminal-screen touch from the first `touchstart`. It prevents the browser compatibility activation for the whole candidate gesture and decides the outcome itself:
 
 ```text
 movement crosses threshold or a second finger joins
@@ -57,18 +53,31 @@ release below threshold
 → request Android InputMethodManager activation through the existing Layer 2 platform bridge
 ```
 
-Synthetic JavaScript mouse events are not trusted Android input events, so `terminal.focus()` alone can focus the hidden xterm textarea without causing WebView to reopen the IME. The ordinary-tap path therefore follows DOM focus with an explicit native `soft-input-show` platform request. Scroll and pinch never send that request.
+- **Soft-input request**
+  - synthetic JavaScript mouse events are not trusted Android input, so `terminal.focus()` alone can focus the hidden xterm textarea without WebView reopening the IME
+  - the ordinary-tap path follows DOM focus with an explicit native `soft-input-show` request
+  - scroll and pinch never send it
+- **IME visibility** — Android reports it through the exact `WindowInsets` delivered to the Activity root
+- **No blur at touch boundaries** — Layer 3 never uses that asynchronous state to blur xterm at `touchstart` or `touchend`; a briefly stale false value lowers the keyboard and raises it again when the gesture completes
+- **Visible-to-hidden transition** — on `softInputVisible: true → false`, Layer 3 calls public `terminal.blur()` exactly once
+  - releases the hidden textarea focus retained after the keyboard is dismissed, so a later scroll, pinch, or long press does not reopen the IME
+  - repeated hidden-state updates do not blur again
 
-Android reports IME visibility through the exact `WindowInsets` delivered to the Activity root. Layer 3 never uses that asynchronous state to blur xterm at `touchstart` or `touchend`; device evidence showed that even a briefly stale false value caused the keyboard to lower immediately and then rise again when the gesture completed.
+Stable policy:
 
-When Android reports the specific transition `softInputVisible: true → false`, Layer 3 calls the public `terminal.blur()` exactly once. This releases the hidden xterm textarea focus retained after the user dismisses the keyboard, preventing WebView from reopening the IME on the release of a later scroll, pinch, or long press. Repeated hidden-state updates do not blur again.
-
-The stable policy is: an observed visible-to-hidden IME transition releases retained xterm input, and the start of every later hidden-IME gesture reasserts that blur before WebView can reactivate the focused helper textarea. Visible-IME gestures never blur. Scroll, pinch, and long-press release without focusing or requesting soft input; only a completed short tap replays the compatibility mouse sequence, focuses xterm, and requests Android soft input. IME state remains outside gesture classification except for the hidden-gesture focus guard.
-
+- an observed visible-to-hidden IME transition releases retained xterm input
+- the start of every later hidden-IME gesture reasserts that blur before WebView can reactivate the helper textarea
+- visible-IME gestures never blur
+- scroll, pinch, and long-press release neither focus nor request soft input
+- only a completed short tap replays the compatibility mouse sequence, focuses xterm, and requests Android soft input
+- IME state stays outside gesture classification except for the hidden-gesture focus guard
 
 ## Long-press selection
 
-A stationary one-finger touch becomes selection after 500 milliseconds. Synthetic xterm mouse selection is not used because its mousedown path also focuses the hidden textarea and can activate the Android keyboard. Layer 3 instead maps the touch to a public xterm buffer cell, uses the public `terminal.options.wordSeparator` value to find the initial word within that line, and applies the result through public `terminal.select(column, bufferRow, length)`.
+A stationary one-finger touch becomes selection after 500 milliseconds.
+
+- **Why not xterm mouse selection** — its `mousedown` path also focuses the hidden textarea and can activate the Android keyboard
+- **Instead** — Layer 3 maps the touch to a public xterm buffer cell, finds the initial word in that line with public `terminal.options.wordSeparator`, and applies it through public `terminal.select(column, bufferRow, length)`
 
 ```text
 500 ms stationary hold
@@ -85,7 +94,8 @@ release
 → no focus or IME request
 ```
 
-Crossing the six-pixel movement threshold before the timer fires cancels selection and commits scrolling. A second finger cancels selection and commits pinch. The selection model remains xterm's public buffer and public selection API; Layer 3 stores only the gesture anchors.
+- **Cancel** — crossing the six-pixel threshold before the timer fires cancels selection and commits scrolling; a second finger cancels selection and commits pinch
+- **Model** — xterm's public buffer and selection API; Layer 3 keeps only the gesture anchors
 
 ## Selection actions (planned)
 
@@ -95,13 +105,16 @@ Crossing the six-pixel movement threshold before the timer fires cancels selecti
 - **Copy** — keeps the selected range and closes the menu
 - **Paste** — calls `terminal.paste()`, clears the selection, and closes the menu
 - **Select all** — calls `terminal.selectAll()` and keeps the menu open
+- **Clipboard data** — travels through the existing bounded Layer 2 bridge
 - **Handles** — movable selection handles are a separate, later wave
 
 ## Pinch font zoom
 
-Two-finger pinch changes the public `Terminal.options.fontSize` value in one-pixel steps whenever the pinch distance crosses a ten-percent threshold, then requests the existing Layer 2 geometry synchronization.
+- **Step** — two-finger pinch changes public `Terminal.options.fontSize` in one-pixel steps whenever the pinch distance crosses a ten-percent threshold, then requests the existing Layer 2 geometry synchronization
+- **Scale** — the user scale is bounded to `0.5–3.0` and is session-local
+- **WebView** — pinch does not use WebView page scaling
 
-The effective font size is:
+Effective font size:
 
 ```text
 upstream xterm font size
@@ -109,22 +122,18 @@ upstream xterm font size
 × Layer 3 user font scale
 ```
 
-The user scale is bounded to `0.5–3.0` and remains session-local. Pinch does not use WebView page scaling.
-
 ## Deliberate nonclaims
 
 This policy does not add:
 
-- Android-style movable text-selection handles;
-- movable selection handles attached to the native `PopupWindow`;
-- a supported selection action menu (planned);
-- a Layer 3 key toolbar;
-- persistent zoom preferences;
-- browser page scrolling or page zoom;
-- touch wheel-protocol synthesis for mouse-tracking applications;
-- alternate-buffer swipe-to-arrow translation.
-
-Long-press xterm selection is active. The selection action menu is planned; movable handles remain a separate interaction wave.
+- Android-style movable text-selection handles
+- movable selection handles attached to the native `PopupWindow`
+- a supported selection action menu (planned)
+- a Layer 3 key toolbar
+- persistent zoom preferences
+- browser page scrolling or page zoom
+- touch wheel-protocol synthesis for mouse-tracking applications
+- alternate-buffer swipe-to-arrow translation
 
 ## Bounded device check
 
@@ -134,16 +143,25 @@ Generate scrollback:
 seq 1 1000
 ```
 
-Verify that dragging down reveals older output, dragging up returns toward the prompt, and a faster release continues briefly as a fling. Then confirm that pinch zoom still changes glyph size and terminal geometry without replacing the shell session.
+- Dragging down reveals older output
+- Dragging up returns toward the prompt
+- A faster release continues briefly as a fling
+- Pinch zoom still changes glyph size and terminal geometry without replacing the shell session
 
-## Android WebView native-selection experiment outcome
+## Rejected approach: WebView-native selection
 
-Device trials of versions 0.25.0 and 0.25.1 rejected the browser-native path for this app:
+Device trials of the browser-native path failed for this app:
 
-- xterm DOM rows did not become selectable through Android WebView long press,
-- Android selection handles did not appear,
-- exposing the xterm helper textarea produced only an editor Paste menu,
-- WebView native overflow did not scroll xterm scrollback,
-- handing one-finger touch from WebView to Layer 3 after a movement threshold caused interrupted scrolling.
+- xterm DOM rows did not become selectable through Android WebView long press
+- Android selection handles did not appear
+- exposing the xterm helper textarea produced only an editor Paste menu
+- WebView native overflow did not scroll xterm scrollback
+- handing one-finger touch from WebView to Layer 3 after a movement threshold interrupted scrolling
 
-The production baseline therefore keeps xterm as the viewport authority and restores the proven public `scrollLines()` drag/inertia path. Pinch continues to change public `terminal.options.fontSize` and synchronize PTY geometry. The production path now uses xterm's public buffer and `terminal.select()` APIs for long press and drag expansion without activating the hidden textarea. Browser DOM selection is not active. xterm remains the production selection authority. The planned selection menu will use a native `PopupWindow` only for transient presentation; movable handles remain future work, and clipboard data travels through the existing bounded Layer 2 bridge.
+Resulting design:
+
+- xterm stays the viewport authority, with the public `scrollLines()` drag/inertia path
+- pinch changes public `terminal.options.fontSize` and synchronizes PTY geometry
+- long press and drag expansion use xterm's public buffer and `terminal.select()` without activating the hidden textarea
+- browser DOM selection is not active
+- xterm stays the selection authority; a native `PopupWindow` would own only transient menu presentation

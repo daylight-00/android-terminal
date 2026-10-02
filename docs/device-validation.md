@@ -11,8 +11,9 @@ AndroidTerminalLayer2.completion.manifest
 AndroidTerminalLayer2.completion.snapshot()
 ```
 
-The manifest status is `repository-complete-device-validation-pending`. The image path requires CSP `wasm-unsafe-eval` and does not enable JavaScript `unsafe-eval`. The snapshot reports attachment state, renderer state, geometry, title, progress, Unicode providers, ligature activation, image storage, and Android platform-state availability without adding product UI.
-
+- **Manifest status** — `repository-complete-device-validation-pending`
+- **Image path** — requires CSP `wasm-unsafe-eval`; JavaScript `unsafe-eval` stays disabled
+- **Snapshot** — reports attachment state, renderer state, geometry, title, progress, Unicode providers, ligature activation, image storage, and Android platform-state availability, with no product UI
 
 ## SAF destination probes
 
@@ -26,7 +27,12 @@ AndroidTerminalPlatform.importDocument({
 })
 ```
 
-The first explicit import must create a provider-named file directly under HOME. The second may create `HOME/incoming` only as the result of that explicit operation. Layer 2 must never create `HOME/imports`, must reject absolute or parent-traversing destinations, must preserve existing files through collision renaming, and must expose no `content://` URI as a shell path.
+- **First import** — creates a provider-named file directly under `HOME`
+- **Second import** — may create `HOME/incoming` only as the result of that explicit operation
+- **Layer 2** must never create `HOME/imports`
+- **Layer 2** rejects absolute or parent-traversing destinations
+- **Layer 2** preserves existing files through collision renaming
+- **Layer 2** exposes no `content://` URI as a shell path
 
 ## Shell and terminal probes
 

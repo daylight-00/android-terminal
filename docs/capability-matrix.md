@@ -1,6 +1,9 @@
 # Upstream capability matrix
 
-This document is the human-readable view of [`upstream-capabilities.json`](upstream-capabilities.json), the machine-verified capability authority. [`layer2-completion.json`](layer2-completion.json) binds that inventory to the exact asset receipt, runtime extension contract, WebView requirements, and remaining device gate.
+The human-readable view of the capability inventory.
+
+- **Authority** — [`upstream-capabilities.json`](upstream-capabilities.json), machine-verified
+- **Closure** — [`layer2-completion.json`](layer2-completion.json) binds that inventory to the asset receipt, runtime extension contract, WebView requirements, and remaining device gate
 
 The project connects only the necessary intersection between xterm.js/System WebView and Android native operation:
 
@@ -82,7 +85,11 @@ The official xterm.js repository currently lists the following 13 maintained add
 | `@xterm/addon-web-links` | Layer 2 runtime | Connected | Automatic | Detected links use validated Android `ACTION_VIEW` bridge | Link UX/history/browser behavior |
 | `@xterm/addon-webgl` | Layer 2 runtime | Connected with bounds | Automatic attempt | WebGL2 with one-way DOM fallback | Renderer preference UI |
 
-The inventory follows the current maintained-addon list, while implementation pins must be compatible with the repository's pinned `@xterm/xterm@6.0.0`. Stable addon coordinates are exact. Existing locked packages retain fixed integrity values; newly connected packages resolve the exact version metadata from the official npm registry, verify the returned SHA-512 integrity and tarball URL, and must reproduce the same receipt and Git tree in isolated preflight and canonical application.
+- **List** — follows the current maintained-addon list
+- **Compatibility** — implementation pins must work with the pinned `@xterm/xterm@6.0.0`
+- **Coordinates** — stable addon coordinates are exact
+- **Existing packages** — keep fixed integrity values
+- **Newly connected packages** — resolve exact-version metadata from the official npm registry, verify the returned SHA-512 integrity and tarball URL, and must reproduce the same receipt and Git tree in isolated preflight and canonical application
 
 `@xterm/addon-canvas` is legacy for this baseline. The selected renderer path is xterm core DOM plus the official WebGL addon, so canvas is not part of the maintained inventory or completion gate.
 
